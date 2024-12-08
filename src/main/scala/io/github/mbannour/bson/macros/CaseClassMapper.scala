@@ -7,9 +7,9 @@ import scala.reflect.ClassTag
 
 object CaseClassMapper:
 
-  inline def caseClassMap[T]: Map[String, Class[?]] = ${ caseClassMapImpl[T] }
+  private[mbannour] inline def caseClassMap[T]: Map[String, Class[?]] = ${ caseClassMapImpl[T] }
 
-  def caseClassMapImpl[T: Type](using Quotes): Expr[Map[String, Class[?]]] =
+  private[mbannour] def caseClassMapImpl[T: Type](using Quotes): Expr[Map[String, Class[?]]] =
 
     import quotes.reflect.*
 

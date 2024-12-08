@@ -9,7 +9,7 @@ import scala.reflect.ClassTag
 
 object CaseClassBsonWriter:
 
-  inline def writeCaseClassData[T](
+  private[mbannour] inline def writeCaseClassData[T](
       className: String,
       writer: BsonWriter,
       value: T,
@@ -19,7 +19,7 @@ object CaseClassBsonWriter:
   ): Unit =
     ${ writeCaseClassDataImpl[T]('className, 'writer, 'value, 'encoderContext, 'encodeNone, 'registry) }
 
-  def writeCaseClassDataImpl[T: Type](
+  private[mbannour] def writeCaseClassDataImpl[T: Type](
       className: Expr[String],
       writer: Expr[BsonWriter],
       value: Expr[T],

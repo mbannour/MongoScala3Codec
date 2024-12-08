@@ -40,6 +40,10 @@ jobs:
         run: |
           sbt ++${{ matrix.scala-version }} test
 
+      - name: Run integration tests
+        run: |
+          sbt ++${{ matrix.scala-version }} integrationTests/test
+
       - name: Clear cache (avoid caching sensitive files)
         run: |
           rm -rf ~/.ivy2/cache

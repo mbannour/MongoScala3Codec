@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs
 
-import io.github.mbannour.bson.macros.CaseClassCodecGenerator.generateCodec
+import CaseClassCodecGenerator.generateCodec
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
@@ -9,13 +9,12 @@ import scala.reflect.ClassTag
 
 object CodecProviderMacro:
 
-  inline def createCodecProvider[T](inline codecRegistry: CodecRegistry, encodeNone: Boolean)(using
+  inline def createCodecProvider[T](inline encodeNone: Boolean)(using
       inline classTag: ClassTag[T]
   ): CodecProvider =
-    ${ createCodecProviderImpl[T]('codecRegistry, 'encodeNone, 'classTag) }
+    ${ createCodecProviderImpl[T]('encodeNone, 'classTag) }
 
   private def createCodecProviderImpl[T: Type](
-      codecRegistry: Expr[CodecRegistry],
       encodeNone: Expr[Boolean],
       classTag: Expr[ClassTag[T]]
   )(using Quotes): Expr[CodecProvider] =
@@ -27,8 +26,9 @@ object CodecProviderMacro:
     if !mainTypeSymbol.flags.is(Flags.Case) then
       report.errorAndAbort(s"${mainTypeSymbol.name} is not a case class and cannot be used as a Codec.")
 
-    val codecExpr = '{ generateCodec[T]($codecRegistry, $encodeNone)(using $classTag) }
-
+    val codecExpr = '{
+      generateCodec[T]($encodeNone)(using $classTag)
+    }
     '{
       new CodecProvider:
         @SuppressWarnings(Array("unchecked"))

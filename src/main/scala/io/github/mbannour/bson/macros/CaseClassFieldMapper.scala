@@ -5,11 +5,11 @@ import scala.reflect.ClassTag
 
 object CaseClassFieldMapper:
 
-  inline def createClassFieldTypeArgsMap[T]: Map[String, Map[String, List[Class[?]]]] = ${
+  private[mbannour] inline def createClassFieldTypeArgsMap[T]: Map[String, Map[String, List[Class[?]]]] = ${
     createClassFieldTypeArgsMapImpl[T]
   }
 
-  def createClassFieldTypeArgsMapImpl[T: Type](using q: Quotes): Expr[Map[String, Map[String, List[Class[?]]]]] =
+  private[mbannour] def createClassFieldTypeArgsMapImpl[T: Type](using q: Quotes): Expr[Map[String, Map[String, List[Class[?]]]]] =
 
     import quotes.reflect.*
 

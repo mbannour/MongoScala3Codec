@@ -6,11 +6,11 @@ import scala.quoted.*
 
 object AnnotationName:
 
-  inline def invokeFindAnnotationValue[T](fieldName: String): Option[String] = ${
+  private[mbannour] inline def invokeFindAnnotationValue[T](fieldName: String): Option[String] = ${
     AnnotationName.findAnnotationValue[T]('fieldName)
   }
 
-  def findAnnotationValue[T: Type](using Quotes)(fieldName: Expr[String]): Expr[Option[String]] =
+  private[mbannour] def findAnnotationValue[T: Type](using Quotes)(fieldName: Expr[String]): Expr[Option[String]] =
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T]

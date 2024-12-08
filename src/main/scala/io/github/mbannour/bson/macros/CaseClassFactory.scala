@@ -4,9 +4,9 @@ import scala.quoted.*
 
 object CaseClassFactory:
 
-  inline def getInstance[T](fieldData: Map[String, Any]): T = ${ getInstanceImpl[T]('fieldData) }
+  private[mbannour] inline def getInstance[T](fieldData: Map[String, Any]): T = ${ getInstanceImpl[T]('fieldData) }
 
-  def getInstanceImpl[T: Type](fieldData: Expr[Map[String, Any]])(using Quotes): Expr[T] =
+  private[mbannour] def getInstanceImpl[T: Type](fieldData: Expr[Map[String, Any]])(using Quotes): Expr[T] =
 
     import quotes.reflect.*
 

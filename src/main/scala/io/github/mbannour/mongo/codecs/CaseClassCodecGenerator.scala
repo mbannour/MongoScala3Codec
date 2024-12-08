@@ -1,33 +1,48 @@
-package io.github.mbannour.bson.macros
+package io.github.mbannour.mongo.codecs
 
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
 import org.bson.codecs.{Codec, DecoderContext, Encoder, EncoderContext}
-import org.bson.*
+import io.github.mbannour.bson.macros.*
+import org.bson.{BsonInvalidOperationException, BsonReader, BsonReaderMark, BsonType, BsonWriter}
 
 import java.util.UUID
 import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag
 
-/** Macro-based codec generator for BSON serialization and deserialization of case classes.
+/** `CaseClassCodecGenerator` is a macro-based codec generator for BSON serialization and deserialization of case classes, supporting nested
+  * and sealed case classes. It generates codecs at compile-time to ensure type safety and runtime performance.
   */
 object CaseClassCodecGenerator:
 
-  /** Entry point for generating a BSON codec for a specific type `T`. Validates that `T` is a case class at compile-time.
+  /** Generates a BSON codec for the given type `T`. This macro ensures that `T` is a case class and validates the type during compilation.
     *
-    * @param codecRegistry
-    *   CodecRegistry used for nested fields.
+    * @param encodeNone
+    *   Flag to indicate whether to encode `None` values in optional fields.
+    * @param classTag
+    *   A `ClassTag` for the type `T`, implicitly provided.
     * @tparam T
-    *   Type for which the codec is generated.
+    *   The case class type for which the codec is generated.
     * @return
-    *   A BSON codec instance for type `T`.
+    *   A BSON `Codec[T]` for the specified type.
     */
-  inline def generateCodec[T](codecRegistry: CodecRegistry, encodeNone: Boolean)(using classTag: ClassTag[T]): Codec[T] =
-    ${ generateCodecImpl[T]('codecRegistry, 'encodeNone, 'classTag) }
+  private[codecs] inline def generateCodec[T](encodeNone: Boolean)(using classTag: ClassTag[T]): Codec[T] =
+    ${ generateCodecImpl[T]('encodeNone, 'classTag) }
 
-  def generateCodecImpl[T: Type](codecRegistry: Expr[CodecRegistry], encodeNone: Expr[Boolean], classTag: Expr[ClassTag[T]])(using
-      Quotes
-  ): Expr[Codec[T]] =
+  /** Macro implementation for `generateCodec`. Validates the input type and creates a codec that supports BSON serialization and
+    * deserialization for the given case class.
+    *
+    * @param encodeNone
+    *   Compile-time constant flag for encoding `None` values.
+    * @param classTag
+    *   A compile-time constant representing the runtime class of `T`.
+    * @tparam T
+    *   The type of the case class for which the codec is generated.
+    * @return
+    *   A BSON `Codec[T]` for the specified type.
+    */
+  private def generateCodecImpl[T: Type](encodeNone: Expr[Boolean], classTag: Expr[ClassTag[T]])(using Quotes): Expr[Codec[T]] =
+
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T].typeSymbol
@@ -43,8 +58,10 @@ object CaseClassCodecGenerator:
         val classToCaseClassMap: Map[Class[?], Boolean] = ClassToCaseFlagMap.classToCaseClassMap[T]
         val classFieldTypeArgsMap: Map[String, Map[String, List[Class[?]]]] = CaseClassFieldMapper.createClassFieldTypeArgsMap[T]
         lazy val caseClassesMapInv: Map[Class[?], String] = caseClassesMap.map(_.swap)
+        lazy val codecRegistry = CodecRegistryManager.getCombinedCodecRegistry
+
         lazy val registry: CodecRegistry = CodecRegistries.fromRegistries(
-          $codecRegistry,
+          codecRegistry,
           CodecRegistries.fromCodecs(this)
         )
 
@@ -198,7 +215,7 @@ object CaseClassCodecGenerator:
                 val name = reader.readName
 
                 if name == classFieldName then
-                  val className = $codecRegistry.get(classOf[String]).decode(reader, decoderContext)
+                  val className = codecRegistry.get(classOf[String]).decode(reader, decoderContext)
                   Some(className)
                 else
                   reader.skipValue()

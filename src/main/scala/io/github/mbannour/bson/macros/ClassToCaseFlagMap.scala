@@ -5,9 +5,9 @@ import scala.reflect.ClassTag
 
 object ClassToCaseFlagMap:
 
-  inline def classToCaseClassMap[T]: Map[Class[?], Boolean] = ${ classToCaseClassMapImpl[T] }
+  private[mbannour] inline def classToCaseClassMap[T]: Map[Class[?], Boolean] = ${ classToCaseClassMapImpl[T] }
 
-  def classToCaseClassMapImpl[T: Type](using q: Quotes): Expr[Map[Class[?], Boolean]] =
+  private[mbannour] def classToCaseClassMapImpl[T: Type](using q: Quotes): Expr[Map[Class[?], Boolean]] =
 
     import quotes.reflect.*
 
