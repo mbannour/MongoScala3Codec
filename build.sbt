@@ -2,7 +2,6 @@
 val scala3Version = "3.5.2"
 
 ThisBuild / crossScalaVersions := Seq(
-  "3.3.0",
   "3.3.1",
   "3.4.0",
   "3.4.1",
@@ -28,7 +27,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.1-M2",
+    version := "0.0.1-M4",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codecs")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
