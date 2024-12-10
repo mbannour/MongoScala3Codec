@@ -183,30 +183,6 @@ Here’s a typical workflow using `CaseClassCodec`:
 6. **Perform MongoDB Operations**  
    Insert, query, and retrieve data seamlessly from your MongoDB collections.
 
-
-## Example Workflow
-
-Here’s a typical workflow using `CaseClassCodec`:
-
-1. **Define Case Classes**  
-   Represent your data model with case classes.
-
-2. **Generate Codecs**  
-   Use `CaseClassCodecGenerator` to create BSON codecs for your case classes.
-
-3. **Register Codecs**  
-   Add the generated codecs to `CodecRegistryManager` for centralized management.
-
-4. **Get Unified Registry**  
-   Retrieve the consolidated `CodecRegistry` using `CodecRegistryManager.getCombinedCodecRegistry`.
-
-5. **Attach Codecs**  
-   Use the unified `CodecRegistry` with your MongoDB database or collection.
-
-6. **Perform MongoDB Operations**  
-   Seamlessly insert, query, and retrieve data from your MongoDB collections using the registered codecs.
-
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
