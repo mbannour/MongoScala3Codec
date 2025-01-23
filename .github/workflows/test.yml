@@ -25,6 +25,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Install sbt
+        run: |
+          echo "Installing sbt..."
+          curl -L https://github.com/sbt/sbt/releases/download/v1.9.4/sbt-1.9.4.tgz | tar xz
+          sudo mv sbt /usr/local/bin/
+
       - name: Cache sbt and dependencies
         uses: actions/cache@v3
         with:
