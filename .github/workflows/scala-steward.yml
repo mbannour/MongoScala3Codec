@@ -2,7 +2,7 @@ name: Scala Steward
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # runs once a week on Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
   workflow_dispatch:
 
 permissions:
