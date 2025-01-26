@@ -1,6 +1,5 @@
 name: Scala Steward
 
-# This workflow will run daily at midnight and can also be triggered manually.
 on:
   schedule:
     - cron: '0 0 * * *'
@@ -16,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java-version: [11, 17, 21] # Test against Java 11, 17, and 21
+        java-version: [11]
     name: Scala Steward (Java ${{ matrix.java-version }})
     steps:
       - name: Checkout repository
