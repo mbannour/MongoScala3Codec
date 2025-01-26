@@ -2,52 +2,17 @@ name: Scala Steward
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Runs daily at midnight
-  workflow_dispatch: # Allow manual triggering of the workflow
-
-permissions:
-  contents: write
-  pull-requests: write
+    - cron: '0 9 * * 1'  # runs once a week on Monday at 09:00 UTC
+  workflow_dispatch:
 
 jobs:
   scala-steward:
-    timeout-minutes: 60
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        java-version: [11] # Specify supported Java version(s)
-    name: Scala Steward (Java ${{ matrix.java-version }})
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          java-version: ${{ matrix.java-version }}
-          distribution: temurin
-
-      - name: Setup sbt
-        uses: sbt/setup-sbt@v1
+      - name: Checkout
+        uses: actions/checkout@v2
 
       - name: Run Scala Steward
         uses: scala-steward-org/scala-steward-action@v2
         with:
-          github-app-id: ${{ secrets.SCALA_STEWARD_GITHUB_APP_ID }}
-          github-app-installation-id: ${{ secrets.SCALA_STEWARD_GITHUB_APP_INSTALLATION_ID }}
-          github-app-key: ${{ secrets.SCALA_STEWARD_GITHUB_APP_PRIVATE_KEY }}
-          github-app-auth-only: true
-          cache-ttl: 2hours # Optional: Custom cache time-to-live
-          max-buffer-size: 16384 # Optional: Increase log buffer size for debugging
-          coursier-cli-url: https://github.com/coursier/launchers/raw/master/cs-x86_64-pc-linux.gz
-          github-api-url: https://api.github.com
-          github-repository: ${{ github.repository }}
-          ignore-opts-files: true # Prevent using global sbt options
-          repo-config: .github/.scala-steward.conf # Path to Scala Steward config file
-          mill-version: 0.12.5 # Specify mill version if used
-          sign-commits: false # Optional: Whether to sign commits
-          timeout: 20min # Increase if needed for larger projects
-        env:
-          JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/11.0.25-9/x64
-          JAVA_HOME_11_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/11.0.25-9/x64
-          SCALA_STEWARD_LOG_LEVEL: debug # Enable detailed logs for debugging
+          github-token: ${{ secrets.GITHUB_TOKEN }}
