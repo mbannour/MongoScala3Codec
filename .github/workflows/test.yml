@@ -1,3 +1,5 @@
+
+# steward:off
 name: Test Scala Library
 
 on:
@@ -56,3 +58,4 @@ jobs:
           rm -rf ~/.ivy2/cache
           rm -rf ~/.sbt/boot
           rm -rf ~/.coursier
+# scala-steward:on
