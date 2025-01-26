@@ -1,4 +1,3 @@
-
 val scala3Version = "3.5.2"
 
 ThisBuild / crossScalaVersions := Seq(
@@ -47,7 +46,7 @@ lazy val root = project
     ),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.17" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.2.0").cross(CrossVersion.for3Use2_13),
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.2.1").cross(CrossVersion.for3Use2_13),
       "org.mongodb" % "mongodb-driver-reactivestreams" % "5.2.0"
     ),
     scalacOptions ++= Seq(
