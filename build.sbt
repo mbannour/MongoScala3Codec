@@ -1,4 +1,3 @@
-
 val scala3Version = "3.5.2"
 
 ThisBuild / crossScalaVersions := Seq(
@@ -46,7 +45,7 @@ lazy val root = project
       )
     ),
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.17" % Test,
+      "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       ("org.mongodb.scala" %% "mongo-scala-bson" % "5.2.0").cross(CrossVersion.for3Use2_13),
       "org.mongodb" % "mongodb-driver-reactivestreams" % "5.2.0"
     ),
@@ -74,7 +73,7 @@ lazy val integrationTests = project
   .settings(
     name := "integration-tests",
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.17" % Test,
+      "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.41.4" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.41.4" % Test,
       ("org.mongodb.scala" %% "mongo-scala-driver" % "4.8.0").cross(CrossVersion.for3Use2_13)
