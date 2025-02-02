@@ -10,7 +10,7 @@ ThisBuild / crossScalaVersions := Seq(
   "3.5.2"
 )
 
-usePgpKeyHex("7819D926B1947385000E86568D15E6EFEC642C76")
+usePgpKeyHex("8D15E6EFEC642C76")
 
 ThisBuild / scalaVersion := scala3Version
 ThisBuild / versionScheme := Some("early-semver")
