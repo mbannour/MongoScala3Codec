@@ -5,13 +5,17 @@ import scala.reflect.ClassTag
 
 object ClassToCaseFlagMap:
 
-  private[mbannour] inline def classToCaseClassMap[T]: Map[Class[?], Boolean] = ${ classToCaseClassMapImpl[T] }
+  /** Macro that generates a map from runtime Class to a Boolean flag, indicating whether the type is a case class or sealed. The map is
+    * built for type `T` and recursively includes all nested field types (with primitives replaced by their boxed types).
+    */
+  private[mbannour] inline def classToCaseClassMap[T]: Map[Class[?], Boolean] =
+    ${ classToCaseClassMapImpl[T] }
 
-  private[mbannour] def classToCaseClassMapImpl[T: Type](using q: Quotes): Expr[Map[Class[?], Boolean]] =
-
+  private[mbannour] def classToCaseClassMapImpl[T: Type](using Quotes): Expr[Map[Class[?], Boolean]] =
     import quotes.reflect.*
 
-    val primitiveTypesMap: Map[TypeRepr, TypeRepr] = Map(
+    // Mapping from primitive types to their boxed counterparts.
+    val primitiveToBoxedMap: Map[TypeRepr, TypeRepr] = Map(
       TypeRepr.of[Boolean] -> TypeRepr.of[java.lang.Boolean],
       TypeRepr.of[Byte] -> TypeRepr.of[java.lang.Byte],
       TypeRepr.of[Char] -> TypeRepr.of[java.lang.Character],
@@ -22,49 +26,62 @@ object ClassToCaseFlagMap:
       TypeRepr.of[Short] -> TypeRepr.of[java.lang.Short]
     )
 
-    def isCaseClassOrSealed(tpe: TypeRepr): Boolean =
-      tpe.typeSymbol.isClassDef && (tpe.typeSymbol.flags.is(Flags.Case) || tpe.typeSymbol.flags.is(Flags.Sealed))
+    /** Returns true if the given type represents a case class or a sealed trait/class.
+      */
+    def isCaseOrSealed(tpe: TypeRepr): Boolean =
+      tpe.typeSymbol.isClassDef &&
+        (tpe.typeSymbol.flags.is(Flags.Case) || tpe.typeSymbol.flags.is(Flags.Sealed))
 
-    def collectFields(tpe: TypeRepr): List[TypeRepr] =
+    /** Recursively collects field types from the primary constructor of the given type. If a field type is a case class or sealed, its
+      * fields are also collected.
+      */
+    def collectFieldTypes(tpe: TypeRepr): List[TypeRepr] =
       val paramTypes = tpe.typeSymbol.primaryConstructor.paramSymss.flatten.collect {
         case sym if sym.isTerm && sym.isValDef =>
           sym.termRef.asType match
             case '[f] => TypeRepr.of[f]
       }
-      paramTypes.flatMap { fieldType =>
-        if isCaseClassOrSealed(fieldType) then collectFields(fieldType) :+ fieldType
-        else List(fieldType)
+      paramTypes.flatMap { fieldTpe =>
+        if isCaseOrSealed(fieldTpe) then collectFieldTypes(fieldTpe) :+ fieldTpe
+        else List(fieldTpe)
       }
-    end collectFields
+    end collectFieldTypes
 
-    def flattenTypeArgs(tpe: TypeRepr): List[TypeRepr] =
+    /** Recursively flattens a type to include itself and all of its type arguments. Additionally, replaces primitive types with their boxed
+      * counterparts.
+      */
+    def flattenTypeArguments(tpe: TypeRepr): List[TypeRepr] =
       val typeArgs = tpe match
         case AppliedType(_, args) => args
-        case _                    => List.empty
+        case _                    => Nil
+      val allTypes = tpe :: typeArgs.flatMap(flattenTypeArguments)
+      allTypes.map(t => primitiveToBoxedMap.getOrElse(t, t))
 
-      val types = tpe +: typeArgs.flatMap(flattenTypeArgs)
-      types.map(t => primitiveTypesMap.getOrElse(t, t))
+    /** Returns the complete list of field types for the given type, including the type itself.
+      */
+    def getAllFieldTypes(tpe: TypeRepr): List[TypeRepr] =
+      collectFieldTypes(tpe) :+ tpe
 
-    def getFieldTypes(tpe: TypeRepr): List[TypeRepr] =
-      collectFields(tpe) :+ tpe
-
+    // Compute the flattened and distinct list of all field types for T.
+    val mainType = TypeRepr.of[T]
     val flattenedFieldTypes: List[TypeRepr] =
-      val mainType = TypeRepr.of[T]
-      getFieldTypes(mainType).flatMap(t => flattenTypeArgs(t))
+      getAllFieldTypes(mainType).flatMap(flattenTypeArguments)
+    val distinctFieldTypes = flattenedFieldTypes.distinct
 
-    val classToCaseClassEntries: List[Expr[(Class[?], Boolean)]] = flattenedFieldTypes.distinct.map { tpe =>
+    // Build an expression mapping from each type's runtime class to a Boolean flag (true if it is case/sealed).
+    val classToCaseClassEntries: List[Expr[(Class[?], Boolean)]] = distinctFieldTypes.map { tpe =>
       tpe.asType match
-        case '[tType] =>
-          Expr.summon[ClassTag[tType]] match
-            case Some(ct) =>
-              val classExpr = '{ $ct.runtimeClass.asInstanceOf[Class[?]] }
-              val isCaseClassExpr = Expr(isCaseClassOrSealed(tpe))
-              '{ $classExpr -> $isCaseClassExpr }
+        case '[t] =>
+          Expr.summon[ClassTag[t]] match
+            case Some(classTagExpr) =>
+              val classExpr = '{ $classTagExpr.runtimeClass.asInstanceOf[Class[?]] }
+              val isCaseExpr = Expr(isCaseOrSealed(tpe))
+              '{ $classExpr -> $isCaseExpr }
             case None =>
               report.errorAndAbort(s"Cannot summon ClassTag for type: ${tpe.show}")
     }
 
     val mapEntriesExpr = Varargs(classToCaseClassEntries)
-    '{ Map[Class[?], Boolean](${ mapEntriesExpr }*) }
+    '{ Map[Class[?], Boolean]($mapEntriesExpr*) }
   end classToCaseClassMapImpl
 end ClassToCaseFlagMap

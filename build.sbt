@@ -26,7 +26,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.1-M4",
+    version := "0.0.1-M5",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codecs")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -46,8 +46,7 @@ lazy val root = project
     ),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.2.0").cross(CrossVersion.for3Use2_13),
-      "org.mongodb" % "mongodb-driver-reactivestreams" % "5.2.0"
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.2.0").cross(CrossVersion.for3Use2_13)
     ),
     scalacOptions ++= Seq(
       "-encoding",
@@ -74,6 +73,7 @@ lazy val integrationTests = project
     name := "integration-tests",
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+      "org.scalactic" %% "scalactic" % "3.2.19" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.41.4" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.41.4" % Test,
       ("org.mongodb.scala" %% "mongo-scala-driver" % "4.8.0").cross(CrossVersion.for3Use2_13)

@@ -9,13 +9,14 @@ import scala.reflect.ClassTag
 
 object CodecProviderMacro:
 
-  inline def createCodecProvider[T](inline encodeNone: Boolean)(using
+  inline def createCodecProvider[T](inline encodeNone: Boolean, baseRegistry: CodecRegistry)(using
       inline classTag: ClassTag[T]
   ): CodecProvider =
-    ${ createCodecProviderImpl[T]('encodeNone, 'classTag) }
+    ${ createCodecProviderImpl[T]('encodeNone,'baseRegistry, 'classTag) }
 
   private def createCodecProviderImpl[T: Type](
       encodeNone: Expr[Boolean],
+      baseRegistry: Expr[CodecRegistry],
       classTag: Expr[ClassTag[T]]
   )(using Quotes): Expr[CodecProvider] =
     import quotes.reflect.*
@@ -25,9 +26,9 @@ object CodecProviderMacro:
 
     if !mainTypeSymbol.flags.is(Flags.Case) then
       report.errorAndAbort(s"${mainTypeSymbol.name} is not a case class and cannot be used as a Codec.")
-
+    
     val codecExpr = '{
-      generateCodec[T]($encodeNone)(using $classTag)
+      generateCodec[T]($encodeNone, $baseRegistry)(using $classTag)
     }
     '{
       new CodecProvider:

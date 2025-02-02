@@ -51,7 +51,9 @@ object CaseClassBsonWriter:
 
       field.tree.asInstanceOf[ValDef].tpt.tpe.asType match
         case '[String] =>
-          '{ $writer.writeString(${ fieldName }, $fieldValueExpr.asInstanceOf[String]) }
+          '{
+            $writer.writeString(${ fieldName }, $fieldValueExpr.asInstanceOf[String])
+          }
         case '[Int] =>
           '{ $writer.writeInt32(${ fieldName }, $fieldValueExpr.asInstanceOf[Int]) }
         case '[Double] =>
@@ -79,6 +81,37 @@ object CaseClassBsonWriter:
                       )
                       $writer.writeEndDocument()
                     }
+                  else if TypeRepr.of[t] <:< TypeRepr.of[Iterable[?]] then
+                    // t is an Iterable, so extract the inner type and handle it accordingly.
+                    TypeRepr.of[t] match
+                      case AppliedType(_, List(innerType)) =>
+                        innerType.asType match
+                          case '[x] =>
+                            '{
+                              $writer.writeStartArray(${ fieldName })
+                              innerValue.asInstanceOf[Iterable[x]].foreach { item =>
+                                ${
+                                  if TypeRepr.of[x].typeSymbol.flags.is(Flags.Case) then
+                                    '{
+
+                                      $writer.writeStartDocument()
+                                      writeCaseClassData(
+                                        ${ Expr(Type.show[x]) },
+                                        $writer,
+                                        item.asInstanceOf[x],
+                                        $encoderContext,
+                                        $encodeNone,
+                                        $registry
+                                      )
+                                      $writer.writeEndDocument()
+                                    }
+                                  else writeOptionField(Type.of[x], 'item, writer, encoderContext, encodeNone, registry)
+                                }
+                              }
+                              $writer.writeEndArray()
+                            }
+                      case _ =>
+                        report.errorAndAbort("Could not extract inner type for Iterable")
                   else
                     '{
                       $writer.writeName(${ fieldName })
@@ -92,15 +125,52 @@ object CaseClassBsonWriter:
           '{
             $writer.writeStartArray(${ fieldName })
             $fieldValueExpr.asInstanceOf[Iterable[t]].foreach { item =>
-              ${ writeOptionField(Type.of[t], 'item, writer, encoderContext, encodeNone, registry) }
-            }
-            $writer.writeEndArray()
-          }
-        case '[List[t]] =>
-          '{
-            $writer.writeStartArray(${ fieldName })
-            $fieldValueExpr.asInstanceOf[List[t]].foreach { item =>
-              ${ writeOptionField(Type.of[t], 'item, writer, encoderContext, encodeNone, registry) }
+              ${
+                if TypeRepr.of[t] <:< TypeRepr.of[Option[?]] then
+                  TypeRepr.of[t] match
+                    case AppliedType(_, List(innerOptType)) =>
+                      innerOptType.asType match
+                        case '[u] =>
+                          '{
+                            // Pattern–match on the Option value
+                            item.asInstanceOf[Option[u]] match
+                              case Some(innerValue) =>
+                                ${
+                                  if TypeRepr.of[u].typeSymbol.flags.is(Flags.Case) then
+                                    '{
+                                      $writer.writeStartDocument()
+                                      writeCaseClassData(
+                                        ${ Expr(Type.show[u]) },
+                                        $writer,
+                                        innerValue.asInstanceOf[u],
+                                        $encoderContext,
+                                        $encodeNone,
+                                        $registry
+                                      )
+                                      $writer.writeEndDocument()
+                                    }
+                                  else writeOptionField(Type.of[u], 'innerValue, writer, encoderContext, encodeNone, registry)
+                                }
+                              case None =>
+                                if $encodeNone then $writer.writeNull(${ fieldName })
+                          }
+                    case _ =>
+                      report.errorAndAbort("Could not extract inner type for Option in Iterable")
+                else if TypeRepr.of[t].typeSymbol.flags.is(Flags.Case) then
+                  '{
+                    $writer.writeStartDocument()
+                    writeCaseClassData(
+                      ${ Expr(Type.show[t]) },
+                      $writer,
+                      item.asInstanceOf[t],
+                      $encoderContext,
+                      $encodeNone,
+                      $registry
+                    )
+                    $writer.writeEndDocument()
+                  }
+                else writeOptionField(Type.of[t], 'item, writer, encoderContext, encodeNone, registry)
+              }
             }
             $writer.writeEndArray()
           }
@@ -116,7 +186,6 @@ object CaseClassBsonWriter:
             nestedTypeRepr.asType match
               case '[nt] =>
                 '{
-
                   $writer.writeName(${ fieldName })
                   $writer.writeStartDocument()
                   CaseClassBsonWriter.writeCaseClassData(
@@ -163,7 +232,6 @@ object CaseClassBsonWriter:
       Quotes
   ): Expr[Unit] =
     import quotes.reflect.*
-
     TypeRepr.of[T] match
       case t if t =:= TypeRepr.of[String] =>
         '{ $writer.writeString($value.asInstanceOf[String]) }
