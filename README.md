@@ -47,11 +47,14 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 import org.mongodb.scala.model.Filters
 
 // Define your case classes
-case class Address(street: String, city: String, zipCode: Int)
+
+enum PersonState:
+  case Created, Approved,  Sleep, InProgress, Closed
 
 case class Person(
                    _id: ObjectId,
-                   @BsonProperty("n") name: String,
+                   state: PersonState,
+                   name: String,
                    middleName: Option[String],
                    age: Int,
                    height: Double,
@@ -60,62 +63,85 @@ case class Person(
                    nicknames: Seq[String]
                  )
 
-@main def hello(): Unit = {
+// Example case class for Event.
+case class Event(_id: ObjectId, description: String, eventTime: ZonedDateTime)
 
-  // Get the default MongoDB codec registry
+object Main extends App {
+
+  // Base registry from the default MongoDB Scala Driver.
   val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
 
-  // Create a codec provider for Address using macro-based generation
+  // Create a codec provider for Address.
   val addressProvider: CodecProvider =
     CodecProviderMacro.createCodecProvider[Address](encodeNone = true, baseRegistry)
 
-  // Create a codec registry that includes the Address codec
-  val addressRegistry: CodecRegistry =
+  // Create a codec registry for Person that includes Address and a custom codec for lead execution status.
+  // Make sure that `PersonStateBsonCodec` is defined in your project.
+  val personRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
       CodecRegistries.fromProviders(addressProvider),
+      CodecRegistries.fromCodecs(PersonStateBsonCodec), 
       baseRegistry
     )
 
-  // Create a codec provider for Person that includes the Address registry
+  // Create a codec provider for Person.
   val personProvider: CodecProvider =
-    CodecProviderMacro.createCodecProvider[Person](encodeNone = true, addressRegistry)
+    CodecProviderMacro.createCodecProvider[Person](encodeNone = true, personRegistry)
 
-  // Combine the generated codecs with the default registry
+  // Build a codec registry for Event including the custom ZonedDateTimeCodec.
+  val eventRegistry: CodecRegistry =
+    CodecRegistries.fromRegistries(
+      baseRegistry,
+      CodecRegistries.fromCodecs(new ZonedDateTimeCodec())
+    )
+
+  // Create a codec provider for Event.
+  val eventProvider: CodecProvider =
+    CodecProviderMacro.createCodecProvider[Event](encodeNone = false, eventRegistry)
+
+  // Combine the codec registries for Person and Event.
   val combinedRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
       CodecRegistries.fromProviders(personProvider),
+      CodecRegistries.fromProviders(eventProvider),
       baseRegistry
     )
 
-  // Create a MongoDB database instance with the combined codec registry
+  // --- Database and Collection Setup ---
+
+  // Connect to the MongoDB database with the combined codec registry.
   val database: MongoDatabase = MongoClient()
     .getDatabase("test_db")
     .withCodecRegistry(combinedRegistry)
 
-  // Get the collection for Person documents
+  // Obtain collections for Person and Event.
   val collection: MongoCollection[Person] = database.getCollection("people")
+  val eventCollection: MongoCollection[Event] = database.getCollection("event")
 
-  // Create a Person instance
+  // --- Sample Documents and Operations ---
+
+  // Create a sample Person document.
   val person = Person(
     _id = new ObjectId(),
+    state = Created,
     name = "Alice",
-    middleName = Some("Marie"),
+    middleName = None,
     age = 30,
     height = 5.6,
     married = true,
-    address = Some(Address("123 Main St", "Wonderland", 12345)),
+    address = None,
     nicknames = Seq("Ally", "Lissie")
   )
 
-  // Insert the Person into the collection
-  collection.insertOne(person).toFuture().foreach { _ =>
-    println("Person inserted successfully!")
-  }
+  // Insert a sample Event document.
+  eventCollection.insertOne(Event(new ObjectId(), "today Event", ZonedDateTime.now())).toFuture()
 
-  // Retrieve the Person by _id and print the result
-  collection.find(Filters.equal("_id", person._id)).first().toFuture().foreach { retrievedPerson =>
-    println(s"Retrieved Person: $retrievedPerson")
-  }
+  // Insert the Person document.
+  collection.insertOne(person).toFuture()
+
+  // Retrieve and print all Person documents.
+  collection.find().toFuture().foreach(println)
+
 }
 ```
 ## License
