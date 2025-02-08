@@ -18,17 +18,17 @@ object CaseClassCodecGenerator:
     *
     * @param encodeNone
     *   Flag to indicate whether to encode `None` values in optional fields.
-    * @param baseRegistry
+    * @param codecRegistry
     *   The base CodecRegistry to be used for nested codec lookups.
     * @tparam T
     *   The case class type for which the codec is generated.
     * @return
     *   A BSON Codec[T] instance.
     */
-  private[codecs] inline def generateCodec[T](encodeNone: Boolean, baseRegistry: CodecRegistry)(using
+  private[codecs] inline def generateCodec[T](encodeNone: Boolean, codecRegistry: CodecRegistry)(using
       classTag: ClassTag[T]
   ): Codec[T] =
-    ${ generateCodecImpl[T]('encodeNone, 'baseRegistry, 'classTag) }
+    ${ generateCodecImpl[T]('encodeNone, 'codecRegistry, 'classTag) }
 
   private def generateCodecImpl[T: Type](
       encodeNone: Expr[Boolean],

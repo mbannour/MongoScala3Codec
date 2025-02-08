@@ -1,6 +1,11 @@
 package io.github.mbannour.mongo.codecs
 
 import com.dimafeng.testcontainers.{ForAllTestContainer, MongoDBContainer}
+import io.github.mbannour.mongo.codecs.models.Company.companyRegistry
+import io.github.mbannour.mongo.codecs.models.Event.eventRegistry
+import io.github.mbannour.mongo.codecs.models.Person.personRegistry
+import io.github.mbannour.mongo.codecs.models.Task.taskRegistry
+import io.github.mbannour.mongo.codecs.models.{Address, Company, EmployeeId, Event, Person, Priority, Task}
 import org.mongodb.scala.*
 import org.mongodb.scala.model.Filters
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistries, CodecRegistry}
@@ -11,72 +16,11 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.time.{Millis, Seconds, Span}
 
-import java.time.temporal.ChronoUnit
-import java.time.{ZoneId, ZonedDateTime}
+import java.time.{ZonedDateTime}
 import scala.concurrent.Future
 import scala.jdk.CollectionConverters.*
-
-// --- Domain Case Classes ---
-
-case class Address(street: String, city: String, zipCode: Int)
-
-case class Person(
-    _id: ObjectId,
-    @BsonProperty("n") name: String,
-    middleName: Option[String],
-    age: Int,
-    height: Double,
-    married: Boolean,
-    address: Option[Address],
-    nicknames: Seq[String]
-)
-
-case class Event(_id: ObjectId, title: String, time: ZonedDateTime)
-
-case class Company(name: String, employees: Option[Seq[Person]])
-
-// Scala Enumeration for Priority
-object Priority extends Enumeration:
-  type Priority = Value
-  val Low, Medium, High = Value
-
-// A case class that uses the Scala Enumeration
-case class Task(_id: ObjectId, title: String, priority: Priority.Value)
-
-// --- Custom Codec for ZonedDateTime ---
-class ZonedDateTimeCodec extends Codec[ZonedDateTime]:
-  override def encode(writer: BsonWriter, value: ZonedDateTime, encoderContext: EncoderContext): Unit =
-    // Truncate the value to milliseconds before encoding.
-    val truncatedValue = value.truncatedTo(ChronoUnit.MILLIS)
-    writer.writeDateTime(truncatedValue.toInstant.toEpochMilli)
-
-    val codecWithNone = CaseClassCodec.generateCodecEncodeNone[Person]
-
-  override def decode(reader: BsonReader, decoderContext: DecoderContext): ZonedDateTime =
-    ZonedDateTime.ofInstant(
-      java.time.Instant.ofEpochMilli(reader.readDateTime()),
-      ZoneId.systemDefault()
-    )
-  override def getEncoderClass: Class[ZonedDateTime] = classOf[ZonedDateTime]
-end ZonedDateTimeCodec
-
-object PriorityCodec extends Codec[Priority.Value] {
-  override def encode(writer: BsonWriter, value: Priority.Value, encoderContext: EncoderContext): Unit =
-    writer.writeString(value.toString)
-
-  override def decode(reader: BsonReader, decoderContext: DecoderContext): Priority.Value =
-    val str = reader.readString()
-    try Priority.withName(str)
-    catch {
-      case ex: NoSuchElementException =>
-        throw new IllegalArgumentException(s"Unknown Priority value: '$str'", ex)
-    }
-
-  override def getEncoderClass: Class[Priority.Value] = classOf[Priority.Value]
-}
 
 class CaseClassCodecGeneratorIntegrationSpec
     extends AnyFlatSpec
@@ -87,12 +31,10 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   implicit val defaultPatience: PatienceConfig = PatienceConfig(timeout = Span(10, Seconds), interval = Span(500, Millis))
 
-
   override val container: MongoDBContainer = MongoDBContainer("mongo:6.0.19")
 
   private lazy val mongoUri: String =
     s"mongodb://${container.containerIpAddress}:${container.mappedPort(27017)}"
-
 
   private def createDatabaseWithRegistry(registry: CodecRegistry): MongoDatabase =
     MongoClient(mongoUri)
@@ -102,21 +44,13 @@ class CaseClassCodecGeneratorIntegrationSpec
   "CaseClassCodecGenerator" should "handle nested case classes and optional fields with custom codecs" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-
-    val addressProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Address](encodeNone = true, baseRegistry)
-    val registryWithAddress: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(addressProvider),
-        baseRegistry
-      )
     val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Person](encodeNone = true, registryWithAddress)
+      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
+
     val combinedRegistry: CodecRegistry =
       CodecRegistries.fromRegistries(
         CodecRegistries.fromProviders(personProvider),
-        registryWithAddress
+        MongoClient.DEFAULT_CODEC_REGISTRY
       )
 
     val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
@@ -129,7 +63,7 @@ class CaseClassCodecGeneratorIntegrationSpec
       age = 30,
       height = 5.6,
       married = true,
-      address = Some(Address("123 Main St", "Wonderland", 12345)),
+      address = Some(Address("123 Main St", "Wonderland", 12345, EmployeeId())),
       nicknames = Seq("Ally", "Lissie")
     )
 
@@ -142,30 +76,20 @@ class CaseClassCodecGeneratorIntegrationSpec
     collection.insertOne(personWithoutMiddleName).toFuture().futureValue
     val retrievedPersonWithoutMiddleName =
       collection.find(Filters.equal("_id", personWithoutMiddleName._id)).first().toFuture().futureValue
+
     retrievedPersonWithoutMiddleName shouldBe personWithoutMiddleName
 
     database.drop().toFuture().futureValue
   }
 
   it should "handle empty collections and missing nested case class fields" in {
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-
-    val addressProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Address](encodeNone = true, baseRegistry)
-
-    val addressRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(addressProvider),
-        baseRegistry
-      )
-
     val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Person](encodeNone = true, addressRegistry)
+      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
 
     val combinedRegistry: CodecRegistry =
       CodecRegistries.fromRegistries(
         CodecRegistries.fromProviders(personProvider),
-        baseRegistry
+        MongoClient.DEFAULT_CODEC_REGISTRY
       )
 
     val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
@@ -192,18 +116,13 @@ class CaseClassCodecGeneratorIntegrationSpec
   }
 
   it should "handle custom codecs such as ZonedDateTime" in {
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-    // Create a provider for Event using our macro.
-    val eventRegistry: CodecRegistry = CodecRegistries.fromRegistries(
-      CodecRegistries.fromCodecs(new ZonedDateTimeCodec),
-      baseRegistry
-    )
+
     val eventProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Event](encodeNone = true, eventRegistry)
+      CodecProviderMacro.createCodecProviderEncodeNone[Event](eventRegistry)
     // Register the ZonedDateTimeCodec first so it is found.
     val customRegistry: CodecRegistry = CodecRegistries.fromRegistries(
       CodecRegistries.fromProviders(eventProvider),
-      baseRegistry
+      MongoClient.DEFAULT_CODEC_REGISTRY
     )
     val database: MongoDatabase = createDatabaseWithRegistry(customRegistry)
     val collection: MongoCollection[Event] = database.getCollection("events")
@@ -223,37 +142,19 @@ class CaseClassCodecGeneratorIntegrationSpec
   }
 
   it should "handle nested collections (e.g., a company with employees)" in {
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-    val addressProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Address](encodeNone = true, baseRegistry)
-
-    val personRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(addressProvider),
-        baseRegistry
-      )
-    end personRegistry
-
-    val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Person](encodeNone = true, personRegistry)
-    end personProvider
-
-    val companyRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(addressProvider, personProvider),
-        baseRegistry
-      )
 
     val companyProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Company](encodeNone = true, companyRegistry)
+      CodecProviderMacro.createCodecProviderEncodeNone[Company](companyRegistry)
     end companyProvider
 
     val combinedRegistry: CodecRegistry =
       CodecRegistries.fromRegistries(
         CodecRegistries.fromProviders(companyProvider),
-        baseRegistry
+        MongoClient.DEFAULT_CODEC_REGISTRY
       )
+
     val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
+
     val collection: MongoCollection[Company] = database.getCollection("companies")
 
     val employee1 = Person(
@@ -263,7 +164,7 @@ class CaseClassCodecGeneratorIntegrationSpec
       age = 30,
       height = 5.6,
       married = true,
-      address = Some(Address("123 Main St", "Wonderland", 12345)),
+      address = Some(Address("123 Main St", "Wonderland", 12345, EmployeeId())),
       nicknames = Seq("Ally")
     )
     val employee2 = Person(
@@ -288,19 +189,14 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   it should "handle Scala Enumeration fields in case classes" in {
     // Define a provider for Task (which has a Scala Enumeration field).
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-    val taskRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromCodecs(PriorityCodec),
-        baseRegistry
-      )
+
     val taskProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Task](encodeNone = true, taskRegistry)
+      CodecProviderMacro.createCodecProviderEncodeNone[Task](taskRegistry)
 
     val combinedRegistry: CodecRegistry =
       CodecRegistries.fromRegistries(
         CodecRegistries.fromProviders(taskProvider),
-        baseRegistry
+        MongoClient.DEFAULT_CODEC_REGISTRY
       )
     val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
     val collection: MongoCollection[Task] = database.getCollection("tasks")
@@ -320,23 +216,14 @@ class CaseClassCodecGeneratorIntegrationSpec
   }
 
   it should "handle high concurrency loads" in {
-    // Set up the base registry and create CodecProviders for Address and Person.
-    val baseRegistry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-
-    val addressProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Address](encodeNone = true, baseRegistry)
-    val addressRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(addressProvider),
-        baseRegistry
-      )
 
     val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProvider[Person](encodeNone = true, addressRegistry)
+      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
+
     val combinedRegistry: CodecRegistry =
       CodecRegistries.fromRegistries(
         CodecRegistries.fromProviders(personProvider),
-        addressRegistry
+        MongoClient.DEFAULT_CODEC_REGISTRY
       )
 
     // Create a database instance using the combined registry.
@@ -349,12 +236,12 @@ class CaseClassCodecGeneratorIntegrationSpec
       Person(
         _id = new ObjectId(),
         name = s"Person $i",
-        middleName = if (i % 2 == 0) Some(s"Middle $i") else None,
+        middleName = if i % 2 == 0 then Some(s"Middle $i") else None,
         age = 20 + (i % 30),
         height = 5.0 + (i % 10) * 0.1,
         married = i % 2 == 0,
-        address = if (i % 3 == 0) Some(Address(s"$i Main St", s"City $i", 10000 + i)) else None,
-        nicknames = if (i % 5 == 0) Seq(s"nick$i", s"alias$i") else Seq.empty
+        address = if i % 3 == 0 then Some(Address(s"$i Main St", s"City $i", 10000 + i, EmployeeId())) else None,
+        nicknames = if i % 5 == 0 then Seq(s"nick$i", s"alias$i") else Seq.empty
       )
     }
 

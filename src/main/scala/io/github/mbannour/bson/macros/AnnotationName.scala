@@ -6,26 +6,30 @@ import scala.quoted.*
 
 object AnnotationName:
 
-  /**
-   * Inline helper to retrieve the annotation value for a given field name of type T.
-   *
-   * @param fieldName the name of the field to check for a @BsonProperty annotation override.
-   * @tparam T the target case class type.
-   * @return an Option[String] containing the annotation value if present.
-   */
+  /** Inline helper to retrieve the annotation value for a given field name of type T.
+    *
+    * @param fieldName
+    *   the name of the field to check for a @BsonProperty annotation override.
+    * @tparam T
+    *   the target case class type.
+    * @return
+    *   an Option[String] containing the annotation value if present.
+    */
   private[mbannour] inline def invokeFindAnnotationValue[T](fieldName: String): Option[String] =
     ${ findAnnotationValue[T]('fieldName) }
 
-  /**
-   * Retrieves the value provided in the @BsonProperty annotation for a constructor parameter in type T.
-   *
-   * This method collects all constructor parameters of T annotated with @BsonProperty, builds a map
-   * from the parameter name to its annotation value, and then looks up the provided field name.
-   *
-   * @param fieldName an Expr[String] representing the field name for which to find the annotation value.
-   * @tparam T the target case class type.
-   * @return an Expr[Option[String]] containing the annotation value if one is found.
-   */
+  /** Retrieves the value provided in the @BsonProperty annotation for a constructor parameter in type T.
+    *
+    * This method collects all constructor parameters of T annotated with @BsonProperty, builds a map from the parameter name to its
+    * annotation value, and then looks up the provided field name.
+    *
+    * @param fieldName
+    *   an Expr[String] representing the field name for which to find the annotation value.
+    * @tparam T
+    *   the target case class type.
+    * @return
+    *   an Expr[Option[String]] containing the annotation value if one is found.
+    */
   private[mbannour] def findAnnotationValue[T: Type](using Quotes)(fieldName: Expr[String]): Expr[Option[String]] =
     import quotes.reflect.*
 
@@ -56,4 +60,5 @@ object AnnotationName:
     annotationsMap.get(literalFieldName) match
       case Some(value) => '{ Some(${ Expr(value) }) }
       case None        => '{ None }
+  end findAnnotationValue
 end AnnotationName

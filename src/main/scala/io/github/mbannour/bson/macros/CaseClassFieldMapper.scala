@@ -24,7 +24,7 @@ object CaseClassFieldMapper:
 
   private[mbannour] def createClassFieldTypeArgsMapImpl[T: Type](using Quotes): Expr[Map[String, Map[String, List[Class[?]]]]] =
     import quotes.reflect.*
-    
+
     val primitiveTypesMap: Map[TypeRepr, TypeRepr] = Map(
       TypeRepr.of[Boolean] -> TypeRepr.of[java.lang.Boolean],
       TypeRepr.of[Byte] -> TypeRepr.of[java.lang.Byte],
@@ -89,7 +89,7 @@ object CaseClassFieldMapper:
           if isCaseClass(fieldType) then getFieldNamesAndTypesRecursive(fieldType, visited + tpe)
           else Nil
         }
-    
+
         '{ ($classNameExpr, $fieldTypeMapExpr) } :: nestedClassMaps
     end getFieldNamesAndTypesRecursive
 

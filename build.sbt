@@ -26,7 +26,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.1-M5",
+    version := "0.0.1-M6",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codecs")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -63,7 +63,8 @@ lazy val root = project
       "-Yretain-trees",
       "-Wunused:all"
     ),
-    credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials")
+    credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
+    Test / publishArtifact := false,
   )
 
 lazy val integrationTests = project
