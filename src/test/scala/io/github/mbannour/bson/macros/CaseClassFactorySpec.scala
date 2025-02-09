@@ -74,7 +74,7 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     val exception = intercept[RuntimeException] {
       CaseClassFactory.getInstance[Person1](fieldData)
     }
-    exception.getMessage should include("Error casting field 'age'")
+    exception.getMessage should include("Error casting field age. Expected: scala.Int, Actual: java.lang.String")
   }
 
 

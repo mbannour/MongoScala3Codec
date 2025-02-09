@@ -4,60 +4,60 @@ import scala.quoted.*
 
 object CaseClassFactory:
 
-  private[mbannour] inline def getInstance[T](fieldData: Map[String, Any]): T = ${ getInstanceImpl[T]('fieldData) }
+  /** Instantiates a case class of type T using the provided field data. Field names can be optionally overridden via annotations.
+    */
+  private[mbannour] inline def getInstance[T](fieldData: Map[String, Any]): T =
+    ${ getInstanceImpl[T]('fieldData) }
 
   private[mbannour] def getInstanceImpl[T: Type](fieldData: Expr[Map[String, Any]])(using Quotes): Expr[T] =
-
     import quotes.reflect.*
 
     val mainTypeRepr = TypeRepr.of[T]
     val mainTypeSymbol = mainTypeRepr.typeSymbol
-
     if !mainTypeSymbol.flags.is(Flags.Case) then
-      val errorMsg = s"${mainTypeSymbol.name} is not a case class, and cannot be instantiated this way."
-      report.errorAndAbort(errorMsg)
+      report.errorAndAbort(s"${mainTypeSymbol.name} is not a case class, and cannot be instantiated this way.")
 
     val constructorParams = mainTypeSymbol.primaryConstructor.paramSymss.flatten
 
     val fieldExprs: List[Expr[Any]] = constructorParams.map { param =>
-      val paramName = param.name
-      val paramType = param.tree match
+      val paramName: String = param.name
+      val paramNameExpr: Expr[String] = Expr(paramName)
+      val paramType: TypeRepr = param.tree match
         case vd: ValDef => vd.tpt.tpe
+        case other      => report.errorAndAbort(s"Unexpected tree for parameter $paramName: ${other.show}")
 
-      val keyExpr = AnnotationName.findAnnotationValue[T](Expr(paramName))
+      val keyToUse: Expr[String] =
+        AnnotationName.findAnnotationValue[T](Expr(paramName)) match
+          case '{ Some($annotationValue: String) } => annotationValue
+          case '{ None }                           => Expr(paramName)
 
-      val keyToUse: Expr[String] = keyExpr match
-        case '{ Some($annotationValue: String) } => annotationValue
-        case '{ None }                           => Expr(paramName)
+      val paramTypeShowExpr: Expr[String] = Expr(paramType.show)
 
       paramType.asType match
         case '[Option[t]] =>
-          val rawExpr = '{ $fieldData.get($keyToUse) }
-          val optionExpr = '{
-            $rawExpr match
+          '{
+            $fieldData.get($keyToUse) match
               case Some(value) => Option(value.asInstanceOf[t])
               case None        => None
           }
-          optionExpr
 
         case '[nestedT] if paramType.typeSymbol.flags.is(Flags.Case) =>
-          val rawExpr = '{ $fieldData.getOrElse($keyToUse, throw new RuntimeException(s"Field:${${ Expr(keyToUse.show) }} not found")) }
-          val nestedExpr = '{
-            $rawExpr match
+          '{
+            $fieldData.getOrElse(
+              $keyToUse,
+              throw new RuntimeException("Field: " + $keyToUse + " not found")
+            ) match
               case instance: nestedT @unchecked     => instance
               case map: Map[String, Any] @unchecked => getInstance[nestedT](map)
-              case other                            => throw new RuntimeException(s"Unexpected type for field  " + other.getClass)
+              case other =>
+                throw new RuntimeException("Unexpected type for field " + other.getClass)
           }
 
-          nestedExpr
-
         case '[nestedT] if paramType.typeSymbol.flags.is(Flags.Enum) =>
-          val enumCompanionName = Expr(paramType.typeSymbol.companionModule.fullName)
-          val paramNameLiteral = Expr(paramName)
-
-          val enumExpr = '{
-            val rawValue = $fieldData.get($paramNameLiteral)
-            rawValue match
+          val enumCompanionName: Expr[String] =
+            Expr(paramType.typeSymbol.companionModule.fullName)
+          '{
+            $fieldData.get($keyToUse) match
               case Some(value: String @unchecked) =>
                 try
                   val enumClass = Class.forName($enumCompanionName)
@@ -65,34 +65,38 @@ object CaseClassFactory:
                   method.invoke(enumClass, value).asInstanceOf[nestedT]
                 catch
                   case ex: Exception =>
-                    throw new RuntimeException("Error decoding enum field '" + ${ Expr(paramName) } + "': " + ex.getMessage, ex)
+                    throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
               case Some(enumValue: nestedT @unchecked) =>
                 enumValue
               case None =>
-                throw new RuntimeException("Missing enum field: " + ${ Expr(paramName) })
+                throw new RuntimeException("Missing enum field: " + $keyToUse)
               case other =>
-                throw new RuntimeException("Unexpected value type for enum field '" + ${ Expr(paramName) } + "': " + other.getClass)
-            end match
+                throw new RuntimeException("Unexpected value type for enum field '" + $keyToUse + "': " + other.getClass)
           }
 
-          enumExpr
-
         case '[nestedT] =>
-          val castExpr = '{
-            val rawValue = $fieldData.getOrElse($keyToUse, throw new RuntimeException(s"Missing field: ${${ Expr(keyToUse.show) }}"))
+          '{
+            val rawValue = $fieldData.getOrElse(
+              $keyToUse,
+              throw new RuntimeException("Missing field: " + $keyToUse)
+            )
             try rawValue.asInstanceOf[nestedT]
             catch
               case ex: ClassCastException =>
                 throw new RuntimeException(
-                  s"Error casting field '${${ Expr(paramName) }}'. Expected: ${${ Expr(paramType.show) }}, Actual: " + rawValue.getClass.getName,
+                  "Error casting field " + $paramNameExpr + ". Expected: " + $paramTypeShowExpr +
+                    ", Actual: " + rawValue.getClass.getName,
                   ex
                 )
+            end try
           }
-          castExpr
       end match
     }
 
-    val instance = Apply(Select(New(TypeIdent(mainTypeSymbol)), mainTypeSymbol.primaryConstructor), fieldExprs.map(_.asTerm)).asExprOf[T]
+    val instance = Apply(
+      Select(New(TypeIdent(mainTypeSymbol)), mainTypeSymbol.primaryConstructor),
+      fieldExprs.map(_.asTerm)
+    ).asExprOf[T]
 
     instance
   end getInstanceImpl
