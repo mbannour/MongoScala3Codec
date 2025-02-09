@@ -15,14 +15,13 @@
 To include MongoScala3Codec in your Scala project, add the following dependency:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.1-M5"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.1-M6"
 ```
 
 ## Features
 
 - **Macro-based Codec Generation**: Automatically generate BSON codecs for case classes at compile-time.
 - **Support for Optional Fields**: Handle `Option` types with customizable behavior (`encodeNone` or `ignoreNone`).
-- **Unified Codec Management**: Consolidates and manages codecs with `CodecRegistryManager`
 - **Nested Case Class Support**: Serialize and deserialize deeply nested case class structures.
 - **Seamless Integration**: Compatible with MongoDB Scala Driver.
 

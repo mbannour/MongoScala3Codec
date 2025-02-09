@@ -19,6 +19,7 @@ ThisBuild / publishTo := {
   if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
   else Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
+
 ThisBuild / publishMavenStyle := true
 
 lazy val root = project
@@ -28,12 +29,12 @@ lazy val root = project
     organization := "io.github.mbannour",
     version := "0.0.1-M6",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
-    homepage := Some(url("https://github.com/mbannour/MongoScala3Codecs")),
+    homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
     scmInfo := Some(
       ScmInfo(
-        url("https://github.com/mbannour/MongoScala3Codecs"),
-        "scm:git:git@github.com:mbannour/MongoScala3Codecs.git"
+        url("https://github.com/mbannour/MongoScala3Codec"),
+        "scm:git:git@github.com:mbannour/MongoScala3Codec.git"
       )
     ),
     developers := List(
@@ -41,7 +42,7 @@ lazy val root = project
         id = "medali",
         name = "Mohamed Ali Bannour",
         email = "med.ali.bennour@gmail.com",
-        url = url("https://github.com/mbannour/MongoScala3Codecs")
+        url = url("https://github.com/mbannour/MongoScala3Codec")
       )
     ),
     libraryDependencies ++= Seq(
@@ -64,7 +65,7 @@ lazy val root = project
       "-Wunused:all"
     ),
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
-    Test / publishArtifact := false,
+    Test / publishArtifact := false
   )
 
 lazy val integrationTests = project
