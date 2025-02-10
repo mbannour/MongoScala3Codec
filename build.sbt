@@ -78,7 +78,7 @@ lazy val integrationTests = project
       "org.scalactic" %% "scalactic" % "3.2.19" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.41.4" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.41.4" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-driver" % "4.8.0").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
     ),
     testFrameworks += new TestFramework("org.scalatest.tools.Framework"),
     fork := true,
