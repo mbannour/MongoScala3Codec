@@ -22,7 +22,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     with ScalaFutures
     with BeforeAndAfterAll:
 
-  implicit val defaultPatience: PatienceConfig = PatienceConfig(timeout = Span(10, Seconds), interval = Span(500, Millis))
+  implicit val defaultPatience: PatienceConfig = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 
   override val container: MongoDBContainer = MongoDBContainer("mongo:6.0.19")
 
