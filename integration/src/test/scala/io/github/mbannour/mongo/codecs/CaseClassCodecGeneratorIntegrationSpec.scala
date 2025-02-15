@@ -37,7 +37,7 @@ class CaseClassCodecGeneratorIntegrationSpec
   "CaseClassCodecGenerator" should "handle nested case classes and optional fields with custom codecs" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    val database: MongoDatabase = MongoClient()
+    val database: MongoDatabase = MongoClient(mongoUri)
       .getDatabase("test_db")
       .withCodecRegistry(
         DefaultCodecRegistries.defaultRegistry
