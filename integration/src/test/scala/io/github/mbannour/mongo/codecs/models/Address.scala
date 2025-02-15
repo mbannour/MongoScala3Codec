@@ -12,5 +12,4 @@ object Address:
       CodecRegistries.fromCodecs(EmployeeId.dealerIdBsonCodec),
       MongoClient.DEFAULT_CODEC_REGISTRY
     )
-
 end Address

@@ -19,18 +19,10 @@ import scala.reflect.ClassTag
 
 object CodecProviderMacro:
 
-  /** Creates a CodecProvider for the case class type `T` that **ignores** fields with a value of `None`.
-    *
-    * The generated Codec will not include fields set to `None` during the encoding process.
-    */
-  inline def createCodecProviderIgnoreNone[T](inline codecRegistry: CodecRegistry)(using classTag: ClassTag[T]): CodecProvider =
+  inline def createCodecProviderIgnoreNone[T](using classTag: ClassTag[T], codecRegistry: CodecRegistry): CodecProvider =
     createCodecProvider[T](false, codecRegistry)
 
-  /** Creates a CodecProvider for the case class type `T` that **encodes** fields with a value of `None`.
-    *
-    * The generated Codec will include fields set to `None` during the encoding process.
-    */
-  inline def createCodecProviderEncodeNone[T](inline codecRegistry: CodecRegistry)(using classTag: ClassTag[T]): CodecProvider =
+  inline def createCodecProviderEncodeNone[T](using classTag: ClassTag[T], codecRegistry: CodecRegistry): CodecProvider =
     createCodecProvider[T](true, codecRegistry)
 
   private inline def createCodecProvider[T](inline encodeNone: Boolean, codecRegistry: CodecRegistry)(using

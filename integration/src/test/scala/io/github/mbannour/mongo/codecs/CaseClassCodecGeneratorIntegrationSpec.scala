@@ -1,26 +1,19 @@
 package io.github.mbannour.mongo.codecs
 
 import com.dimafeng.testcontainers.{ForAllTestContainer, MongoDBContainer}
-import io.github.mbannour.mongo.codecs.models.Company.companyRegistry
-import io.github.mbannour.mongo.codecs.models.Event.eventRegistry
-import io.github.mbannour.mongo.codecs.models.Person.personRegistry
-import io.github.mbannour.mongo.codecs.models.Task.taskRegistry
-import io.github.mbannour.mongo.codecs.models.{Address, Company, EmployeeId, Event, Person, Priority, Task}
+import io.github.mbannour.mongo.codecs.models.*
 import org.mongodb.scala.*
 import org.mongodb.scala.model.Filters
-import org.bson.codecs.configuration.{CodecProvider, CodecRegistries, CodecRegistry}
+import org.bson.codecs.configuration.CodecRegistry
 import org.bson.types.ObjectId
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.bson.{BsonReader, BsonWriter}
-import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.scalatest.time.{Millis, Seconds, Span}
 
-import java.time.{ZonedDateTime}
+import java.time.ZonedDateTime
 import scala.concurrent.Future
-import scala.jdk.CollectionConverters.*
 
 class CaseClassCodecGeneratorIntegrationSpec
     extends AnyFlatSpec
@@ -44,16 +37,12 @@ class CaseClassCodecGeneratorIntegrationSpec
   "CaseClassCodecGenerator" should "handle nested case classes and optional fields with custom codecs" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
-
-    val combinedRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(personProvider),
-        MongoClient.DEFAULT_CODEC_REGISTRY
+    val database: MongoDatabase = MongoClient()
+      .getDatabase("test_db")
+      .withCodecRegistry(
+        DefaultCodecRegistries.defaultRegistry
       )
 
-    val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
     val collection: MongoCollection[Person] = database.getCollection("people")
 
     val person = Person(
@@ -68,12 +57,14 @@ class CaseClassCodecGeneratorIntegrationSpec
     )
 
     collection.insertOne(person).toFuture().futureValue
+
     val retrievedPerson =
       collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
     retrievedPerson shouldBe person
 
     val personWithoutMiddleName = person.copy(middleName = None, _id = new ObjectId())
     collection.insertOne(personWithoutMiddleName).toFuture().futureValue
+
     val retrievedPersonWithoutMiddleName =
       collection.find(Filters.equal("_id", personWithoutMiddleName._id)).first().toFuture().futureValue
 
@@ -83,19 +74,10 @@ class CaseClassCodecGeneratorIntegrationSpec
   }
 
   it should "handle empty collections and missing nested case class fields" in {
-    val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
 
-    val combinedRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(personProvider),
-        MongoClient.DEFAULT_CODEC_REGISTRY
-      )
-
-    val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
+    val database: MongoDatabase = createDatabaseWithRegistry(DefaultCodecRegistries.defaultRegistry)
     val collection: MongoCollection[Person] = database.getCollection("people")
-
-    // Person with empty nicknames and no address.
+    
     val person = Person(
       _id = new ObjectId(),
       name = "Bob",
@@ -117,14 +99,7 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   it should "handle custom codecs such as ZonedDateTime" in {
 
-    val eventProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Event](eventRegistry)
-    // Register the ZonedDateTimeCodec first so it is found.
-    val customRegistry: CodecRegistry = CodecRegistries.fromRegistries(
-      CodecRegistries.fromProviders(eventProvider),
-      MongoClient.DEFAULT_CODEC_REGISTRY
-    )
-    val database: MongoDatabase = createDatabaseWithRegistry(customRegistry)
+    val database: MongoDatabase = createDatabaseWithRegistry(Event.eventRegistry)
     val collection: MongoCollection[Event] = database.getCollection("events")
 
     val event = Event(
@@ -143,17 +118,7 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   it should "handle nested collections (e.g., a company with employees)" in {
 
-    val companyProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Company](companyRegistry)
-    end companyProvider
-
-    val combinedRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(companyProvider),
-        MongoClient.DEFAULT_CODEC_REGISTRY
-      )
-
-    val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
+    val database: MongoDatabase = createDatabaseWithRegistry(Company.defaultRegistry)
 
     val collection: MongoCollection[Company] = database.getCollection("companies")
 
@@ -188,17 +153,8 @@ class CaseClassCodecGeneratorIntegrationSpec
   }
 
   it should "handle Scala Enumeration fields in case classes" in {
-    // Define a provider for Task (which has a Scala Enumeration field).
 
-    val taskProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Task](taskRegistry)
-
-    val combinedRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(taskProvider),
-        MongoClient.DEFAULT_CODEC_REGISTRY
-      )
-    val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
+    val database: MongoDatabase = createDatabaseWithRegistry(Task.defaultRegistry)
     val collection: MongoCollection[Task] = database.getCollection("tasks")
 
     val task = Task(
@@ -217,20 +173,9 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   it should "handle high concurrency loads" in {
 
-    val personProvider: CodecProvider =
-      CodecProviderMacro.createCodecProviderEncodeNone[Person](personRegistry)
-
-    val combinedRegistry: CodecRegistry =
-      CodecRegistries.fromRegistries(
-        CodecRegistries.fromProviders(personProvider),
-        MongoClient.DEFAULT_CODEC_REGISTRY
-      )
-
-    // Create a database instance using the combined registry.
-    val database: MongoDatabase = createDatabaseWithRegistry(combinedRegistry)
+    val database: MongoDatabase = createDatabaseWithRegistry(DefaultCodecRegistries.defaultRegistry)
     val collection: MongoCollection[Person] = database.getCollection("concurrent_people")
 
-    // Create a large number of Person documents.
     val numDocs = 1000
     val persons: Seq[Person] = (1 to numDocs).map { i =>
       Person(
@@ -247,7 +192,6 @@ class CaseClassCodecGeneratorIntegrationSpec
 
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    // Concurrently insert all documents.
     val insertStartTime = System.nanoTime()
     val insertFutures = persons.map { person =>
       collection.insertOne(person).toFuture()
@@ -256,7 +200,6 @@ class CaseClassCodecGeneratorIntegrationSpec
     val insertDurationMs = (System.nanoTime() - insertStartTime) / 1e6
     info(s"Inserted $numDocs documents concurrently in $insertDurationMs ms")
 
-    // Concurrently retrieve all documents by _id.
     val retrievalStartTime = System.nanoTime()
     val retrievalFutures = persons.map { person =>
       collection.find(Filters.equal("_id", person._id)).first().toFuture()
@@ -265,10 +208,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     val retrievalDurationMs = (System.nanoTime() - retrievalStartTime) / 1e6
     info(s"Retrieved $numDocs documents concurrently in $retrievalDurationMs ms")
 
-    // Verify that all inserted documents were retrieved correctly.
     retrievedPersons should contain theSameElementsAs persons
-
-    // Clean up the database.
     database.drop().toFuture().futureValue
   }
 
