@@ -6,6 +6,7 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 case class Person(
     _id: ObjectId,
     @BsonProperty("n") name: String,
+    employeeId: Map[String, EmployeeId],
     middleName: Option[String],
     age: Int,
     height: Double,

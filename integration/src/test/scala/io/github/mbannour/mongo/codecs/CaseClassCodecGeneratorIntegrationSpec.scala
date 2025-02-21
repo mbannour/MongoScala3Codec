@@ -30,7 +30,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     s"mongodb://${container.containerIpAddress}:${container.mappedPort(27017)}"
 
   private def createDatabaseWithRegistry(registry: CodecRegistry): MongoDatabase =
-    MongoClient(mongoUri)
+    MongoClient()
       .getDatabase("test_db")
       .withCodecRegistry(registry)
 
@@ -48,6 +48,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     val person = Person(
       _id = new ObjectId(),
       name = "Alice",
+      employeeId = Map("E1" -> EmployeeId()),
       middleName = Some("Marie"),
       age = 30,
       height = 5.6,
@@ -77,10 +78,11 @@ class CaseClassCodecGeneratorIntegrationSpec
 
     val database: MongoDatabase = createDatabaseWithRegistry(DefaultCodecRegistries.defaultRegistry)
     val collection: MongoCollection[Person] = database.getCollection("people")
-    
+
     val person = Person(
       _id = new ObjectId(),
       name = "Bob",
+      employeeId = Map("E1" -> EmployeeId()),
       middleName = None,
       age = 25,
       height = 5.9,
@@ -125,6 +127,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     val employee1 = Person(
       _id = new ObjectId(),
       name = "Alice",
+      employeeId = Map("E1" -> EmployeeId()),
       middleName = Some("Marie"),
       age = 30,
       height = 5.6,
@@ -135,6 +138,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     val employee2 = Person(
       _id = new ObjectId(),
       name = "Bob",
+      employeeId = Map("E1" -> EmployeeId()),
       middleName = None,
       age = 28,
       height = 5.8,
@@ -181,6 +185,7 @@ class CaseClassCodecGeneratorIntegrationSpec
       Person(
         _id = new ObjectId(),
         name = s"Person $i",
+        employeeId = Map("E1" -> EmployeeId()),
         middleName = if i % 2 == 0 then Some(s"Middle $i") else None,
         age = 20 + (i % 30),
         height = 5.0 + (i % 10) * 0.1,

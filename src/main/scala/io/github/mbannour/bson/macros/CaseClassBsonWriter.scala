@@ -71,16 +71,6 @@ object CaseClassBsonWriter:
               case None =>
                 if $encodeNone then $writer.writeNull(${ fieldName })
           }
-        case '[Iterable[t]] =>
-          '{
-            $writer.writeStartArray(${ fieldName })
-            $fieldValueExpr.asInstanceOf[Iterable[t]].foreach { item =>
-              ${
-                writeOptionField(Type.of[t], 'item, writer, encoderContext, encodeNone, registry)
-              }
-            }
-            $writer.writeEndArray()
-          }
         case nestedType =>
           val nestedTypeRepr = nestedType match
             case t: scala.quoted.Type[?] =>
