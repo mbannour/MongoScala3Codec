@@ -21,7 +21,7 @@ MongoScala3Codec is an essential tool for seamless integration with MongoDB in m
 To include MongoScala3Codec in your Scala project, add the following dependency:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.1"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.2-M2"
 ```
 
 ## Features
@@ -118,11 +118,9 @@ object MyApp extends App {
   
   val insertFuture = collection.insertOne(address).toFuture()
   Await.result(insertFuture, 10.seconds)
-  println(s"Inserted address: $address")
   
   val findFuture = collection.find().first().toFuture()
   val retrievedAddress = Await.result(findFuture, 10.seconds)
-  println(s"Retrieved address: $retrievedAddress")
   
 }
 

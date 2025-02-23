@@ -30,7 +30,7 @@ class CaseClassCodecGeneratorIntegrationSpec
     s"mongodb://${container.containerIpAddress}:${container.mappedPort(27017)}"
 
   private def createDatabaseWithRegistry(registry: CodecRegistry): MongoDatabase =
-    MongoClient()
+    MongoClient(mongoUri)
       .getDatabase("test_db")
       .withCodecRegistry(registry)
 
