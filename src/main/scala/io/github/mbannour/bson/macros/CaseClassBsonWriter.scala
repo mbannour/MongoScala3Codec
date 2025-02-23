@@ -71,6 +71,27 @@ object CaseClassBsonWriter:
               case None =>
                 if $encodeNone then $writer.writeNull(${ fieldName })
           }
+        case '[Map[String, t]] =>
+          '{
+            $writer.writeStartDocument(${ fieldName })
+            $fieldValueExpr.asInstanceOf[Map[String, t]].foreach { case (key, value) =>
+              $writer.writeName(key)
+              ${
+                writeOptionField(Type.of[t], 'value, writer, encoderContext, encodeNone, registry)
+              }
+            }
+            $writer.writeEndDocument()
+          }
+        case '[Iterable[t]] =>
+          '{
+            $writer.writeStartArray(${ fieldName })
+            $fieldValueExpr.asInstanceOf[Iterable[t]].foreach { item =>
+              ${
+                writeOptionField(Type.of[t], 'item, writer, encoderContext, encodeNone, registry)
+              }
+            }
+            $writer.writeEndArray()
+          }
         case nestedType =>
           val nestedTypeRepr = nestedType match
             case t: scala.quoted.Type[?] =>
