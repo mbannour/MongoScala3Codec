@@ -7,7 +7,8 @@ ThisBuild / crossScalaVersions := Seq(
   "3.4.2",
   "3.5.0",
   "3.5.1",
-  "3.5.2"
+  "3.5.2",
+  "3.6.3"
 )
 
 usePgpKeyHex("8D15E6EFEC642C76")
@@ -27,7 +28,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.2-M2",
+    version := "0.0.2",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),

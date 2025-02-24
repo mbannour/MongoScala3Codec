@@ -21,7 +21,7 @@ MongoScala3Codec is an essential tool for seamless integration with MongoDB in m
 To include MongoScala3Codec in your Scala project, add the following dependency:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.2-M2"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.2"
 ```
 
 ## Features
