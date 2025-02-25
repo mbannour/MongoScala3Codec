@@ -57,73 +57,100 @@ It wraps the generated codec in a `CodecProvider` instance, which:
 ### Example Code
 
 ```scala
-
-import io.github.mbannour.mongo.codecs.CodecProviderMacro
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.bson.codecs.configuration.{CodecProvider, CodecRegistries, CodecRegistry}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.types.ObjectId
-import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import com.mongodb.client.model.Filters
+import com.mongodb.client.{MongoClients, MongoCollection, MongoDatabase}
+import com.mongodb.MongoClientSettings
+import org.mongodb.scala.MongoClient
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
+
+case class Address(street: String, city: String, zipCode: Int)
 
 final case class EmployeeId(value: ObjectId) extends AnyVal
 
-object EmployeeIdCodec extends Codec[EmployeeId] {
-  override def encode(writer: BsonWriter, value: EmployeeId, encoderContext: EncoderContext): Unit =
-    writer.writeObjectId(value.value)
+object EmployeeId {
+  def apply(): EmployeeId = EmployeeId(new ObjectId())
 
-  override def decode(reader: BsonReader, decoderContext: DecoderContext): EmployeeId =
-    EmployeeId(reader.readObjectId())
+  def codec: Codec[EmployeeId] = new Codec[EmployeeId] {
 
-  override def getEncoderClass: Class[EmployeeId] = classOf[EmployeeId]
+    override def encode(writer: BsonWriter, value: EmployeeId, encoderContext: EncoderContext): Unit =
+      writer.writeObjectId(value.value)
+
+    override def decode(reader: BsonReader, decoderContext: DecoderContext): EmployeeId =
+      EmployeeId(reader.readObjectId())
+
+    override def getEncoderClass: Class[EmployeeId] = classOf[EmployeeId]
+
+  }
 }
 
-case class Address(street: String, city: String, zipCode: Int, employeeId: EmployeeId)
+case class Person(_id: ObjectId,
+                  @BsonProperty("n") name: String,
+                  employeeId: Map[String, EmployeeId],
+                  middleName: Option[String],
+                  age: Int,
+                  height: Double,
+                  married: Boolean,
+                  address: Option[Address],
+                  nicknames: Seq[String]
+                 )
 
+object Person {
+  val personRegistry: CodecRegistry =
+    CodecRegistries.fromRegistries(
+      CodecRegistries.fromProviders(
+        createCodecProviderEncodeNone[Address],
+        createCodecProviderEncodeNone[Person]
+      ),
+      CodecRegistries.fromCodecs(
+        EmployeeId.codec
+      ),
+      MongoClientSettings.getDefaultCodecRegistry
+    )
 
-object DefaultCodecRegistries {
-
-  private val addressProvider = CodecProviderMacro.createCodecProviderEncodeNone[Address]
-
-  // Compose all codec providers into a single CodecRegistry
-  val defaultRegistry: CodecRegistry = CodecRegistries.fromRegistries(
-    CodecRegistries.fromCodecs(EmployeeIdCodecProvider),
-    CodecRegistries.fromProviders(EmployeeIdCodecProvider, addressProvider),
-    MongoClient.DEFAULT_CODEC_REGISTRY
-  )
-
-
-  given CodecRegistry = defaultRegistry
+  given CodecRegistry = personRegistry
 }
 
 
 object MyApp extends App {
-  
-  import DefaultCodecRegistries.given
-  
+
   val database: MongoDatabase = MongoClient()
-    .getDatabase("example_db")
-    .withCodecRegistry(DefaultCodecRegistries.defaultRegistry)
-  
-  val collection: MongoCollection[Address] = database.getCollection("addresses")
-  
-  val address = Address(
-    street = "456 Oak St",
-    city = "Metropolis",
-    zipCode = 98765,
-    employeeId = EmployeeId(new ObjectId())
+          .getDatabase("test_db")
+          .withCodecRegistry(Person.personRegistry)
+
+  val collection: MongoCollection[Person] = database.getCollection("person")
+
+  val person = Person(
+    _id = new ObjectId(),
+    name = "Alice",
+    employeeId = Map("E1" -> EmployeeId()),
+    middleName = Some("Marie"),
+    age = 30,
+    height = 5.6,
+    married = true,
+    address = Some(Address("123 Main St", "Wonderland", 12345)),
+    nicknames = Seq("Ally", "Lissie")
   )
-  
-  val insertFuture = collection.insertOne(address).toFuture()
-  Await.result(insertFuture, 10.seconds)
-  
-  val findFuture = collection.find().first().toFuture()
-  val retrievedAddress = Await.result(findFuture, 10.seconds)
+
+  // Insert the person into MongoDB
+  collection.insertOne(person).toFuture().foreach { _ =>
+    println("Person inserted successfully!")
+  }
+
+  // Retrieve the person from MongoDB
+  val retrievedPerson: Future[Person] =
+    collection.find(Filters.equal("_id", person._id)).first().toFuture()
+
+  retrievedPerson.foreach { p =>
+    println(s"Retrieved Person: $p")
+  }
   
 }
-
 ```
 
 ## Contributing

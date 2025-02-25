@@ -7,15 +7,7 @@ import io.github.mbannour.bson.macros.*
 import io.github.mbannour.mongo.codecs.CodecProviderMacro
 
 object DefaultCodecRegistries:
-
-//  private val addressProvider = CodecProviderMacro.createCodecProviderEncodeNone[Address]
-//  private val personProvider  = CodecProviderMacro.createCodecProviderEncodeNone[Person]
-
-//  private val customCodecs = CodecRegistries.fromCodecs(
-//    EmployeeId.dealerIdBsonCodec,
-//    DateField.dateFieldCodec
-//  )
-
+  
   val defaultRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
       CodecRegistries
