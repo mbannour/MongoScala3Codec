@@ -19,8 +19,8 @@ MongoScala3Codec is an essential tool for seamless integration with MongoDB in m
 
 Visit the GitHub Wiki for complete guides, tutorials, and references:
 
-* [Getting Started](https://github.com/mbannour/MongoScala3Codec/wiki/Getting-started)
-* [Architecture Overview](https://github.com/mbannour/MongoScala3Codec/wiki/Architecture-Overview)
+* [Getting Started](https://github.com/mbannour/MongoScala3Codec/wiki/Getting%E2%80%90started)
+* [Architecture Overview](https://github.com/mbannour/MongoScala3Codec/wiki/Architecture%E2%80%90Overview)
 * [API Reference](https://github.com/mbannour/MongoScala3Codec/wiki/API‐Reference)
 * [How-To Guides](https://github.com/mbannour/MongoScala3Codec/wiki/How‐To-Guides)
 * [Design Decisions](https://github.com/mbannour/MongoScala3Codec/wiki/Design‐Decisions)
