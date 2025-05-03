@@ -5,6 +5,7 @@ import io.github.mbannour.mongo.codecs.models.*
 import org.mongodb.scala.*
 import org.mongodb.scala.model.Filters
 import org.bson.codecs.configuration.CodecRegistry
+import DefaultCodecRegistries.*
 import org.bson.types.ObjectId
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
@@ -15,7 +16,7 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import java.time.ZonedDateTime
 import scala.concurrent.Future
 
-class CaseClassCodecGeneratorIntegrationSpec
+class CodecProviderIntegrationSpec
     extends AnyFlatSpec
     with ForAllTestContainer
     with Matchers
@@ -169,7 +170,7 @@ class CaseClassCodecGeneratorIntegrationSpec
 
     collection.insertOne(task).toFuture().futureValue
     val retrievedTask =
-      collection.find(Filters.equal("_id", task._id)).first().toFuture().futureValue
+      collection.find(Filters.and(Filters.equal("_id", task._id), Filters.equal("priority", Priority.High))).first().toFuture().futureValue
     retrievedTask shouldBe task
 
     database.drop().toFuture().futureValue
@@ -219,4 +220,4 @@ class CaseClassCodecGeneratorIntegrationSpec
 
   override def afterAll(): Unit =
     container.stop()
-end CaseClassCodecGeneratorIntegrationSpec
+end CodecProviderIntegrationSpec

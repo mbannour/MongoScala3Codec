@@ -7,17 +7,25 @@ import io.github.mbannour.bson.macros.*
 import io.github.mbannour.mongo.codecs.CodecProviderMacro
 
 object DefaultCodecRegistries:
+
+  private val providers = Seq(
+    CodecProviderMacro.createCodecProviderEncodeNone[Address],
+    CodecProviderMacro.createCodecProviderEncodeNone[Person]
+  )
+
+  private val rawCodecs = Seq(
+    EmployeeId.dealerIdBsonCodec,
+    DateField.dateFieldCodec
+  )
   
   val defaultRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
       CodecRegistries
-        .fromProviders(CodecProviderMacro.createCodecProviderEncodeNone[Address], CodecProviderMacro.createCodecProviderEncodeNone[Person]),
-      CodecRegistries.fromCodecs(
-        EmployeeId.dealerIdBsonCodec,
-        DateField.dateFieldCodec
-      ),
+        .fromProviders(providers*),
+      CodecRegistries.fromCodecs(rawCodecs*),
       MongoClient.DEFAULT_CODEC_REGISTRY
     )
 
   given CodecRegistry = defaultRegistry
+  
 end DefaultCodecRegistries

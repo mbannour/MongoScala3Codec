@@ -1,8 +1,10 @@
 package io.github.mbannour.mongo.codecs
 
 import io.github.mbannour.mongo.codecs.models.Priority
+import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
+import org.mongodb.scala.bson.codecs
 
 import java.time.{ZoneId, ZonedDateTime}
 import java.time.temporal.ChronoUnit
@@ -34,3 +36,5 @@ object PriorityCodec extends Codec[Priority.Value]:
 
   override def getEncoderClass: Class[Priority.Value] = classOf[Priority.Value]
 end PriorityCodec
+
+
