@@ -1,3 +1,5 @@
+import xerial.sbt.Sonatype.*
+
 val scala3Version = "3.6.3"
 
 ThisBuild / crossScalaVersions := Seq(
@@ -12,14 +14,9 @@ ThisBuild / crossScalaVersions := Seq(
 )
 
 usePgpKeyHex("8D15E6EFEC642C76")
-
+ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 ThisBuild / scalaVersion := scala3Version
 ThisBuild / versionScheme := Some("early-semver")
-ThisBuild / publishTo := {
-  val nexus = "https://s01.oss.sonatype.org/"
-  if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
-  else Some("releases" at nexus + "service/local/staging/deploy/maven2")
-}
 
 ThisBuild / publishMavenStyle := true
 
@@ -28,7 +25,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.3",
+    version := "0.0.4-M1",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
