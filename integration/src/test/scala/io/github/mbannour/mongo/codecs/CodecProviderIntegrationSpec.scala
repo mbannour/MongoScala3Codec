@@ -16,12 +16,7 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import java.time.ZonedDateTime
 import scala.concurrent.Future
 
-class CodecProviderIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
 
@@ -61,7 +56,14 @@ class CodecProviderIntegrationSpec
     collection.insertOne(person).toFuture().futureValue
 
     val retrievedPerson =
-      collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
+      collection
+        .find(Filters.and(Filters.equal(
+          PersonFields.id, person._id), Filters.equal(
+          PersonFields.address.zipCode, 12345))
+        )
+        .first()
+        .toFuture()
+        .futureValue
     retrievedPerson shouldBe person
 
     val personWithoutMiddleName = person.copy(middleName = None, _id = new ObjectId())

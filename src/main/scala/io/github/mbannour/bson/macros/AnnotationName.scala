@@ -6,6 +6,8 @@ import scala.quoted.*
 
 object AnnotationName:
 
+
+
   /** Inline helper to retrieve the annotation value for a given field name of type T.
     *
     * @param fieldName
@@ -17,6 +19,30 @@ object AnnotationName:
     */
   private[mbannour] inline def invokeFindAnnotationValue[T](fieldName: String): Option[String] =
     ${ findAnnotationValue[T]('fieldName) }
+
+  /** Build a compile‐time Map[fieldName -> annotationValue] for all @BsonProperty on T */
+  inline def extractAnnotationMap[T]: Map[String, String] =
+    ${ extractAnnotationMapImpl[T] }
+
+  private def extractAnnotationMapImpl[T: Type](using q: Quotes): Expr[Map[String, String]] =
+    import q.reflect.*
+    val tpe = TypeRepr.of[T]
+    val ctorParams = tpe.typeSymbol.primaryConstructor.paramSymss.flatten
+    // collect (paramName -> annotationValue)
+    val pairs: List[Expr[(String, String)]] = ctorParams.collect {
+      case p if p.hasAnnotation(TypeRepr.of[BsonProperty].typeSymbol) =>
+        val name = Expr(p.name)
+        val value = p.getAnnotation(TypeRepr.of[BsonProperty].typeSymbol).get match
+          case Apply(_, List(Literal(StringConstant(v)))) => Expr(v)
+          case other =>
+            report.errorAndAbort(s"Unexpected BsonProperty annotation on $p: ${other.show}")
+        '{ $name -> $value }
+    }
+
+    // splice them as varargs into Map(...)
+    '{
+      Map[String, String](${ Varargs(pairs) } *)
+    }
 
   /** Retrieves the value provided in the @BsonProperty annotation for a constructor parameter in type T.
     *
