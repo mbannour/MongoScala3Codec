@@ -16,6 +16,10 @@ object MongoFieldMapper:
     val className = constValue[m.MirroredLabel]
     cache.getOrElseUpdate(className, apply[T].extract().toMap)
 
+  inline def mongoField[T](using m: Mirror.Of[T]): Map[String, String] =
+    val className = constValue[m.MirroredLabel]
+    cache.getOrElseUpdate(className, apply[T].extract().toMap)
+
   object AnnotationMap:
     inline def forType[T]: Map[String, String] = extractAnnotationMap[T]
 
@@ -37,7 +41,7 @@ object MongoFieldMapper:
   /** Normalize paths by removing `.Some.` and optionally `.value.` */
   private def normalizePath(path: String): String =
     path.replace(".Some.", ".").replace(".value.", ".")
-  
+
   private inline def getLabels[T](using m: Mirror.Of[T]): List[String] =
     getLabelsImpl[m.MirroredElemLabels]
 
@@ -54,12 +58,12 @@ object MongoFieldMapper:
       case _: (h *: t) =>
         val head: MongoFieldResolver = summonFrom {
           case _: Mirror.Of[`h`] => apply[`h`]
-          case _ => DefaultMongoFieldResolver$
+          case _ => DefaultMongoFieldResolver
         }
         head :: getExtractorsImpl[t]
       case _: EmptyTuple => Nil
 end MongoFieldMapper
 
-private object DefaultMongoFieldResolver$ extends MongoFieldResolver:
+private object DefaultMongoFieldResolver extends MongoFieldResolver:
 
   def extract(prefix: String): List[(String, String)] = List(prefix -> prefix)

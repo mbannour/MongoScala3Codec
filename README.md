@@ -10,8 +10,32 @@ This approach ensures:
 * **Strong Type Safety** – Compile-time validation of BSON serialization.
 * **High Performance** – Optimized code generation for efficient BSON handling.
 * **Minimal Boilerplate** – Eliminates manual codec definitions.
+# MongoFieldResolver: Extract MongoDB Field Paths with Compile-Time Safety
 
-MongoScala3Codec is an essential tool for seamless integration with MongoDB in modern Scala applications.
+Included in the library is the `MongoFieldResolver` (formerly `FieldPathMapper`), a utility that enables compile-time safe extraction of MongoDB field names, including support for nested structures.
+
+---
+
+##  Why Use `MongoFieldResolver`?
+
+* **Safe**: Detects typos at compile time by relying on actual field names from your case classes.
+* **Smart**: Understands deeply nested structures and custom field renaming using annotations (e.g., `@BsonProperty`).
+* **Fast**: Leveraging Scala 3 inline macros and a built-in cache for high performance.
+* **Flexible**: Supports both static and dynamic access patterns:
+
+  * Static/type-safe: `mongoField[Person]("address.city")`
+  * Dynamic/dictionary-style: `MongoFieldMapper.asMap[Person]("address.city")`
+
+---
+##  Recommended Pattern
+
+Use `MongoFieldMapper.asMap[T]` to generate a cached field map once and safely reuse it. This keeps your code clean and avoids hardcoded MongoDB field strings:
+
+```scala
+val dbField = PersonFields("address.city")
+```
+
+If you pass a field that doesn't exist, an exception is thrown with a helpful message — ensuring correctness during
 
 ---
 
