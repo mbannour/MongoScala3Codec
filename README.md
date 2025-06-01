@@ -58,7 +58,7 @@ Visit the GitHub Wiki for complete guides, tutorials, and references:
 ## Installation
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.3"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.4"
 ```
 
 ## Features
