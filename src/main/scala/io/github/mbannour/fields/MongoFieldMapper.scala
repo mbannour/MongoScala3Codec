@@ -25,12 +25,12 @@ object MongoFieldMapper:
 
   inline def apply[T](using m: Mirror.Of[T]): MongoFieldResolver =
     val overrides: Map[String, String] = AnnotationMap.forType[T]
-    
+
     (prefix: String) =>
       val labels = getLabels[T]
       val extractors = getExtractors[T]
       labels.zip(extractors).flatMap { (label, extractor) =>
-    
+
         val renamed = overrides.getOrElse(label, label)
         val fullKeyRaw = if prefix.isEmpty then renamed else s"$prefix.$renamed"
         val fullKey = normalizePath(fullKeyRaw)
@@ -47,7 +47,7 @@ object MongoFieldMapper:
 
   private inline def getLabelsImpl[Labels <: Tuple]: List[String] =
     inline erasedValue[Labels] match
-      case _: (h *: t) => constValue[h].toString :: getLabelsImpl[t]
+      case _: (h *: t)   => constValue[h].toString :: getLabelsImpl[t]
       case _: EmptyTuple => Nil
 
   private inline def getExtractors[T](using m: Mirror.Of[T]): List[MongoFieldResolver] =
@@ -58,7 +58,7 @@ object MongoFieldMapper:
       case _: (h *: t) =>
         val head: MongoFieldResolver = summonFrom {
           case _: Mirror.Of[`h`] => apply[`h`]
-          case _ => DefaultMongoFieldResolver
+          case _                 => DefaultMongoFieldResolver
         }
         head :: getExtractorsImpl[t]
       case _: EmptyTuple => Nil

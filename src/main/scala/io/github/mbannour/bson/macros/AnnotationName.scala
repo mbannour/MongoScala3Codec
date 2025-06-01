@@ -6,8 +6,6 @@ import scala.quoted.*
 
 object AnnotationName:
 
-
-
   /** Inline helper to retrieve the annotation value for a given field name of type T.
     *
     * @param fieldName
@@ -41,8 +39,9 @@ object AnnotationName:
 
     // splice them as varargs into Map(...)
     '{
-      Map[String, String](${ Varargs(pairs) } *)
+      Map[String, String](${ Varargs(pairs) }*)
     }
+  end extractAnnotationMapImpl
 
   /** Retrieves the value provided in the @BsonProperty annotation for a constructor parameter in type T.
     *

@@ -57,10 +57,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     val retrievedPerson =
       collection
-        .find(Filters.and(Filters.equal(
-          PersonFields.id, person._id), Filters.equal(
-          PersonFields.address.zipCode, 12345))
-        )
+        .find(Filters.and(Filters.equal(PersonFields.id, person._id), Filters.equal(PersonFields.address.zipCode, 12345)))
         .first()
         .toFuture()
         .futureValue
