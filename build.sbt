@@ -45,7 +45,7 @@ lazy val root = project
     ),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.3.1").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.5.0").cross(CrossVersion.for3Use2_13)
     ),
     scalacOptions ++= Seq(
       "-encoding",
