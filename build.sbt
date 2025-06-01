@@ -20,6 +20,7 @@ ThisBuild / scalaVersion := scala3Version
 ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / publishMavenStyle := true
+ThisBuild / publishTo := sonatypePublishToBundle.value
 
 lazy val root = project
   .in(file("."))
