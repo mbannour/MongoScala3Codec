@@ -74,7 +74,7 @@ class FieldNameMongoFieldResolverSpec extends AnyFunSuite {
       "level1.level2.l2_custom" -> "level1.level2.l2_custom",
       "level1.level1_alt" -> "level1.level1_alt",
       "alt_field" -> "alt_field",
-      "optionalField" -> "optionalField"
+      "optionalField.value" -> "optionalField.value"  // Optional fields expand their inner types
     )
     
     assert(result == expected)
@@ -109,7 +109,7 @@ class FieldNameMongoFieldResolverSpec extends AnyFunSuite {
       "boolField" -> "boolField",
       "doubleField" -> "doubleField",
       "longField" -> "longField",
-      "custom_opt" -> "custom_opt"
+      "custom_opt.value" -> "custom_opt.value"  // Optional primitive fields expand
     )
     
     assert(result == expected)
@@ -155,11 +155,11 @@ class FieldNameMongoFieldResolverSpec extends AnyFunSuite {
     
     val expected = List(
       "name" -> "name",
-      "address" -> "address"
+      "address.city" -> "address.city",
+      "address.zip" -> "address.zip"
     )
     
-    // Optional nested structures are typically handled at the codec level
-    // The field mapper focuses on the direct field names
+    // Optional nested structures expand their field mappings
     assert(result == expected)
   }
   
