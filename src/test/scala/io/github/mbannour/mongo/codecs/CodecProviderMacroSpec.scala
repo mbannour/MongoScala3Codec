@@ -2,7 +2,7 @@ package io.github.mbannour.mongo.codecs
 
 import org.bson.codecs.{BsonValueCodecProvider, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistries, CodecRegistry}
-import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
+import org.bson.{BsonDocument, BsonDocumentWriter}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.mongodb.scala.bson.annotations.BsonProperty

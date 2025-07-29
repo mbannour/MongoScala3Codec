@@ -1,8 +1,7 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.{BsonValueCodecProvider, DecoderContext, EncoderContext}
+import org.bson.codecs.{BsonValueCodecProvider}
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
-import org.bson.{BsonDocument, BsonDocumentWriter}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -69,11 +68,11 @@ class EnumValueCodecProviderSpec extends AnyFlatSpec with Matchers {
     val priorityProvider = EnumValueCodecProvider[Priority, Int](_.toInt, Priority.fromInt)
     
     // Test provider creation - it should not be null
-    priorityProvider `should` not be null
-    
+    priorityProvider should not be(null)
+
     // Test that it returns null for non-matching types (proper provider behavior)
     val codec = priorityProvider.get(classOf[String], baseRegistry)
-    codec `shouldBe` null
+    codec shouldBe null
   }
 
   it should "work with simple enum transformation functions" in {

@@ -140,4 +140,18 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     result.status should ===(Status.Ok)
   }
 
+  it should "instantiate Status from ordinal value" in {
+    val fieldData = Map("status" -> 0)
+    val result = CaseClassFactory.getInstance[StatusCase](fieldData)
+    result.status should ===(Status.Ok) // assuming ordinal 0 == Ok
+  }
+
+  it should "fail on invalid enum ordinal" in {
+    val fieldData = Map("enumField" -> 999)
+    val ex = intercept[RuntimeException] {
+      CaseClassFactory.getInstance[EnumCase](fieldData)
+    }
+    ex.getMessage should include("No enum value with ordinal")
+  }
+
 }

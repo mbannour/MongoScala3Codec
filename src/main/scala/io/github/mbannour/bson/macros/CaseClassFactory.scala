@@ -66,19 +66,34 @@ object CaseClassFactory:
                 catch
                   case ex: Exception =>
                     throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
-              case Some(value: Int @unchecked) =>
+              case Some(intVal: Int @unchecked) =>
                 try
                   val enumClass = Class.forName($enumCompanionName)
-                  val valuesMethod = enumClass.getMethod("values")
-                  val values = valuesMethod.invoke(enumClass).asInstanceOf[Array[Object]]
+                  val values = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
 
-                  values
-                    .find(v => v.getClass.getMethod("code").invoke(v) == value)
-                    .getOrElse(throw new RuntimeException("No enum value with code: " + value))
-                    .asInstanceOf[nestedT]
+                  // ---------- 1) try ordinal ----------
+                  if intVal >= 0 && intVal < values.length then values(intVal).asInstanceOf[nestedT]
+                  else
+                    // ---------- 2) try custom `code` ----------
+                    val matched = values.find { v =>
+                      try v.getClass.getMethod("code").invoke(v) == intVal
+                      catch case _: NoSuchMethodException => false
+                    }
+
+                    matched
+                      .map(_.asInstanceOf[nestedT])
+                      .getOrElse {
+                        throw new RuntimeException(
+                          "No enum value with ordinal " + intVal + " or code " + intVal + " for field '" + $keyToUse + "'"
+                        )
+                      }
+                  end if
                 catch
                   case ex: Exception =>
-                    throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
+                    throw new RuntimeException(
+                      "Error decoding enum field '" + $keyToUse + "' with integer " + intVal + ": " + ex.getMessage,
+                      ex
+                    )
               case Some(enumValue: nestedT @unchecked) =>
                 enumValue
               case Some(null) => null

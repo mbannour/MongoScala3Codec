@@ -32,7 +32,7 @@ MongoScala3Codec is a macro-based library for BSON serialization and deserializa
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.4"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.5"
 ```
 
 ---
