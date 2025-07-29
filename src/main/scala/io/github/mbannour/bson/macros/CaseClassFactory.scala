@@ -66,12 +66,27 @@ object CaseClassFactory:
                 catch
                   case ex: Exception =>
                     throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
+              case Some(value: Int @unchecked) =>
+                try
+                  val enumClass = Class.forName($enumCompanionName)
+                  val valuesMethod = enumClass.getMethod("values")
+                  val values = valuesMethod.invoke(enumClass).asInstanceOf[Array[Object]]
+
+                  values
+                    .find(v => v.getClass.getMethod("code").invoke(v) == value)
+                    .getOrElse(throw new RuntimeException("No enum value with code: " + value))
+                    .asInstanceOf[nestedT]
+                catch
+                  case ex: Exception =>
+                    throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
               case Some(enumValue: nestedT @unchecked) =>
                 enumValue
-              case None =>
-                throw new RuntimeException("Missing enum field: " + $keyToUse)
+              case Some(null) => null
+
               case other =>
                 throw new RuntimeException("Unexpected value type for enum field '" + $keyToUse + "': " + other.getClass)
+              case None =>
+                throw new RuntimeException("Missing enum field: " + $keyToUse)
           }
 
         case '[nestedT] =>

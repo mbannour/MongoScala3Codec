@@ -64,7 +64,7 @@ object CaseClassCodecGenerator:
         // Indicates if a discriminator is required (when more than one case class is present)
         private lazy val hasDiscriminator: Boolean = caseClassesMap.size > 1
 
-        private def getInstance(discriminator: String, fieldsData: Map[String, Any]): T =
+        private def getInstance(fieldsData: Map[String, Any]): T =
           CaseClassFactory.getInstance[T](fieldsData)
 
         override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit =
@@ -103,7 +103,7 @@ object CaseClassCodecGenerator:
               fieldsData += (name -> value)
           end while
           reader.readEndDocument()
-          getInstance(discriminator, fieldsData.toMap)
+          getInstance(fieldsData.toMap)
         end decode
 
         // Mapping from primitive types to their boxed counterparts.

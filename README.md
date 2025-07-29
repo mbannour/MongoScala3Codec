@@ -1,95 +1,52 @@
-# MongoScala3Codec: A Macro-Based BSON Codec Generator for Scala
+# MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.1-brightgreen)
+![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.4-brightgreen)
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.0%2B-blue)
 
-**MongoScala3Codec** is a lightweight and efficient library that simplifies BSON serialization and deserialization for Scala case classes. Leveraging Scala 3’s powerful macro system and the new `given`/`using` syntax, it automatically generates BSON codecs at compile time.
+MongoScala3Codec is a macro-based library for BSON serialization and deserialization of Scala 3 case classes. It generates BSON codecs at compile time, ensuring:
 
-This approach ensures:
+- **Strong Type Safety**: Compile-time validation of BSON serialization.
+- **High Performance**: Optimized code generation for efficient BSON handling.
+- **Minimal Boilerplate**: No need to write manual codec definitions.
 
-* **Strong Type Safety** – Compile-time validation of BSON serialization.
-* **High Performance** – Optimized code generation for efficient BSON handling.
-* **Minimal Boilerplate** – Eliminates manual codec definitions.
-# MongoFieldResolver: Extract MongoDB Field Paths with Compile-Time Safety
-
-Included in the library is the `MongoFieldResolver` (formerly `FieldPathMapper`), a utility that enables compile-time safe extraction of MongoDB field names, including support for nested structures.
-
----
-
-##  Why Use `MongoFieldResolver`?
-
-* **Safe**: Detects typos at compile time by relying on actual field names from your case classes.
-* **Smart**: Understands deeply nested structures and custom field renaming using annotations (e.g., `@BsonProperty`).
-* **Fast**: Leveraging Scala 3 inline macros and a built-in cache for high performance.
-* **Flexible**: Supports both static and dynamic access patterns:
-
-  * Static/type-safe: `mongoField[Person]("address.city")`
-  * Dynamic/dictionary-style: `MongoFieldMapper.asMap[Person]("address.city")`
-
----
-##  Recommended Pattern
-
-Use `MongoFieldMapper.asMap[T]` to generate a cached field map once and safely reuse it. This keeps your code clean and avoids hardcoded MongoDB field strings:
-
-```scala
-val dbField = PersonFields("address.city")
-```
-
-If you pass a field that doesn't exist, an exception is thrown with a helpful message — ensuring correctness during
+> **Note:**
+> - Only Scala 3 case classes are supported. Sealed traits (ADTs) are **NOT** supported.
+> - For Scala 3 enums, use `EnumValueCodecProvider` to register a codec for your enum type.
+> - **Not all Scala 3 enum types are supported.** See the summary table below for details on which enum types are supported and which require workarounds.
+- Only plain enums (no parameters, no ADT/sealed traits, no custom fields) are fully supported. See the table below for a summary of supported and unsupported enum types.
 
 ---
 
-## Documentation
+## Features
 
-Visit the GitHub Wiki for complete guides, tutorials, and references:
-
-* [Getting Started](https://github.com/mbannour/MongoScala3Codec/wiki/Getting%E2%80%90started)
-* [Architecture Overview](https://github.com/mbannour/MongoScala3Codec/wiki/Architecture%E2%80%90Overview)
-* [API Reference](https://github.com/mbannour/MongoScala3Codec/wiki/API‐Reference)
-* [How-To Guides](https://github.com/mbannour/MongoScala3Codec/wiki/How‐To-Guides)
-* [Design Decisions](https://github.com/mbannour/MongoScala3Codec/wiki/Design‐Decisions)
+- Automatic BSON codec generation for Scala 3 case classes
+- Support for default values, options, and nested case classes
+- Custom field name annotations (e.g., `@BsonProperty`)
+- Compile-time safe MongoDB field path extraction via `MongoFieldResolver`
+- Scala 3 enum support via `EnumValueCodecProvider`
 
 ---
-
-## Compatibility
-
-* **Scala 3**: This library is compatible only with Scala 3, leveraging its advanced macro capabilities for compile-time codec generation.
 
 ## Installation
+
+Add to your `build.sbt`:
 
 ```scala
 libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.4"
 ```
 
-## Features
+---
 
-* **Automatic Codec Generation**
-  Generate a BSON codec for any Scala case class with minimal boilerplate.
+## Quick Start
 
-* **Flexible `None` Handling**
-  Choose whether to encode `None` as BSON `null` or omit the field entirely.
-
-* **Scala Enumeration Support**
-  Use `ScalaEnumerationCodecProvider` to handle `Enumeration.Value` fields smoothly.
-
-* **Support for @BsonProperty Annotations**
-  Rename fields easily when mapping to MongoDB.
-
-* **Compile-Time Safety**
-  The macros validate types at compile time, preventing misconfiguration.
-
-* **Scala 3 Macros**
-  Leverage `inline` and macro features for safe, boilerplate-free code generation.
-
-## Quick Example
+### 1. Define Your Case Classes and Enums
 
 ```scala
-import org.mongodb.scala.MongoClient
-import org.mongodb.scala.bson.ObjectId
-import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
-import io.github.mbannour.mongo.codecs.CodecProviderMacro
+import org.bson.types.ObjectId
+import org.mongodb.scala.bson.annotations.BsonProperty
 
-case class Address(street: String, city: String, zip: Int)
+case class Address(street: String, city: String, zipCode: Int)
+
 case class Person(
   _id: ObjectId,
   @BsonProperty("n") name: String,
@@ -97,30 +54,268 @@ case class Person(
   address: Option[Address]
 )
 
-object Person {
-  val registry: CodecRegistry = CodecRegistries.fromRegistries(
-    CodecRegistries.fromProviders(
-      CodecProviderMacro.createCodecProviderEncodeNone[Address],
-      CodecProviderMacro.createCodecProviderEncodeNone[Person]
-    ),
-    MongoClient.DEFAULT_CODEC_REGISTRY
-  )
-}
+enum Priority:
+  case Low, Medium, High
 
-val client = MongoClient()
-val db = client.getDatabase("test_db").withCodecRegistry(Person.registry)
-val collection = db.getCollection[Person]("people")
-
-val person = Person(ObjectId.get(), "Alice", 30, Some(Address("Main St", "City", 12345)))
-collection.insertOne(person).toFuture()
+case class Task(_id: ObjectId, title: String, priority: Priority)
 ```
+
+### 2. Register Codecs
+
+```scala
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+import io.github.mbannour.mongo.codecs.CodecProviderMacro
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+import org.mongodb.scala.MongoClient
+
+val personProvider = CodecProviderMacro.createCodecProviderEncodeNone[Person]
+val addressProvider = CodecProviderMacro.createCodecProviderEncodeNone[Address]
+val taskProvider = CodecProviderMacro.createCodecProviderEncodeNone[Task]
+val priorityEnumProvider = EnumValueCodecProvider[Priority, String](
+  toValue = _.toString,
+  fromValue = str => Priority.valueOf(str)
+)
+
+val codecRegistry: CodecRegistry = CodecRegistries.fromRegistries(
+  CodecRegistries.fromProviders(personProvider, addressProvider, taskProvider, priorityEnumProvider),
+  MongoClient.DEFAULT_CODEC_REGISTRY
+)
+
+given CodecRegistry = codecRegistry // 👈 DO NOT FORGET THIS LINE!
+```
+
+### 3. Use with MongoDB
+
+```scala
+val mongoClient = MongoClient()
+val database = mongoClient.getDatabase("test_db").withCodecRegistry(codecRegistry)
+val peopleCollection = database.getCollection[Person]("people")
+val taskCollection = database.getCollection[Task]("tasks")
+```
+
+### 4. Insert and Query Documents
+
+```scala
+val person = Person(new ObjectId(), "Alice", 30, Some(Address("Main St", "City", 12345)))
+peopleCollection.insertOne(person)
+
+val task = Task(new ObjectId(), "Complete report", Priority.High)
+taskCollection.insertOne(task)
+
+val foundPerson = peopleCollection.find().first().head()
+val foundTask = taskCollection.find().first().head()
+```
+
+---
+
+## MongoFieldResolver: Compile-Time Safe Field Paths
+
+`MongoFieldResolver` enables compile-time safe extraction of MongoDB field names, including nested structures and custom field renaming.
+
+```scala
+import io.github.mbannour.fields.MongoFieldMapper
+val dbField = MongoFieldMapper.asMap[Person]("address.city")
+```
+If you pass a field that doesn't exist, an exception is thrown with a helpful message.
+
+---
+
+## Documentation
+
+- See the [GitHub Wiki](https://github.com/mbannour/MongoScala3Codec/wiki) for guides, tutorials, and references.
+- For a full working example, see the integration tests in `integration/src/test/scala/io/github/mbannour/mongo/codecs/CodecProviderIntegrationSpec.scala`.
+- **Important Limitations:**
+  - Only Scala 3 case classes are supported. Sealed traits (ADTs) are **NOT** supported.
+  - For Scala 3 enums, use `EnumValueCodecProvider` to register a codec for your enum type.
+  - **Not all Scala 3 enum types are supported.** See the summary table below for details on which enum types are supported and which require workarounds.
+    - Only plain enums (no parameters, no ADT/sealed traits, no custom fields) are fully supported. See the table below for a summary of supported and unsupported enum types.
+
+---
+
+### 🚀 Adding an enum codec (one line)
+
+```scala
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+import org.bson.codecs.StringCodec
+
+given Codec[String] = new StringCodec()           // 1) supply a String codec
+
+val enumProvider = EnumValueCodecProvider.forStringEnum[Priority] // 2) done!
+```
+
+For custom representations:
+
+```scala
+import org.bson.codecs.IntegerCodec
+given Codec[Int] = new IntegerCodec()
+val provider = EnumValueCodecProvider.forOrdinalEnum[Priority]
+```
+
+And if you need total control:
+
+```scala
+EnumValueCodecProvider[Priority, Boolean](
+  _.ordinal == 0,                     // toValue
+  bool => if bool then Priority.Low else Priority.High // fromValue
+)
+```
+
+You are now covering all practical cases for serializing Scala 3 enums as BSON with MongoDB, as long as the enums:
+
+- Are “plain” enums (not parameterized, not ADTs/sealed traits, not enums with additional fields).
+
+### Summary Table
+| Enum Type                        | Supported? | Helper to Use                 |
+|----------------------------------|:----------:|-------------------------------|
+| Plain enum (no params)           |    Yes     | forStringEnum, forOrdinalEnum |
+| Enum with methods/companion      |    Yes     | as above                      |
+| Enum with parameters (ADT style) |     No     | Use your own codec            |
+| Enum with custom value per case  |     No     | Use your own codec            |
+
+---
+
+## How to Transform MongoDB Sealed Trait/ADT to Scala 3 Enum
+
+MongoDB does not natively support Scala 3 sealed traits or ADT-style enums. If you want to represent ADTs or sealed traits in MongoDB, you should:
+
+1. **Refactor your ADT/sealed trait to a plain Scala 3 enum if possible.**
+2. **Use a custom codec** (see below) if you need to serialize/deserialize ADT-style enums or sealed traits.
+3. **For plain enums**, use the built-in helpers:
+  - `EnumValueCodecProvider.forStringEnum[YourEnum]` (stores as string)
+  - `EnumValueCodecProvider.forOrdinalEnum[YourEnum]` (stores as ordinal)
+
+**Example: Transforming a sealed trait to an enum**
+
+```scala
+// Original ADT
+sealed trait Priority
+case object Low extends Priority
+case object Medium extends Priority
+case object High extends Priority
+
+// Scala 3 enum equivalent
+enum Priority:
+  case Low, Medium, High
+```
+
+**Register the enum codec:**
+```scala
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+import org.bson.codecs.StringCodec
+given Codec[String] = new StringCodec() // 👈 required for string-based enum codecs
+val enumProvider = EnumValueCodecProvider.forStringEnum[Priority]
+```
+
+**Note:**
+- If your ADT has parameters or custom fields, you must write your own codec using `CodecProviderMacro` or a manual implementation.
+- See the summary table above for supported enum types.
+
+---
+
+## How to Define and Use a CodecRegistry with MongoScala3Codec
+
+Follow these steps to make sure your codecs work for all your case classes, enums, and nested types!
+
+### 1️ Define Your Data Model
+```scala
+import org.bson.types.ObjectId
+
+final case class Address(street: String, city: String, zipCode: Int)
+final case class Person(_id: ObjectId, name: String, age: Int, address: Option[Address])
+enum Priority:
+  case Low, Medium, High
+final case class Task(_id: ObjectId, title: String, priority: Priority)
+```
+
+### 2 Import Required Dependencies
+```scala
+import org.mongodb.scala.MongoClient
+import org.bson.codecs.StringCodec
+import io.github.mbannour.mongo.codecs.{CodecProviderMacro, EnumValueCodecProvider}
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+```
+
+### 3 Create Codec Providers for All Your Types
+List every type you want to store, including all case classes and enums (and nested types!).
+
+```scala
+object Codecs:
+  given org.bson.codecs.Codec[String] = new StringCodec()
+  private val allProviders = Seq(
+    CodecProviderMacro.createCodecProviderEncodeNone[Address],
+    CodecProviderMacro.createCodecProviderEncodeNone[Person],
+    CodecProviderMacro.createCodecProviderEncodeNone[Task],
+    EnumValueCodecProvider.forStringEnum[Priority]
+  )
+```
+
+### 4️ Build the Combined Registry
+```scala
+val registry: CodecRegistry = CodecRegistries.fromRegistries(
+  CodecRegistries.fromProviders(allProviders*),
+  MongoClient.DEFAULT_CODEC_REGISTRY
+)
+```
+
+### 5️ Expose the Registry as an Implicit (given)
+This step is ESSENTIAL:
+It makes your custom registry discoverable by macros and the MongoDB driver at runtime.
+If you skip it, nested (de)serialization will fail!
+
+```scala
+given CodecRegistry = registry  //  DO NOT FORGET THIS LINE!
+```
+
+### 6 Use Your Registry Everywhere in Your App
+
+```scala
+val client = MongoClient().withCodecRegistry(Codecs.registry)
+val db = client.getDatabase("mydb").withCodecRegistry(Codecs.registry)
+val people = db.getCollection[Person]("people")
+```
+
+### 7 Insert and Query Data with Confidence
+
+```scala
+val person = Person(new ObjectId(), "Alice", 30, Some(Address("Main St", "City", 12345)))
+people.insertOne(person).toFuture() // No more "No codec found" errors!
+```
+
+---
+
+### ⚠️ Troubleshooting / FAQ
+**Q:** I get `No codec found for type: my.model.Address` or a similar error.
+
+**A:** Check that you:
+- Listed every type as a provider (including nested case classes/enums)
+- Included those providers in your registry
+- Added `given CodecRegistry = registry` at the end of your Codecs object
+- Passed your custom registry everywhere (client, db, collection)
+
+---
+
+### ✅ Summary Checklist
+- Add codec providers for every type (including nested)
+- Build the combined registry
+- Expose as `given CodecRegistry = registry`
+- Use your registry everywhere
+
+By following these steps, your codecs will “just work” for any Scala 3 case class, enum, or nested structure!
+
 
 ## Contributing
 
-Contributions are welcome! If you'd like to contribute, please fork the repository and submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome! Please fork the repository and submit a pull request. For major changes, open an issue first to discuss your ideas.
+
+---
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
-Main Developer: Mohamed Ali Bannour
+---
+
+**Main Developer:** Mohamed Ali Bannour  
 Email: [med.ali.bennour@gmail.com](mailto:med.ali.bennour@gmail.com)
+
+---
