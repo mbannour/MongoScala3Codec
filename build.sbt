@@ -11,7 +11,8 @@ ThisBuild / crossScalaVersions := Seq(
   "3.5.1",
   "3.5.2",
   "3.6.3",
-  "3.6.4"
+  "3.6.4",
+  "3.7.1"
 )
 
 usePgpKeyHex("8D15E6EFEC642C76")
