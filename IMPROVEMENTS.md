@@ -212,37 +212,101 @@ val registry = RegistryBuilder.Builder
 - Null safety checks
 - UUID validation with proper error messages
 
+## Additional Features Already Implemented
+
+### 8. ✅ Opaque Type Support
+
+**Status:** Fully implemented and documented!
+
+The library provides **seamless support for Scala 3 opaque types** with zero runtime overhead:
+
+```scala
+object DomainTypes:
+  opaque type UserId = String
+  object UserId:
+    def apply(value: String): UserId = value
+    extension (userId: UserId)
+      def value: String = userId
+
+case class User(_id: ObjectId, userId: UserId, name: String)
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .register[User]
+  .build
+// Opaque types work transparently - stored as primitives in MongoDB
+```
+
+**Benefits:**
+- Zero runtime overhead (erased to primitives)
+- Compile-time type safety
+- Transparent codec generation
+- Works in collections: `List[UserId]`, `Set[Email]`
+
+See README.md section "Scala 3 Opaque Types" for comprehensive examples.
+
+---
+
 ## Future Enhancement Opportunities
 
-While not implemented in this round, these could be valuable additions:
+While the library has a strong foundation, these features would make it excellent:
 
-### 1. Opaque Type Support
-```scala
-opaque type UserId = String
-given BsonCodec[UserId] = BsonCodec[String].imap(UserId(_))(identity)
-```
-
-### 2. Derivation for Sealed Traits
+### 1. Polymorphic Sealed Trait Fields (HIGH PRIORITY)
 ```scala
 sealed trait Status
-case object Active extends Status
-case object Inactive extends Status
+case class Active(since: Long) extends Status
+case class Inactive(reason: String) extends Status
 
-given BsonCodec[Status] = BsonCodec.derivedSealed[Status]
+// Currently NOT supported - polymorphic field type
+case class User(_id: ObjectId, name: String, status: Status)
+
+// Workaround: use concrete types
+case class User(_id: ObjectId, name: String, status: Active)
 ```
 
-### 3. Custom Field Transformations
+**What's needed:**
+- Runtime type discrimination with `_type` field
+- Automatic codec generation for all sealed hierarchy children
+- Support for `List[Status]` where Status is a sealed trait
+
+### 2. Case Object Support in Sealed Hierarchies
 ```scala
+sealed trait Permission
+case object Read extends Permission
+case object Write extends Permission
+case object Admin extends Permission
+
+// Currently NOT fully supported
+given BsonCodec[Permission] = BsonCodec.derivedSealed[Permission]
+```
+
+### 3. Custom Field Name Transformations
+```scala
+enum FieldNamingStrategy:
+  case SnakeCase   // firstName -> first_name
+  case CamelCase
+  case PascalCase
+
 val config = CodecConfig(
-  fieldNameMapper = _.toLowerCase,
-  dateHandling = DateHandling.Timestamp
+  fieldNamingStrategy = FieldNamingStrategy.SnakeCase
 )
 ```
 
-### 4. Performance Caching
+### 4. Enhanced Enum Support (ADT-style)
+```scala
+// Currently only plain enums supported
+enum Result:
+  case Success(value: String)  // NOT supported - parameterized
+  case Failure(error: String)
+```
+
+### 5. Performance Caching
 ```scala
 private val reflectionCache = ConcurrentHashMap[Class[?], FieldInfo]()
+private val codecCache = ConcurrentHashMap[Class[?], Codec[?]]()
 ```
+
+For detailed implementation plans, see **ROADMAP.md**.
 
 ## Conclusion
 
