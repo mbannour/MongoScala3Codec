@@ -2,6 +2,21 @@
 
 This document outlines the features and enhancements needed to make MongoScala3Codec an excellent library.
 
+## Table of Contents
+- [Current Status](#current-status-)
+- [Missing Features for Excellence](#missing-features-for-excellence)
+  - [1. Polymorphic Sealed Trait Fields](#1--high-priority-polymorphic-sealed-trait-fields) (HIGH)
+  - [2. Case Object Support](#2--medium-priority-case-object-support-in-sealed-hierarchies) (MEDIUM)
+  - [3. Custom Field Transformations](#3--medium-priority-custom-field-name-transformations) (MEDIUM)
+  - [4. Enhanced Enum Support](#4--medium-priority-enhanced-enum-support) (MEDIUM)
+  - [5. Performance Caching](#5--low-priority-performance-caching) (LOW)
+  - [6. Date/Time Handling](#6--low-priority-datetime-handling-options) (LOW)
+  - [7. Validation Hooks](#7--low-priority-validation-hooks) (LOW)
+- [Priority Summary](#priority-summary)
+- [Implementation Roadmap](#implementation-roadmap)
+- [How to Contribute](#how-to-contribute)
+- [Success Metrics](#success-metrics)
+
 ## Current Status ✅
 
 The library already has a strong foundation with:
