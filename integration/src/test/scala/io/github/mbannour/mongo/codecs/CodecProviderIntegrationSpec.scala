@@ -7,6 +7,7 @@ import org.mongodb.scala.model.Filters
 import org.bson.codecs.configuration.CodecRegistry
 import DefaultCodecRegistries.*
 import org.bson.codecs.Codec
+import RegistryBuilder.{*, given}
 
 import org.bson.types.ObjectId
 import org.bson.{BsonReader, BsonWriter}
@@ -46,11 +47,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       def decode(r: BsonReader, dc: DecoderContext): EmployeeId = EmployeeId(r.readObjectId())
 
     val registry =
-      RegistryBuilder.Builder.base(MongoClient.DEFAULT_CODEC_REGISTRY)
-        .encodeNonePolicy // or .ignoreNonePolicy
-        .addCodec(employeeIdCodec)
-        .derive[Address] // deps first
-        .derive[Person] // roots last
+      MongoClient.DEFAULT_CODEC_REGISTRY
+        .newBuilder
+        .encodeNone
+        .withCodec(employeeIdCodec)
+        .register[Address]
+        .register[Person]
         .build
 
 
@@ -243,9 +245,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class SimplePerson(name: String, age: Int, active: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[SimplePerson]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[SimplePerson]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -270,10 +272,10 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[PersonWithOptionals]
+      .register[PersonWithOptionals]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -313,10 +315,10 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[PersonWithOptionals]
+      .register[PersonWithOptionals]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -353,12 +355,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Root(_id: ObjectId, level: Level1)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[Level3]
-      .derive[Level2]
-      .derive[Level1]
-      .derive[Root]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[Level3]
+      .register[Level2]
+      .register[Level1]
+      .register[Root]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -393,9 +395,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[CollectionTypes]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[CollectionTypes]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -428,9 +430,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[WithCollections]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[WithCollections]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -459,10 +461,10 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithComplexMap(_id: ObjectId, configs: Map[String, Config])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[Config]
-      .derive[WithComplexMap]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[Config]
+      .register[WithComplexMap]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -490,9 +492,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithUUID(_id: ObjectId, uuid: java.util.UUID, name: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[WithUUID]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[WithUUID]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -516,11 +518,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Cat(name: String, indoor: Boolean) extends Animal
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_animalType")
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Dog]
-      .derive[Cat]
+      .register[Dog]
+      .register[Cat]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -546,9 +548,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class BulkData(_id: ObjectId, value: Int, category: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[BulkData]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[BulkData]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -573,9 +575,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Updatable(_id: ObjectId, name: String, version: Int, updated: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[Updatable]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[Updatable]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -607,9 +609,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[AllPrimitives]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[AllPrimitives]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -639,9 +641,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class FilterTest(_id: ObjectId, name: String, age: Int, active: Boolean, score: Double)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[FilterTest]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[FilterTest]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -677,11 +679,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Order(_id: ObjectId, items: Option[Seq[Item]], total: Double)
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Item]
-      .derive[Order]
+      .register[Item]
+      .register[Order]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -720,12 +722,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Bicycle(_id: ObjectId, brand: String, gears: Int) extends Vehicle
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Car]
-      .derive[Motorcycle]
-      .derive[Bicycle]
+      .register[Car]
+      .register[Motorcycle]
+      .register[Bicycle]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -778,12 +780,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class User(_id: ObjectId, name: String, statuses: List[Active])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Active]
-      .derive[Inactive]
-      .derive[User]
+      .register[Active]
+      .register[Inactive]
+      .register[User]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -820,14 +822,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: Completed, currency: USD)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Pending]
-      .derive[Completed]
-      .derive[USD]
-      .derive[EUR]
-      .derive[Transaction]
+      .register[Pending]
+      .register[Completed]
+      .register[USD]
+      .register[EUR]
+      .register[Transaction]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -864,15 +866,15 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: PaymentStatus, currency: Currency)
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
       .withConfig(config)
-      .derive[Pending]
-      .derive[Completed]
-      .derive[Failed]
-      .derive[USD]
-      .derive[EUR]
-      .derive[Transaction]
+      .register[Pending]
+      .register[Completed]
+      .register[Failed]
+      .register[USD]
+      .register[EUR]
+      .register[Transaction]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -930,9 +932,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithDefaults(_id: ObjectId, name: String, score: Int = 100, active: Boolean = true, level: String = "beginner")
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[WithDefaults]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[WithDefaults]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -984,9 +986,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[Renamed]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[Renamed]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -1037,9 +1039,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[NumericTypes]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[NumericTypes]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -1075,9 +1077,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[NestedMaps]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[NestedMaps]
       .build
 
     val database = createDatabaseWithRegistry(registry)
@@ -1111,9 +1113,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class ValidData(_id: ObjectId, name: String, count: Int)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = RegistryBuilder.Builder
-      .base(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .derive[ValidData]
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+      .newBuilder
+      .register[ValidData]
       .build
 
     val database = createDatabaseWithRegistry(registry)

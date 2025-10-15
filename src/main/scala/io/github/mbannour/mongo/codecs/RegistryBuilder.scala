@@ -4,151 +4,215 @@ import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 import org.bson.codecs.configuration.CodecRegistries.{fromRegistries, fromProviders, fromCodecs}
 import scala.reflect.ClassTag
+import scala.compiletime.*
 
-/** `RegistryBuilder` is a fluent utility for constructing a MongoDB [[org.bson.codecs.configuration.CodecRegistry]] in Scala 3.
+/** Type-safe, immutable registry builder using Scala 3 opaque types and extension methods.
   *
-  * It wraps MongoDB's codec/registry APIs in a type-safe builder that plays nicely with Scala 3 inline macros for deriving codecs for case
-  * classes.
+  * `RegistryBuilder` provides a fluent API for constructing MongoDB [[org.bson.codecs.configuration.CodecRegistry]] instances
+  * with compile-time type safety and functional programming patterns.
   *
   * ===Features===
-  *   - Choose between **encode `None` as `null`** or **ignore `None` fields**.
-  *   - Add individual codecs (`addCodec`) or many at once (`addCodecs`).
-  *   - Automatically derive codecs for **case classes** with `derive[T]`.
-  *   - Works seamlessly with nested case classes and value classes.
-  *   - Configure discriminator field names for sealed hierarchies.
+  *   - **Opaque types** for enhanced type safety without runtime overhead
+  *   - **Immutable by design** - all operations return new instances
+  *   - **Lazy registry building** - registries are only built once at the end
+  *   - Choose between **encode `None` as `null`** or **ignore `None` fields**
+  *   - Add individual codecs with `withCodec` or many at once with `withCodecs`
+  *   - Automatically derive codecs for **case classes** with `register[T]`
+  *   - Batch registration with `registerAll[(Type1, Type2, ...)]`
+  *   - Configure discriminator field names for sealed hierarchies
+  *   - Extension methods for fluent, idiomatic Scala 3 API
   *
   * ===Example Usage===
   * {{{
-  *   val registry =
-  *     RegistryBuilder.Builder.base(MongoClient.DEFAULT_CODEC_REGISTRY)
-  *       .withConfig(CodecConfig(noneHandling = NoneHandling.Ignore))
-  *       .addCodec(employeeIdCodec)     // custom codec for a value class
-  *       .addCodecs(addressCodec, somethingElseCodec) // bulk add
-  *       .derive[Address]               // derive codecs for case classes
-  *       .derive[Person]
-  *       .build
+  *   import org.mongodb.scala.MongoClient
   *
-  *   val db: MongoDatabase = MongoClient("mongodb://localhost")
-  *     .getDatabase("test_db")
-  *     .withCodecRegistry(registry)
+  *   // Simple usage
+  *   val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+  *     .newBuilder
+  *     .ignoreNone
+  *     .register[Address]
+  *     .register[Person]
+  *     .build
+  *
+  *   // With custom configuration
+  *   val registry = RegistryBuilder
+  *     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  *     .configure(_.copy(
+  *       noneHandling = NoneHandling.Ignore,
+  *       discriminatorField = "_type"
+  *     ))
+  *     .withCodec(employeeIdCodec)
+  *     .register[Person]
+  *     .build
+  *
+  *   // Batch registration with functional configuration
+  *   val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+  *     .newBuilder
+  *     .configure { config =>
+  *       config
+  *         .withIgnoreNone
+  *         .withDiscriminator("_type")
+  *     }
+  *     .registerAll[(Address, Person, Department)]
+  *     .build
   * }}}
   */
+opaque type RegistryBuilder = RegistryBuilder.State
+
 object RegistryBuilder:
 
-  /** Fluent builder for a [[CodecRegistry]].
-    *
-    * @param base
-    *   The base registry (e.g., `MongoClient.DEFAULT_CODEC_REGISTRY`).
-    * @param config
-    *   Configuration for codec generation behavior.
-    * @param providers
-    *   Collected list of [[CodecProvider]]s added via `derive`.
-    * @param codecs
-    *   Collected list of explicit [[Codec]]s added via `addCodec` or `addCodecs`.
-    */
-  final class Builder private (
-      private val base: CodecRegistry,
-      private val config: CodecConfig,
-      private val providers: List[CodecProvider],
-      private val codecs: List[Codec[?]]
-  ):
+  /** Internal state representation */
+  private[codecs] final case class State(
+      base: CodecRegistry,
+      config: CodecConfig = CodecConfig(),
+      providers: Vector[CodecProvider] = Vector.empty,
+      codecs: Vector[Codec[?]] = Vector.empty
+  )
 
-    /** Set the codec configuration.
+  /** Create builder from base registry with default configuration */
+  def from(base: CodecRegistry): RegistryBuilder = State(base)
+
+  /** Create builder from base registry with custom configuration */
+  def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
+    State(base, config)
+
+  /** Extension methods for fluent builder API */
+  extension (builder: RegistryBuilder)
+
+
+    /** Configure with a function - functional approach for flexible configuration.
+      *
+      * This is the most flexible configuration method, allowing you to transform
+      * the configuration using any logic you need.
+      *
+      * @param f
+      *   Function to transform the current configuration
+      * @example
+      *   {{{
+      *   // Simple configuration
+      *   builder.configure(_.copy(noneHandling = NoneHandling.Ignore))
+      *
+      *   // Using helper methods on CodecConfig
+      *   builder.configure(_.withIgnoreNone.withDiscriminator("_type"))
+      *
+      *   // Conditional configuration
+      *   builder.configure { config =>
+      *     if (useEncoding) config.withEncodeNone else config.withIgnoreNone
+      *   }
+      *   }}}
+      */
+    def configure(f: CodecConfig => CodecConfig): RegistryBuilder =
+      builder.copy(config = f(builder.config))
+
+    /** Set the codec configuration directly.
       *
       * @param newConfig
-      *   The codec configuration to use.
+      *   The codec configuration to use
       */
-    def withConfig(newConfig: CodecConfig): Builder = 
-      copy(base, newConfig, providers, codecs)
+    def withConfig(newConfig: CodecConfig): RegistryBuilder =
+      builder.copy(config = newConfig)
 
-    /** Switch policy: encode `None` as BSON `null`.
-      *
-      * @deprecated Use `withConfig(config.copy(noneHandling = NoneHandling.Encode))` instead.
-      */
-    def encodeNonePolicy: Builder = 
-      copy(base, config.copy(noneHandling = NoneHandling.Encode), providers, codecs)
+    /** Switch policy: omit `None` fields entirely from BSON documents. */
+    def ignoreNone: RegistryBuilder =
+      configure(_.copy(noneHandling = NoneHandling.Ignore))
 
-    /** Switch policy: omit `None` fields entirely.
-      *
-      * @deprecated Use `withConfig(config.copy(noneHandling = NoneHandling.Ignore))` instead.
-      */
-    def ignoreNonePolicy: Builder = 
-      copy(base, config.copy(noneHandling = NoneHandling.Ignore), providers, codecs)
+    /** Switch policy: encode `None` as BSON `null`. */
+    def encodeNone: RegistryBuilder =
+      configure(_.copy(noneHandling = NoneHandling.Encode))
 
     /** Set the discriminator field name for sealed hierarchies.
       *
-      * @param fieldName
-      *   The field name to use for type discriminators.
+      * @param field
+      *   The field name to use for type discriminators (default: "_t")
       */
-    def withDiscriminatorField(fieldName: String): Builder =
-      copy(base, config.copy(discriminatorField = fieldName), providers, codecs)
+    def discriminator(field: String): RegistryBuilder =
+      configure(_.copy(discriminatorField = field))
+
 
     /** Add a single explicit codec.
       *
       * Useful for value classes or third-party types where automatic derivation is not possible.
-      */
-    def addCodec[A](c: Codec[A]): Builder =
-      copy(base, config, providers, c :: codecs)
-
-    /** Add a list of codecs. */
-    def addCodecs(cs: List[Codec[?]]): Builder =
-      copy(base, config, providers, cs.reverse ::: codecs)
-
-    /** Add multiple codecs via varargs. */
-    def addCodecs(cs: Codec[?]*): Builder =
-      addCodecs(cs.toList)
-
-    /** Derive a codec provider for a case class `T`.
       *
-      * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
+      * @param codec
+      *   The codec to add
       */
-    inline def derive[T](using ct: ClassTag[T]): Builder =
-      val current = currentRegistry
-      val p: CodecProvider = CodecProviderMacro.createCodecProvider[T](using ct, config, current)
-      prependProvider(p)
+    def withCodec[A](codec: Codec[A]): RegistryBuilder =
+      builder.copy(codecs = builder.codecs :+ codec)
 
-    /** Build the final [[CodecRegistry]]. */
-    def build: CodecRegistry =
-      merge(base, providers, codecs)
+    /** Add multiple codecs at once.
+      *
+      * @param codecs
+      *   Variable number of codecs to add
+      */
+    def withCodecs(codecs: Codec[?]*): RegistryBuilder =
+      builder.copy(codecs = builder.codecs ++ codecs)
 
-    private def merge(base: CodecRegistry, provs: List[CodecProvider], cds: List[Codec[?]]): CodecRegistry =
-      val parts = List.newBuilder[CodecRegistry]
-      parts += base
-      if cds.nonEmpty then parts += fromCodecs(cds.reverse*)
-      if provs.nonEmpty then parts += fromProviders(provs.reverse*)
+
+    /** Register a type with automatic codec derivation.
+      *
+      * Relies on Scala 3 inline macros to auto-generate the BSON codec.
+      * Works for nested case classes and sealed hierarchies.
+      *
+      * Performance note: The registry is only built once when `build()` is called,
+      * so you can chain multiple `register` calls efficiently.
+      *
+      * @tparam T
+      *   The type to register (must be a case class)
+      */
+    inline def register[T: ClassTag]: RegistryBuilder =
+
+      val tempRegistry = buildRegistry(builder)
+      val provider = CodecProviderMacro.createCodecProvider[T](
+        using summon[ClassTag[T]],
+        builder.config,
+        tempRegistry
+      )
+      builder.copy(providers = builder.providers :+ provider)
+
+    /** Batch register multiple types using tuple syntax.
+      *
+      * This is more efficient than calling `register` multiple times separately
+      * as it minimizes intermediate registry builds.
+      *
+      * @tparam T
+      *   A tuple of types to register
+      * @example
+      *   {{{
+      *   builder.registerAll[(Person, Address, Department)]
+      *   }}}
+      */
+    inline def registerAll[T <: Tuple]: RegistryBuilder =
+      inline erasedValue[T] match
+        case _: EmptyTuple => builder
+        case _: (h *: t) =>
+          register[h](using summonInline[ClassTag[h]]).registerAll[t]
+
+    /** Build the final [[CodecRegistry]].
+      *
+      * This is when the actual registry is constructed from all registered codecs and providers.
+      * Call this method only once at the end of your configuration chain.
+      */
+    def build: CodecRegistry = buildRegistry(builder)
+
+    private def buildRegistry(state: State): CodecRegistry =
+      val parts = Vector.newBuilder[CodecRegistry]
+      parts += state.base
+
+      if state.codecs.nonEmpty then
+        parts += fromCodecs(state.codecs*)
+
+      if state.providers.nonEmpty then
+        parts += fromProviders(state.providers*)
+
       fromRegistries(parts.result()*)
+  end extension
 
-    private def currentRegistry: CodecRegistry =
-      merge(base, providers, codecs)
+  /** Extension methods for CodecRegistry to create builders */
+  extension (registry: CodecRegistry)
+    /** Create a new builder from this registry */
+    def newBuilder: RegistryBuilder = from(registry)
 
-    private def copy(
-        newBase: CodecRegistry,
-        newConfig: CodecConfig,
-        newProviders: List[CodecProvider],
-        newCodecs: List[Codec[?]]
-    ): Builder =
-      new Builder(newBase, newConfig, newProviders, newCodecs)
+    /** Create a new builder with custom configuration */
+    def builderWith(config: CodecConfig): RegistryBuilder = apply(registry, config)
 
-    private def prependProvider(p: CodecProvider): Builder =
-      copy(base, config, p :: providers, codecs)
-  end Builder
-
-  object Builder:
-    /** Start building from a base registry.
-      *
-      * @param base
-      *   Usually `MongoClient.DEFAULT_CODEC_REGISTRY`
-      */
-    def base(base: CodecRegistry): Builder =
-      new Builder(base, CodecConfig(), providers = Nil, codecs = Nil)
-      
-    /** Start building from a base registry with custom configuration.
-      *
-      * @param base
-      *   Usually `MongoClient.DEFAULT_CODEC_REGISTRY`
-      * @param config
-      *   The codec configuration to use
-      */
-    def base(base: CodecRegistry, config: CodecConfig): Builder =
-      new Builder(base, config, providers = Nil, codecs = Nil)
 end RegistryBuilder

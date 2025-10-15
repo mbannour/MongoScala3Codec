@@ -25,6 +25,36 @@ case class CodecConfig(
   /** Returns true if None values should be encoded as BSON null. */
   def shouldEncodeNone: Boolean = noneHandling == NoneHandling.Encode
 
+  /** Helper method to set None handling to Ignore - fluent API for functional configuration.
+    *
+    * @example
+    *   {{{
+    *   builder.configure(_.withIgnoreNone)
+    *   }}}
+    */
+  def withIgnoreNone: CodecConfig = copy(noneHandling = NoneHandling.Ignore)
+
+  /** Helper method to set None handling to Encode - fluent API for functional configuration.
+    *
+    * @example
+    *   {{{
+    *   builder.configure(_.withEncodeNone)
+    *   }}}
+    */
+  def withEncodeNone: CodecConfig = copy(noneHandling = NoneHandling.Encode)
+
+  /** Helper method to set discriminator field - fluent API for functional configuration.
+    *
+    * @param field
+    *   The field name to use for type discriminators
+    * @example
+    *   {{{
+    *   builder.configure(_.withDiscriminator("_type"))
+    *   }}}
+    */
+  def withDiscriminator(field: String): CodecConfig = copy(discriminatorField = field)
+end CodecConfig
+
 /** Strategy for handling `None` values in `Option` fields during BSON encoding.
   */
 enum NoneHandling:
@@ -34,4 +64,3 @@ enum NoneHandling:
   /** Omit fields with `None` values from the BSON document. */
   case Ignore
 end NoneHandling
-
