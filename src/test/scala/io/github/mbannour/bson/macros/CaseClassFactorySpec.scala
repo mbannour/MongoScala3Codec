@@ -11,6 +11,17 @@ case class DefaultCase(name: String = "Unknown", age: Int = 0)
 case class NestedCaseClass(fieldA: String, nested: Address1)
 case class EnumCase(enumField: Color)
 
+enum Status(val code: Int):
+  case Ok extends Status(200)
+  case NotFound extends Status(404)
+
+case class StatusCase(status: Status)
+
+enum Level:
+  case Low, High
+
+case class Inner(level: Level)
+
 enum Color:
   case Red, Green, Blue
 
@@ -44,15 +55,11 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
 
 
   it should "fail for unsupported types at compile time" in {
-    """
-    case class UnsupportedType(field: (String, Int))
-
-    val fieldData = Map("field" -> ("a", 1))
-
-     val exception = intercept[RuntimeException] {
+    assertDoesNotCompile("""
+      case class UnsupportedType(field: (String, Int))
+      val fieldData = Map("field" -> ("a", 1))
       CaseClassFactory.getInstance[UnsupportedType](fieldData)
-    }
-    """ shouldNot compile
+    """)
   }
 
   it should "throw an exception for missing required fields" in {
@@ -92,4 +99,59 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     }
     exception.getMessage should include("Error decoding enum field")
   }
+
+  it should "instantiate a case class with all field types" in {
+    case class AllTypes(a: Int, b: String, c: Boolean, d: Double, e: List[String], f: Option[Int])
+    val fieldData = Map(
+      "a" -> 42,
+      "b" -> "hello",
+      "c" -> true,
+      "d" -> 3.14,
+      "e" -> List("x", "y"),
+      "f" -> 1
+    )
+    val result = CaseClassFactory.getInstance[AllTypes](fieldData)
+    result should ===(AllTypes(42, "hello", true, 3.14, List("x", "y"), Some(1)))
+  }
+
+  it should "instantiate a case class with a nested enum field" in {
+    val fieldData = Map("level" -> "High")
+    val result = CaseClassFactory.getInstance[Inner](fieldData)
+    result should ===(Inner(Level.High))
+  }
+
+  it should "return a Inner(null)" in {
+    val fieldData = Map("level" -> null)
+    val result = CaseClassFactory.getInstance[Inner](fieldData)
+    result should be(Inner(null))
+  }
+
+  it should "instantiate a case class with an enum field using ordinal value" in {
+    val fieldData = Map("enumField" -> 2)
+    val result = CaseClassFactory.getInstance[EnumCase](fieldData)
+    result should ===(EnumCase(Color.Blue))
+  }
+
+  it should "instantiate a case class with a custom enum codec using parameter field" in {
+
+    val fieldData = Map("status" -> 200)
+    val result = CaseClassFactory.getInstance[StatusCase](fieldData)
+    result.status.code should ===(200)
+    result.status should ===(Status.Ok)
+  }
+
+  it should "instantiate Status from ordinal value" in {
+    val fieldData = Map("status" -> 0)
+    val result = CaseClassFactory.getInstance[StatusCase](fieldData)
+    result.status should ===(Status.Ok) // assuming ordinal 0 == Ok
+  }
+
+  it should "fail on invalid enum ordinal" in {
+    val fieldData = Map("enumField" -> 999)
+    val ex = intercept[RuntimeException] {
+      CaseClassFactory.getInstance[EnumCase](fieldData)
+    }
+    ex.getMessage should include("No enum value with ordinal")
+  }
+
 }

@@ -27,7 +27,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.4",
+    version := "0.0.5",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -47,7 +47,7 @@ lazy val root = project
     ),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.5.0").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.5.1").cross(CrossVersion.for3Use2_13)
     ),
     scalacOptions ++= Seq(
       "-encoding",

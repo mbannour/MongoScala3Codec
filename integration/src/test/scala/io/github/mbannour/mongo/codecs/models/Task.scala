@@ -14,14 +14,8 @@ case class Task(_id: ObjectId, title: String, priority: Priority)
 object Task:
 
   private val taskProvider = CodecProviderMacro.createCodecProviderEncodeNone[Task]
-
-  given Codec[String] = new StringCodec()
-
-  val priorityEnumProvider: CodecProvider =
-    EnumValueCodecProvider[Priority, String](
-      toValue = _.toString,
-      fromValue = str => Priority.valueOf(str)
-    )
+  
+  val priorityEnumProvider: CodecProvider = EnumValueCodecProvider.forStringEnum[Priority]
 
   val defaultRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
