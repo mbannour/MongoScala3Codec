@@ -2,6 +2,7 @@
 
 ![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.6-brightgreen)
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.0%2B-blue)
+![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 
 MongoScala3Codec is a macro-based library for BSON serialization and deserialization of Scala 3 case classes. It generates BSON codecs at compile time, ensuring:
 
@@ -16,6 +17,16 @@ MongoScala3Codec is a macro-based library for BSON serialization and deserializa
 > - Scala 3 case classes are fully supported with automatic codec generation.
 > - For Scala 3 enums, use `EnumValueCodec` to register a codec for your enum type.
 > - **Not all Scala 3 enum types are supported.** Only plain enums (no parameters, no ADT/sealed traits, no custom fields) are fully supported.
+
+---
+
+## 📚 Documentation
+
+- **[5-Minute Quickstart](docs/QUICKSTART.md)** - Get started immediately
+- **[Feature Overview](docs/FEATURES.md)** - Complete feature guide with examples
+- **[How It Works](docs/HOW_IT_WORKS.md)** - Scala 3 derivation internals explained
+- **[Migration Guide](docs/MIGRATION.md)** - Migrate from other libraries
+- **[FAQ & Troubleshooting](docs/FAQ.md)** - Common issues and solutions
 
 ---
 

@@ -48,6 +48,8 @@ lazy val root = project
     ),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.18.0" % Test,
+      "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
       ("org.mongodb.scala" %% "mongo-scala-bson" % "5.5.2").cross(CrossVersion.for3Use2_13)
     ),
     scalacOptions ++= Seq(
@@ -65,6 +67,8 @@ lazy val root = project
       "-Yretain-trees",
       "-Wunused:all"
     ),
+    // Fatal warnings on CI
+    scalacOptions ++= (if (sys.env.get("CI").isDefined) Seq("-Werror") else Seq.empty),
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false
   )
@@ -77,6 +81,8 @@ lazy val integrationTests = project
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.scalactic" %% "scalactic" % "3.2.19" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.18.0" % Test,
+      "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.41.4" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.41.4" % Test,
       ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
