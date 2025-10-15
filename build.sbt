@@ -1,6 +1,6 @@
 import xerial.sbt.Sonatype.*
 
-val scala3Version = "3.7.3"
+val scala3Version = "3.7.1"
 
 ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
