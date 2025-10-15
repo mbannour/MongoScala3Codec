@@ -1,12 +1,11 @@
 package io.github.mbannour.bson.macros
 
+import scala.reflect.ClassTag
+
 import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.matchers.should.Matchers.*
-
-import scala.reflect.ClassTag
 
 case class Address(city: String, zip: Int)
 

@@ -1,6 +1,6 @@
 package io.github.mbannour.bson.macros
 
-import scala.quoted.*
+import scala.quoted._
 import scala.reflect.ClassTag
 
 /** Provides a macro to generate a mapping for case class field type arguments.

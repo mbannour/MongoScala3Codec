@@ -1,9 +1,9 @@
 package io.github.mbannour.bson.macros
 
+import scala.reflect.ClassTag
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
-import scala.reflect.ClassTag
 
 class ClassToCaseFlagMapSpec extends AnyFlatSpec with Matchers:
 

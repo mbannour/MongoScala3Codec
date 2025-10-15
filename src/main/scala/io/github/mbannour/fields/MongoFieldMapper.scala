@@ -1,9 +1,9 @@
 package io.github.mbannour.fields
 
-import io.github.mbannour.bson.macros.AnnotationName.extractAnnotationMap
+import scala.compiletime._
+import scala.deriving._
 
-import scala.deriving.*
-import scala.compiletime.*
+import io.github.mbannour.bson.macros.AnnotationName.extractAnnotationMap
 
 trait MongoFieldResolver:
   def extract(prefix: String = ""): List[(String, String)]

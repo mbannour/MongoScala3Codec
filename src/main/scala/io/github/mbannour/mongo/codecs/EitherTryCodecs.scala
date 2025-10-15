@@ -1,8 +1,9 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.util.{Failure, Success, Try}
+
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.bson.{BsonReader, BsonWriter, BsonType}
-import scala.util.{Try, Success, Failure}
+import org.bson.{BsonReader, BsonType, BsonWriter}
 
 /** Codec for scala.util.Try[T] that encodes as a discriminated union.
   *

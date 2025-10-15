@@ -3,10 +3,10 @@ package io.github.mbannour.mongo.codecs
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries
 import org.bson.types.ObjectId
-import org.bson.{BsonDocument, BsonString, BsonInt32, BsonArray, BsonObjectId}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import RegistryBuilder.*
+
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
 
 /** Golden tests that verify exact BSON structure for various types.
   *

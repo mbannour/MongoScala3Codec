@@ -1,14 +1,15 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.io.Source
+
+import org.bson.BsonDocument
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries
-import org.bson.{BsonDocument}
 import org.bson.types.ObjectId
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import RegistryBuilder.*
 
-import scala.io.Source
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
 
 /** Golden tests using JSON resources to assert exact BSON encoding/decoding equivalence. */
 class GoldenResourcesSpec extends AnyFlatSpec with Matchers:

@@ -1,8 +1,8 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
-import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistry
+import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
+import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
 
 /** Testing utilities for BSON codecs.
   *

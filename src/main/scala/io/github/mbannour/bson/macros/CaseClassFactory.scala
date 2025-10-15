@@ -1,6 +1,6 @@
 package io.github.mbannour.bson.macros
 
-import scala.quoted.*
+import scala.quoted._
 
 object CaseClassFactory:
 

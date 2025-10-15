@@ -1,13 +1,13 @@
 package io.github.mbannour.bson.macros
 
-import org.bson.codecs.{BsonValueCodecProvider, EncoderContext}
+import scala.jdk.CollectionConverters._
+
 import org.bson.codecs.configuration.CodecRegistries
+import org.bson.codecs.{BsonValueCodecProvider, EncoderContext}
 import org.bson.{BsonDocument, BsonDocumentWriter}
+import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.mongodb.scala.bson.annotations.BsonProperty
-
-import scala.jdk.CollectionConverters.*
 
 class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers:
 

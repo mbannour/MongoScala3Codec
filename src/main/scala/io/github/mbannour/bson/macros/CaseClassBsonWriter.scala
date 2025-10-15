@@ -1,11 +1,11 @@
 package io.github.mbannour.bson.macros
 
+import scala.quoted._
+import scala.reflect.ClassTag
+
 import org.bson.BsonWriter
 import org.bson.codecs.EncoderContext
 import org.bson.codecs.configuration.CodecRegistry
-
-import scala.quoted.*
-import scala.reflect.ClassTag
 
 object CaseClassBsonWriter:
 

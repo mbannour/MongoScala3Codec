@@ -2,6 +2,9 @@ import xerial.sbt.Sonatype.*
 
 val scala3Version = "3.7.1"
 
+ThisBuild / semanticdbEnabled := true
+ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
+
 ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
   "3.4.0",

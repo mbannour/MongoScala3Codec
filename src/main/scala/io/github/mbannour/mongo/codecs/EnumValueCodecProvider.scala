@@ -1,11 +1,10 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.*
-import org.bson.codecs.*
-import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
+import scala.reflect.{ClassTag, Enum => ScalaEnum}
 
-import scala.reflect.Enum as ScalaEnum
-import scala.reflect.ClassTag
+import org.bson._
+import org.bson.codecs._
+import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
 /** `EnumValueCodecProvider` is a helper object to generate a MongoDB [[org.bson.codecs.configuration.CodecProvider]] for Scala 3 enums that
   * can be uniquely represented by a single primitive value such as an `Int`, `String`, or `Boolean`.

@@ -1,14 +1,16 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.util.{Failure, Success, Try}
+
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries
 import org.bson.types.ObjectId
+import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
-import org.scalacheck.{Arbitrary, Gen}
-import scala.util.{Try, Success, Failure}
-import RegistryBuilder.*
+
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
 
 /** Property-based tests for codec round-trip encoding/decoding using ScalaCheck.
   *

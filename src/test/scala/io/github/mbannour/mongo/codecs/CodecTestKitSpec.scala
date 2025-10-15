@@ -1,13 +1,13 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.Codec
-import org.bson.codecs.configuration.{CodecRegistry, CodecRegistries}
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+import org.bson.codecs.{Codec, _}
 import org.bson.types.ObjectId
-import org.bson.{BsonDocument, BsonString, BsonInt32, BsonObjectId}
-import org.bson.codecs.*
+import org.bson.{BsonDocument, BsonInt32, BsonObjectId, BsonString}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import RegistryBuilder.*
+
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
 
 /** Unit tests for CodecTestKit without requiring MongoDB instance. These tests demonstrate all CodecTestKit features for testing BSON
   * codecs.
@@ -166,7 +166,7 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit with NoneHandling.Encode" should "encode None as null" in {
-    given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
+    given CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -189,7 +189,7 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "encode Some values correctly" in {
-    given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
+    given CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)

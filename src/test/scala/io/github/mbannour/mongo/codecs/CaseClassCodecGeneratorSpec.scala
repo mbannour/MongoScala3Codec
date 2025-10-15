@@ -1,13 +1,13 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.{BsonValueCodecProvider, DecoderContext, EncoderContext}
+import scala.reflect.ClassTag
+
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+import org.bson.codecs.{BsonValueCodecProvider, DecoderContext, EncoderContext}
 import org.bson.{BsonDocument, BsonDocumentWriter, BsonInvalidOperationException}
+import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.mongodb.scala.bson.annotations.BsonProperty
-
-import scala.reflect.ClassTag
 
 class CaseClassCodecGeneratorSpec extends AnyFlatSpec with Matchers:
 

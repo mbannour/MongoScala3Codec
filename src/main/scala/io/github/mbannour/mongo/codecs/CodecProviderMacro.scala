@@ -1,11 +1,12 @@
 package io.github.mbannour.mongo.codecs
 
-import CaseClassCodecGenerator.generateCodec
+import scala.quoted._
+import scala.reflect.ClassTag
+
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
-import scala.quoted.*
-import scala.reflect.ClassTag
+import io.github.mbannour.mongo.codecs.CaseClassCodecGenerator.generateCodec
 
 /** `CodecProviderMacro` is a utility object that provides inline macros for generating MongoDB `CodecProvider` instances for Scala case
   * classes.

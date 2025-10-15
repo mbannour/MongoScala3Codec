@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.{BsonValueCodecProvider}
+import org.bson.codecs.BsonValueCodecProvider
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

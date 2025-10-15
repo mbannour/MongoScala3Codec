@@ -1,10 +1,11 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.Codec
-import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
-import org.bson.codecs.configuration.CodecRegistries.{fromRegistries, fromProviders, fromCodecs}
+import scala.compiletime._
 import scala.reflect.ClassTag
-import scala.compiletime.*
+
+import org.bson.codecs.Codec
+import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
+import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
 /** Type-safe, immutable registry builder using Scala 3 opaque types and extension methods.
   *
