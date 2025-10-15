@@ -35,6 +35,11 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
 
   case class Tags(_id: ObjectId, tags: Set[String])
 
+  // Models for nested case class test
+  case class Address(_id: ObjectId, street: String, city: String)
+  case class Contact(_id: ObjectId, email: String, phone: Option[String])
+  case class Person(_id: ObjectId, name: String, address: Option[Address], contact: Contact)
+
   "CodecTestKit.roundTrip" should "encode and decode values correctly" in {
 
     val registry = RegistryBuilder
@@ -393,10 +398,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit with nested case classes" should "handle complex nested structures" in {
-
-    case class Address(_id: ObjectId, street: String, city: String)
-    case class Contact(_id: ObjectId, email: String, phone: Option[String])
-    case class Person(_id: ObjectId, name: String, address: Option[Address], contact: Contact)
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)

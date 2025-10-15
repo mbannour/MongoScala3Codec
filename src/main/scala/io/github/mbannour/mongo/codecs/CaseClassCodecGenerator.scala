@@ -180,7 +180,25 @@ object CaseClassCodecGenerator:
                 case _: IllegalArgumentException =>
                   throw new IllegalArgumentException(s"Invalid UUID string format: $stringValue")
             case BsonType.DOUBLE if clazz == classOf[Float] =>
-              reader.readDouble().toFloat.asInstanceOf[V]
+              // Note: MongoDB stores Float as BSON Double (64-bit)
+              // Converting back to Float may result in precision loss or overflow
+              val doubleValue = reader.readDouble()
+              if doubleValue.isNaN || doubleValue.isInfinite then
+                doubleValue.toFloat.asInstanceOf[V]
+              else if doubleValue > Float.MaxValue then
+                throw new BsonInvalidOperationException(
+                  s"Double value $doubleValue exceeds Float.MaxValue (${Float.MaxValue}). " +
+                  s"Cannot safely convert to Float without overflow."
+                )
+              else if doubleValue < Float.MinValue then
+                throw new BsonInvalidOperationException(
+                  s"Double value $doubleValue is below Float.MinValue (${Float.MinValue}). " +
+                  s"Cannot safely convert to Float without overflow."
+                )
+              else
+                // Safe conversion within Float range
+                // Note: Precision loss may still occur for values requiring more than 24 bits of mantissa
+                doubleValue.toFloat.asInstanceOf[V]
             case BsonType.INT32 if clazz == classOf[Byte] || clazz == classOf[java.lang.Byte] =>
               reader.readInt32().toByte.asInstanceOf[V]
             case BsonType.INT32 if clazz == classOf[Short] || clazz == classOf[java.lang.Short] =>

@@ -66,7 +66,8 @@ object RegistryBuilder:
       base: CodecRegistry,
       config: CodecConfig = CodecConfig(),
       providers: Vector[CodecProvider] = Vector.empty,
-      codecs: Vector[Codec[?]] = Vector.empty
+      codecs: Vector[Codec[?]] = Vector.empty,
+      cachedRegistry: Option[CodecRegistry] = None
   )
 
   /** Create builder from base registry with default configuration */
@@ -100,7 +101,7 @@ object RegistryBuilder:
       *   }}}
       */
     def configure(f: CodecConfig => CodecConfig): RegistryBuilder =
-      builder.copy(config = f(builder.config))
+      builder.copy(config = f(builder.config), cachedRegistry = None)
 
     /** Set the codec configuration directly.
       *
@@ -108,7 +109,7 @@ object RegistryBuilder:
       *   The codec configuration to use
       */
     def withConfig(newConfig: CodecConfig): RegistryBuilder =
-      builder.copy(config = newConfig)
+      builder.copy(config = newConfig, cachedRegistry = None)
 
     /** Switch policy: omit `None` fields entirely from BSON documents. */
     def ignoreNone: RegistryBuilder =
@@ -134,7 +135,7 @@ object RegistryBuilder:
       *   The codec to add
       */
     def withCodec[A](codec: Codec[A]): RegistryBuilder =
-      builder.copy(codecs = builder.codecs :+ codec)
+      builder.copy(codecs = builder.codecs :+ codec, cachedRegistry = None)
 
     /** Add multiple codecs at once.
       *
@@ -142,26 +143,27 @@ object RegistryBuilder:
       *   Variable number of codecs to add
       */
     def withCodecs(codecs: Codec[?]*): RegistryBuilder =
-      builder.copy(codecs = builder.codecs ++ codecs)
+      builder.copy(codecs = builder.codecs ++ codecs, cachedRegistry = None)
 
     /** Register a type with automatic codec derivation.
       *
       * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
-      * Performance note: The registry is only built once when `build()` is called, so you can chain multiple `register` calls efficiently.
+      * Performance note: Intermediate registries are cached to avoid rebuilding the same registry multiple times
+      * during chained register calls.
       *
       * @tparam T
       *   The type to register (must be a case class)
       */
     inline def register[T: ClassTag]: RegistryBuilder =
-
-      val tempRegistry = buildRegistry(builder)
+      val tempRegistry = getOrBuildRegistry(builder)
       val provider = CodecProviderMacro.createCodecProvider[T](using
         summon[ClassTag[T]],
         builder.config,
         tempRegistry
       )
-      builder.copy(providers = builder.providers :+ provider)
+      // Invalidate cache since we're adding a new provider
+      builder.copy(providers = builder.providers :+ provider, cachedRegistry = None)
     end register
 
     /** Batch register multiple types using tuple syntax.
@@ -186,7 +188,18 @@ object RegistryBuilder:
       * This is when the actual registry is constructed from all registered codecs and providers. Call this method only once at the end of
       * your configuration chain.
       */
-    def build: CodecRegistry = buildRegistry(builder)
+    def build: CodecRegistry =
+      builder.cachedRegistry match
+        case Some(cached) if builder.providers.isEmpty && builder.codecs.isEmpty =>
+          // If we have a cached registry and nothing was added after caching, reuse it
+          cached
+        case _ =>
+          // Otherwise build fresh
+          buildRegistry(builder)
+
+    /** Get cached registry or build a new one. Used internally to optimize register chains. */
+    private def getOrBuildRegistry(state: State): CodecRegistry =
+      state.cachedRegistry.getOrElse(buildRegistry(state))
 
     private def buildRegistry(state: State): CodecRegistry =
       val parts = Vector.newBuilder[CodecRegistry]

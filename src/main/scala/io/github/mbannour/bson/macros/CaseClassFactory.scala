@@ -37,12 +37,11 @@ object CaseClassFactory:
 
       val paramTypeShowExpr: Expr[String] = Expr(paramType.show)
 
-      // Check if this parameter has a default value
-      val defaultMethodName = s"$$lessinit$$greater$$default$$${index + 1}"
-      val defaultValueOpt: Option[Expr[Any]] =
-        companionSymbol.methodMember(defaultMethodName).headOption.map { defaultMethod =>
-          Select(companionRef, defaultMethod).asExpr
-        }
+      // Find default value method more robustly
+      // Instead of constructing the method name with fragile string interpolation,
+      // we search for methods that match the default parameter pattern
+      val defaultValueOpt: Option[Expr[Any]] = 
+        findDefaultValueMethod(companionSymbol, companionRef, index)
 
       paramType.asType match
         case '[Option[t]] =>
@@ -217,4 +216,49 @@ object CaseClassFactory:
 
     instance
   end getInstanceImpl
+
+  /** Finds the default value method for a given parameter index in a case class companion object.
+    *
+    * This method uses multiple strategies to find default parameter methods, making it more robust
+    * against potential changes in Scala compiler conventions:
+    * 1. First tries the standard naming pattern: `$lessinit$greater$default$<N>`
+    * 2. Falls back to searching all methods that match a default parameter pattern
+    * 3. Validates the method signature to ensure it's a no-arg method returning the expected type
+    *
+    * @param companionSymbol The companion object symbol of the case class.
+    * @param companionRef A reference to the companion object.
+    * @param paramIndex The 0-based index of the parameter in the case class constructor.
+    * @return An optional expression representing the default value, if found.
+    */
+  private def findDefaultValueMethod(using q: Quotes)(
+      companionSymbol: q.reflect.Symbol, 
+      companionRef: q.reflect.Term, 
+      paramIndex: Int
+  ): Option[Expr[Any]] =
+    import q.reflect.*
+
+    // Strategy 1: Try the standard naming pattern (Scala 3.x convention)
+    val standardMethodName = s"$$lessinit$$greater$$default$$${paramIndex + 1}"
+    val standardMethod = companionSymbol.methodMember(standardMethodName).headOption
+    
+    if standardMethod.isDefined then
+      return standardMethod.map(method => Select(companionRef, method).asExpr)
+    
+    // Strategy 2: Search for methods matching default parameter patterns
+    // This is a fallback in case the naming convention changes
+    val allMethods = companionSymbol.declaredMethods
+    val defaultPattern = """.*default.*(\d+)""".r
+    
+    val fallbackMethod = allMethods.find { method =>
+      method.name match
+        case defaultPattern(indexStr) =>
+          // Check if the index matches (1-based in method name)
+          indexStr.toIntOption.contains(paramIndex + 1) &&
+          // Verify it's a no-arg method (default value methods have no parameters)
+          method.paramSymss.flatten.isEmpty
+        case _ => false
+    }
+    
+    fallbackMethod.map(method => Select(companionRef, method).asExpr)
+  end findDefaultValueMethod
 end CaseClassFactory
