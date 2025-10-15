@@ -18,7 +18,7 @@ object CaseClassFactory:
       report.errorAndAbort(s"${mainTypeSymbol.name} is not a case class, and cannot be instantiated this way.")
 
     val constructorParams = mainTypeSymbol.primaryConstructor.paramSymss.flatten
-    
+
     // Get the companion object to access default value methods
     val companionSymbol = mainTypeSymbol.companionModule
     val companionRef = Ref(companionSymbol)
@@ -36,10 +36,10 @@ object CaseClassFactory:
           case '{ None }                           => Expr(paramName)
 
       val paramTypeShowExpr: Expr[String] = Expr(paramType.show)
-      
+
       // Check if this parameter has a default value
       val defaultMethodName = s"$$lessinit$$greater$$default$$${index + 1}"
-      val defaultValueOpt: Option[Expr[Any]] = 
+      val defaultValueOpt: Option[Expr[Any]] =
         companionSymbol.methodMember(defaultMethodName).headOption.map { defaultMethod =>
           Select(companionRef, defaultMethod).asExpr
         }
@@ -48,7 +48,7 @@ object CaseClassFactory:
         case '[Option[t]] =>
           '{
             $fieldData.get($keyToUse) match
-              case Some(null) => None
+              case Some(null)  => None
               case Some(value) => Option(value.asInstanceOf[t])
               case None        => None
           }
@@ -58,7 +58,7 @@ object CaseClassFactory:
             case Some(defaultValue) =>
               '{
                 $fieldData.get($keyToUse) match
-                  case Some(instance: nestedT @unchecked) => instance
+                  case Some(instance: nestedT @unchecked)     => instance
                   case Some(map: Map[String, Any] @unchecked) => getInstance[nestedT](map)
                   case Some(other) =>
                     throw new RuntimeException("Unexpected type for field " + other.getClass)
@@ -122,7 +122,7 @@ object CaseClassFactory:
                   case Some(enumValue: nestedT @unchecked) =>
                     enumValue
                   case Some(null) => null
-                  case None => $defaultValue.asInstanceOf[nestedT]
+                  case None       => $defaultValue.asInstanceOf[nestedT]
                   case other =>
                     throw new RuntimeException("Unexpected value type for enum field '" + $keyToUse + "': " + other.getClass)
               }
@@ -173,6 +173,7 @@ object CaseClassFactory:
                   case None =>
                     throw new RuntimeException("Missing enum field: " + $keyToUse)
               }
+          end match
 
         case '[nestedT] =>
           defaultValueOpt match

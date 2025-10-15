@@ -7,10 +7,11 @@ import scala.quoted.*
 
 /** Type class for BSON encoding and decoding.
   *
-  * This provides a more functional and composable alternative to directly working with MongoDB codecs.
-  * It allows for better type safety and easier testing.
+  * This provides a more functional and composable alternative to directly working with MongoDB codecs. It allows for better type safety and
+  * easier testing.
   *
-  * @tparam T The type to encode/decode
+  * @tparam T
+  *   The type to encode/decode
   */
 trait BsonCodec[T]:
   /** Encode a value to BSON */
@@ -65,6 +66,7 @@ object BsonCodec:
       )(using $ct)
       BsonCodec.fromCodec(codec)
     }
+  end derivedImpl
 
   /** Map this codec to a different type */
   extension [A](codec: BsonCodec[A])

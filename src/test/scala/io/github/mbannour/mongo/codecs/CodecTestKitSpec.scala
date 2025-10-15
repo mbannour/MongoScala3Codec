@@ -7,10 +7,10 @@ import org.bson.{BsonDocument, BsonString, BsonInt32, BsonObjectId}
 import org.bson.codecs.*
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import RegistryBuilder.{*, given}
+import RegistryBuilder.*
 
-/** Unit tests for CodecTestKit without requiring MongoDB instance.
-  * These tests demonstrate all CodecTestKit features for testing BSON codecs.
+/** Unit tests for CodecTestKit without requiring MongoDB instance. These tests demonstrate all CodecTestKit features for testing BSON
+  * codecs.
   */
 class CodecTestKitSpec extends AnyFlatSpec with Matchers:
 
@@ -36,7 +36,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   case class Tags(_id: ObjectId, tags: Set[String])
 
   "CodecTestKit.roundTrip" should "encode and decode values correctly" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -54,7 +53,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit.assertCodecSymmetry" should "pass for valid codecs" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -72,7 +70,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "work with multiple data types" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -86,7 +83,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit.toBsonDocument" should "convert case class to BsonDocument" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -105,7 +101,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "preserve all field types correctly" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -123,7 +118,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit.fromBsonDocument" should "decode BsonDocument to case class" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -146,7 +140,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit.assertBsonStructure" should "validate BSON structure" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -219,6 +212,7 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
+      .withConfig(config)
       .register[UserProfile]
       .build
 
@@ -243,6 +237,7 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
+      .withConfig(config)
       .register[UserProfile]
       .build
 
@@ -260,7 +255,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit with collections" should "handle List fields" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -279,7 +273,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "handle Set fields" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -297,7 +290,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "handle empty collections" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -322,7 +314,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit.testRegistry" should "create minimal registry" in {
-    given config: CodecConfig = CodecConfig()
 
     val fullRegistry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -341,7 +332,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit with edge cases" should "handle empty strings" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -358,7 +348,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "handle special characters" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -372,7 +361,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "handle Unicode characters" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -389,7 +377,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "handle boundary values" in {
-    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(defaultBsonRegistry)
@@ -406,7 +393,6 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
   }
 
   "CodecTestKit with nested case classes" should "handle complex nested structures" in {
-    given config: CodecConfig = CodecConfig()
 
     case class Address(_id: ObjectId, street: String, city: String)
     case class Contact(_id: ObjectId, email: String, phone: Option[String])
@@ -436,4 +422,4 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
     personBson.getDocument("address").getString("city").getValue shouldBe "Springfield"
     personBson.getDocument("contact").getString("email").getValue shouldBe "test@example.com"
   }
-
+end CodecTestKitSpec

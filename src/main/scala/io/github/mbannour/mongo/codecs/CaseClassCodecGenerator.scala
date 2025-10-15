@@ -30,23 +30,26 @@ object CaseClassCodecGenerator:
   ): Codec[T] =
     ${ generateCodecImpl[T]('config, 'codecRegistry, 'classTag) }
 
-  /**
-   * Macro implementation for generating a BSON Codec for a case class or sealed hierarchy.
-   *
-   * This macro inspects the type T at compile time, verifies it is a case class, and generates
-   * serialization/deserialization logic for all fields, including support for nested case classes and sealed traits.
-   *
-   * Improvements in this version:
-   * - Uses CodecConfig instead of boolean flags for better extensibility
-   * - Enhanced error messages with compile-time validation
-   * - Better handling of discriminator fields
-   * - Improved type safety
-   *
-   * @param config The codec configuration object.
-   * @param baseRegistry The CodecRegistry used for nested lookups.
-   * @param classTag The ClassTag for type T.
-   * @return An Expr representing a Codec[T] instance.
-   */
+  /** Macro implementation for generating a BSON Codec for a case class or sealed hierarchy.
+    *
+    * This macro inspects the type T at compile time, verifies it is a case class, and generates serialization/deserialization logic for all
+    * fields, including support for nested case classes and sealed traits.
+    *
+    * Improvements in this version:
+    *   - Uses CodecConfig instead of boolean flags for better extensibility
+    *   - Enhanced error messages with compile-time validation
+    *   - Better handling of discriminator fields
+    *   - Improved type safety
+    *
+    * @param config
+    *   The codec configuration object.
+    * @param baseRegistry
+    *   The CodecRegistry used for nested lookups.
+    * @param classTag
+    *   The ClassTag for type T.
+    * @return
+    *   An Expr representing a Codec[T] instance.
+    */
   private def generateCodecImpl[T: Type](
       config: Expr[CodecConfig],
       baseRegistry: Expr[CodecRegistry],
@@ -61,19 +64,16 @@ object CaseClassCodecGenerator:
 
     '{
       new Codec[T]:
-        /**
-         * The runtime class for type T, used for reflection and type checks.
-         */
+        /** The runtime class for type T, used for reflection and type checks.
+          */
         private val encoderClass: Class[T] = $classTag.runtimeClass.asInstanceOf[Class[T]]
 
-        /**
-         * Configuration for codec behavior (None handling, discriminator field, etc.)
-         */
+        /** Configuration for codec behavior (None handling, discriminator field, etc.)
+          */
         private val codecConfig: CodecConfig = $config
 
-        /**
-         * Discriminator field used for sealed hierarchies to distinguish subtypes.
-         */
+        /** Discriminator field used for sealed hierarchies to distinguish subtypes.
+          */
         private val discriminatorField: String = codecConfig.discriminatorField
 
         // Maps from discriminator values to classes and vice versa.
@@ -224,8 +224,7 @@ object CaseClassCodecGenerator:
             typeArgs: List[Class[?]],
             fieldTypeArgs: Map[String, List[Class[?]]]
         ): V =
-          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then
-            registry.get(clazz).decode(reader, decoderContext)
+          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then registry.get(clazz).decode(reader, decoderContext)
           else
             val docFields = mutable.Map.empty[String, Any]
             reader.readStartDocument()
@@ -255,8 +254,7 @@ object CaseClassCodecGenerator:
               if currentType == BsonType.END_OF_DOCUMENT then None
               else
                 val name = reader.readName
-                if name == discriminatorField then
-                  Some(registry.get(classOf[String]).decode(reader, decoderContext))
+                if name == discriminatorField then Some(registry.get(classOf[String]).decode(reader, decoderContext))
                 else
                   reader.skipValue()
                   readOptionalDiscriminator()
@@ -268,7 +266,7 @@ object CaseClassCodecGenerator:
             maybeDiscriminator.getOrElse {
               throw new BsonInvalidOperationException(
                 s"Missing discriminator field '$discriminatorField' for sealed case class hierarchy. " +
-                s"Ensure the document contains the discriminator field."
+                  s"Ensure the document contains the discriminator field."
               )
             }
           else

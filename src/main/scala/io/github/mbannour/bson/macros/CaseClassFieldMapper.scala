@@ -83,7 +83,7 @@ object CaseClassFieldMapper:
       if visited.contains(tpe) then Nil
       else
         val fields = getFieldNamesAndTypes(tpe)
-        val fieldTypeMapExpr = createFieldTypeArgsMap(fields, visited + tpe)
+        val fieldTypeMapExpr = createFieldTypeArgsMap(fields)
         val classNameExpr = Expr(tpe.typeSymbol.name)
         val nestedClassMaps = fields.flatMap { case (_, fieldType) =>
           if isCaseClass(fieldType) then getFieldNamesAndTypesRecursive(fieldType, visited + tpe)
@@ -120,7 +120,7 @@ object CaseClassFieldMapper:
       * @return
       *   an Expr of Map[String, List[Class[?]]].
       */
-    def createFieldTypeArgsMap(fields: List[(String, TypeRepr)], visited: Set[TypeRepr]): Expr[Map[String, List[Class[?]]]] =
+    def createFieldTypeArgsMap(fields: List[(String, TypeRepr)]): Expr[Map[String, List[Class[?]]]] =
       val entries: List[Expr[(String, List[Class[?]])]] = fields.map { case (name, fieldType) =>
         // Determine the effective field name via annotation (if provided), or use the default.
         val annotatedNameExpr = AnnotationName.findAnnotationValue[T](Expr(name)) match

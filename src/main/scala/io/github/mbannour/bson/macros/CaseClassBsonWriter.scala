@@ -34,11 +34,6 @@ object CaseClassBsonWriter:
 
     if !typeSymbol.flags.is(Flags.Case) then report.errorAndAbort(s"${typeSymbol.name} is not a case class.")
 
-    def getClassForType[T: Type](using Quotes): Expr[Class[T]] =
-      Expr.summon[ClassTag[T]] match
-        case Some(classTagExpr) => '{ $classTagExpr.runtimeClass.asInstanceOf[Class[T]] }
-        case None               => report.errorAndAbort(s"Could not find ClassTag for type: ${Type.show[T]}")
-
     val fieldWrites = typeSymbol.caseFields.map { field =>
 
       val res = AnnotationName.findAnnotationValue[T](Expr(field.name))

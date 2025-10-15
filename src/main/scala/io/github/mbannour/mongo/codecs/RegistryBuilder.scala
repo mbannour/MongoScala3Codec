@@ -8,8 +8,8 @@ import scala.compiletime.*
 
 /** Type-safe, immutable registry builder using Scala 3 opaque types and extension methods.
   *
-  * `RegistryBuilder` provides a fluent API for constructing MongoDB [[org.bson.codecs.configuration.CodecRegistry]] instances
-  * with compile-time type safety and functional programming patterns.
+  * `RegistryBuilder` provides a fluent API for constructing MongoDB [[org.bson.codecs.configuration.CodecRegistry]] instances with
+  * compile-time type safety and functional programming patterns.
   *
   * ===Features===
   *   - **Opaque types** for enhanced type safety without runtime overhead
@@ -79,11 +79,9 @@ object RegistryBuilder:
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
 
-
     /** Configure with a function - functional approach for flexible configuration.
       *
-      * This is the most flexible configuration method, allowing you to transform
-      * the configuration using any logic you need.
+      * This is the most flexible configuration method, allowing you to transform the configuration using any logic you need.
       *
       * @param f
       *   Function to transform the current configuration
@@ -128,7 +126,6 @@ object RegistryBuilder:
     def discriminator(field: String): RegistryBuilder =
       configure(_.copy(discriminatorField = field))
 
-
     /** Add a single explicit codec.
       *
       * Useful for value classes or third-party types where automatic derivation is not possible.
@@ -147,14 +144,11 @@ object RegistryBuilder:
     def withCodecs(codecs: Codec[?]*): RegistryBuilder =
       builder.copy(codecs = builder.codecs ++ codecs)
 
-
     /** Register a type with automatic codec derivation.
       *
-      * Relies on Scala 3 inline macros to auto-generate the BSON codec.
-      * Works for nested case classes and sealed hierarchies.
+      * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
-      * Performance note: The registry is only built once when `build()` is called,
-      * so you can chain multiple `register` calls efficiently.
+      * Performance note: The registry is only built once when `build()` is called, so you can chain multiple `register` calls efficiently.
       *
       * @tparam T
       *   The type to register (must be a case class)
@@ -162,17 +156,17 @@ object RegistryBuilder:
     inline def register[T: ClassTag]: RegistryBuilder =
 
       val tempRegistry = buildRegistry(builder)
-      val provider = CodecProviderMacro.createCodecProvider[T](
-        using summon[ClassTag[T]],
+      val provider = CodecProviderMacro.createCodecProvider[T](using
+        summon[ClassTag[T]],
         builder.config,
         tempRegistry
       )
       builder.copy(providers = builder.providers :+ provider)
+    end register
 
     /** Batch register multiple types using tuple syntax.
       *
-      * This is more efficient than calling `register` multiple times separately
-      * as it minimizes intermediate registry builds.
+      * This is more efficient than calling `register` multiple times separately as it minimizes intermediate registry builds.
       *
       * @tparam T
       *   A tuple of types to register
@@ -189,8 +183,8 @@ object RegistryBuilder:
 
     /** Build the final [[CodecRegistry]].
       *
-      * This is when the actual registry is constructed from all registered codecs and providers.
-      * Call this method only once at the end of your configuration chain.
+      * This is when the actual registry is constructed from all registered codecs and providers. Call this method only once at the end of
+      * your configuration chain.
       */
     def build: CodecRegistry = buildRegistry(builder)
 
@@ -198,13 +192,12 @@ object RegistryBuilder:
       val parts = Vector.newBuilder[CodecRegistry]
       parts += state.base
 
-      if state.codecs.nonEmpty then
-        parts += fromCodecs(state.codecs*)
+      if state.codecs.nonEmpty then parts += fromCodecs(state.codecs*)
 
-      if state.providers.nonEmpty then
-        parts += fromProviders(state.providers*)
+      if state.providers.nonEmpty then parts += fromProviders(state.providers*)
 
       fromRegistries(parts.result()*)
+    end buildRegistry
   end extension
 
   /** Extension methods for CodecRegistry to create builders */
