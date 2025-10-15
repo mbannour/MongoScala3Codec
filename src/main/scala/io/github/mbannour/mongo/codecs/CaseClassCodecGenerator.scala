@@ -16,8 +16,8 @@ object CaseClassCodecGenerator:
 
   /** Generates a BSON codec for the given type `T`.
     *
-    * @param encodeNone
-    *   Flag to indicate whether to encode `None` values in optional fields.
+    * @param config
+    *   Configuration object for codec generation behavior.
     * @param codecRegistry
     *   The base CodecRegistry to be used for nested codec lookups.
     * @tparam T
@@ -25,13 +25,30 @@ object CaseClassCodecGenerator:
     * @return
     *   A BSON Codec[T] instance.
     */
-  private[codecs] inline def generateCodec[T](encodeNone: Boolean, codecRegistry: CodecRegistry)(using
+  private[codecs] inline def generateCodec[T](config: CodecConfig, codecRegistry: CodecRegistry)(using
       classTag: ClassTag[T]
   ): Codec[T] =
-    ${ generateCodecImpl[T]('encodeNone, 'codecRegistry, 'classTag) }
+    ${ generateCodecImpl[T]('config, 'codecRegistry, 'classTag) }
 
+  /**
+   * Macro implementation for generating a BSON Codec for a case class or sealed hierarchy.
+   *
+   * This macro inspects the type T at compile time, verifies it is a case class, and generates
+   * serialization/deserialization logic for all fields, including support for nested case classes and sealed traits.
+   *
+   * Improvements in this version:
+   * - Uses CodecConfig instead of boolean flags for better extensibility
+   * - Enhanced error messages with compile-time validation
+   * - Better handling of discriminator fields
+   * - Improved type safety
+   *
+   * @param config The codec configuration object.
+   * @param baseRegistry The CodecRegistry used for nested lookups.
+   * @param classTag The ClassTag for type T.
+   * @return An Expr representing a Codec[T] instance.
+   */
   private def generateCodecImpl[T: Type](
-      encodeNone: Expr[Boolean],
+      config: Expr[CodecConfig],
       baseRegistry: Expr[CodecRegistry],
       classTag: Expr[ClassTag[T]]
   )(using Quotes): Expr[Codec[T]] =
@@ -44,10 +61,20 @@ object CaseClassCodecGenerator:
 
     '{
       new Codec[T]:
-        // The runtime class for type T
+        /**
+         * The runtime class for type T, used for reflection and type checks.
+         */
         private val encoderClass: Class[T] = $classTag.runtimeClass.asInstanceOf[Class[T]]
-        // Discriminator field used for sealed hierarchies
-        private val discriminatorField: String = "_t"
+
+        /**
+         * Configuration for codec behavior (None handling, discriminator field, etc.)
+         */
+        private val codecConfig: CodecConfig = $config
+
+        /**
+         * Discriminator field used for sealed hierarchies to distinguish subtypes.
+         */
+        private val discriminatorField: String = codecConfig.discriminatorField
 
         // Maps from discriminator values to classes and vice versa.
         private val caseClassesMap: Map[String, Class[?]] = CaseClassMapper.caseClassMap[T]
@@ -68,7 +95,10 @@ object CaseClassCodecGenerator:
           CaseClassFactory.getInstance[T](fieldsData)
 
         override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit =
-          if value == null then throw new BsonInvalidOperationException(s"Invalid value for $encoderClass: found a null value.")
+          if value == null then
+            throw new BsonInvalidOperationException(
+              s"Invalid value for $encoderClass: found a null value. BSON codecs do not support null root values."
+            )
           else writeValue(writer, value, encoderContext)
 
         /** Writes a value of type V to the BSON writer. */
@@ -78,7 +108,14 @@ object CaseClassCodecGenerator:
           caseClassesMapInv.get(clazz) match
             case Some(discriminator) =>
               // For case classes, delegate to the helper writer with the discriminator.
-              CaseClassBsonWriter.writeCaseClassData(discriminator, writer, value.asInstanceOf[T], encoderContext, $encodeNone, registry)
+              CaseClassBsonWriter.writeCaseClassData(
+                discriminator,
+                writer,
+                value.asInstanceOf[T],
+                encoderContext,
+                codecConfig.shouldEncodeNone,
+                registry
+              )
             case None =>
               // Fallback: use the codec from the registry.
               val codec = registry.get(clazz).asInstanceOf[Encoder[V]]
@@ -133,6 +170,8 @@ object CaseClassCodecGenerator:
               readArray(reader, decoderContext, clazz, typeArgs, fieldTypeArgs)
             case BsonType.NULL =>
               reader.readNull()
+              // Return null as-is, don't convert to primitive default values
+              // This allows CaseClassFactory to properly handle Option[T] fields that contain null
               null.asInstanceOf[V]
             case BsonType.STRING if clazz == classOf[UUID] =>
               val stringValue = reader.readString()
@@ -140,6 +179,14 @@ object CaseClassCodecGenerator:
               catch
                 case _: IllegalArgumentException =>
                   throw new IllegalArgumentException(s"Invalid UUID string format: $stringValue")
+            case BsonType.DOUBLE if clazz == classOf[Float] =>
+              reader.readDouble().toFloat.asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Byte] || clazz == classOf[java.lang.Byte] =>
+              reader.readInt32().toByte.asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Short] || clazz == classOf[java.lang.Short] =>
+              reader.readInt32().toShort.asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Char] || clazz == classOf[java.lang.Character] =>
+              reader.readInt32().toChar.asInstanceOf[V]
             case _ =>
               val effectiveClass = primitiveToBoxed.getOrElse(clazz, clazz).asInstanceOf[Class[V]]
               val codec = registry.get(effectiveClass)
@@ -154,7 +201,9 @@ object CaseClassCodecGenerator:
             fieldTypeArgs: Map[String, List[Class[?]]]
         ): V =
           if typeArgs.isEmpty then
-            throw new BsonInvalidOperationException(s"Invalid BSON format for '${clazz.getSimpleName}'. Found an array but no type data.")
+            throw new BsonInvalidOperationException(
+              s"Invalid BSON format for '${clazz.getSimpleName}'. Found an array but no type information available."
+            )
           reader.readStartArray()
           val elements = mutable.ListBuffer.empty[Any]
           while reader.readBsonType != BsonType.END_OF_DOCUMENT do
@@ -175,7 +224,8 @@ object CaseClassCodecGenerator:
             typeArgs: List[Class[?]],
             fieldTypeArgs: Map[String, List[Class[?]]]
         ): V =
-          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then registry.get(clazz).decode(reader, decoderContext)
+          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then
+            registry.get(clazz).decode(reader, decoderContext)
           else
             val docFields = mutable.Map.empty[String, Any]
             reader.readStartDocument()
@@ -205,7 +255,8 @@ object CaseClassCodecGenerator:
               if currentType == BsonType.END_OF_DOCUMENT then None
               else
                 val name = reader.readName
-                if name == discriminatorField then Some(registry.get(classOf[String]).decode(reader, decoderContext))
+                if name == discriminatorField then
+                  Some(registry.get(classOf[String]).decode(reader, decoderContext))
                 else
                   reader.skipValue()
                   readOptionalDiscriminator()
@@ -215,7 +266,10 @@ object CaseClassCodecGenerator:
             val maybeDiscriminator = readOptionalDiscriminator()
             mark.reset()
             maybeDiscriminator.getOrElse {
-              throw new BsonInvalidOperationException(s"Missing discriminator field '$discriminatorField' for sealed case class.")
+              throw new BsonInvalidOperationException(
+                s"Missing discriminator field '$discriminatorField' for sealed case class hierarchy. " +
+                s"Ensure the document contains the discriminator field."
+              )
             }
           else
             // For non-sealed hierarchies, return the first available discriminator.
