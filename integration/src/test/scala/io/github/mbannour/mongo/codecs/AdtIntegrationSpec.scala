@@ -13,15 +13,10 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.BeforeAndAfterAll
 import RegistryBuilder.{*, given}
 
-/** Integration tests that write/read a nested case class and an ADT (modeled via concrete case classes)
-  * using the MongoDB Scala driver and Testcontainers.
+/** Integration tests that write/read a nested case class and an ADT (modeled via concrete case classes) using the MongoDB Scala driver and
+  * Testcontainers.
   */
-class AdtIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class AdtIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -44,8 +39,7 @@ class AdtIntegrationSpec
   case class Rectangle(_id: ObjectId, width: Double, height: Double, shapeType: String = "Rectangle") extends Shape
 
   "Mongo driver" should "write/read a nested case class" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Address]
       .register[User]
       .build
@@ -62,8 +56,7 @@ class AdtIntegrationSpec
   }
 
   it should "write/read two concrete ADT variants" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Circle]
       .register[Rectangle]
       .build
@@ -87,4 +80,4 @@ class AdtIntegrationSpec
     fetchedC.shapeType shouldBe "Circle"
     fetchedR.shapeType shouldBe "Rectangle"
   }
-
+end AdtIntegrationSpec

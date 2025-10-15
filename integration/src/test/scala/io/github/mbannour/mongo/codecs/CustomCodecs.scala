@@ -18,6 +18,3 @@ class ZonedDateTimeCodec extends Codec[ZonedDateTime]:
     )
   override def getEncoderClass: Class[ZonedDateTime] = classOf[ZonedDateTime]
 end ZonedDateTimeCodec
-
-
-

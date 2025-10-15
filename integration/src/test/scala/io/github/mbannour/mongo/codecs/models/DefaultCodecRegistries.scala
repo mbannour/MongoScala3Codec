@@ -17,7 +17,7 @@ object DefaultCodecRegistries:
     EmployeeId.dealerIdBsonCodec,
     DateField.dateFieldCodec
   )
-  
+
   val defaultRegistry: CodecRegistry =
     CodecRegistries.fromRegistries(
       CodecRegistries
@@ -27,5 +27,5 @@ object DefaultCodecRegistries:
     )
 
   given CodecRegistry = defaultRegistry
-  
+
 end DefaultCodecRegistries

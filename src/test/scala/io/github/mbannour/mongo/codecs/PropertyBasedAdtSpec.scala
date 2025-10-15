@@ -31,16 +31,16 @@ class PropertyBasedAdtSpec extends AnyFlatSpec with Matchers with ScalaCheckProp
 
   given Arbitrary[ObjectId] = Arbitrary(Gen.const(new ObjectId()))
 
-  given Arbitrary[Circle] = Arbitrary(for {
+  given Arbitrary[Circle] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
-    r  <- Gen.choose(0.0, 10_000.0)
-  } yield Circle(id, r))
+    r <- Gen.choose(0.0, 10_000.0)
+  yield Circle(id, r))
 
-  given Arbitrary[Rectangle] = Arbitrary(for {
+  given Arbitrary[Rectangle] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
-    w  <- Gen.choose(0.0, 10_000.0)
-    h  <- Gen.choose(0.0, 10_000.0)
-  } yield Rectangle(id, w, h))
+    w <- Gen.choose(0.0, 10_000.0)
+    h <- Gen.choose(0.0, 10_000.0)
+  yield Rectangle(id, w, h))
 
   private val registry = RegistryBuilder
     .from(defaultBsonRegistry)
@@ -65,4 +65,4 @@ class PropertyBasedAdtSpec extends AnyFlatSpec with Matchers with ScalaCheckProp
       rt.shapeType shouldBe "Rectangle"
     }
   }
-
+end PropertyBasedAdtSpec

@@ -15,12 +15,7 @@ import scala.util.chaining.*
 // Import extension methods
 import RegistryBuilder.{*, given}
 
-class RegistryBuilderIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -55,30 +50,28 @@ class RegistryBuilderIntegrationSpec
     opaque type UserId = String
     object UserId:
       def apply(value: String): UserId = value
-      extension (userId: UserId)
-        def value: String = userId
-    
+      extension (userId: UserId) def value: String = userId
+
     opaque type Email = String
     object Email:
       def apply(value: String): Email = value
-      extension (email: Email)
-        def value: String = email
-    
+      extension (email: Email) def value: String = email
+
     opaque type Age = Int
     object Age:
       def apply(value: Int): Age = value
-      extension (age: Age)
-        def value: Int = age
+      extension (age: Age) def value: Int = age
+  end OpaqueTypes
 
   import OpaqueTypes.*
 
   // Case class using opaque types for stronger type safety
   case class UserProfile(
-    _id: ObjectId,
-    userId: UserId,
-    email: Email,
-    age: Age,
-    displayName: String
+      _id: ObjectId,
+      userId: UserId,
+      email: Email,
+      age: Age,
+      displayName: String
   )
 
   "RegistryBuilder.register[T]" should "register and work with MongoDB for simple case class" in {
@@ -485,8 +478,7 @@ class RegistryBuilderIntegrationSpec
   it should "support modern newBuilder API" in {
     given config: CodecConfig = CodecConfig()
 
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Person]
       .build
 
@@ -510,7 +502,7 @@ class RegistryBuilderIntegrationSpec
     val builder1: RegistryBuilder = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
     val builder2: RegistryBuilder = builder1.ignoreNone
     val builder3: RegistryBuilder = builder2.register[Person]
-    
+
     // Each builder is independent and immutable
     val registry = builder3.build
 
@@ -534,17 +526,17 @@ class RegistryBuilderIntegrationSpec
     // The type is RegistryBuilder throughout the chain
     val registry: CodecRegistry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .ignoreNone              // Returns RegistryBuilder
-      .discriminator("_t")     // Returns RegistryBuilder
-      .register[Address]       // Returns RegistryBuilder
-      .register[Person]        // Returns RegistryBuilder
-      .register[Department]    // Returns RegistryBuilder
-      .build                   // Returns CodecRegistry
+      .ignoreNone // Returns RegistryBuilder
+      .discriminator("_t") // Returns RegistryBuilder
+      .register[Address] // Returns RegistryBuilder
+      .register[Person] // Returns RegistryBuilder
+      .register[Department] // Returns RegistryBuilder
+      .build // Returns CodecRegistry
 
     val database = createDatabaseWithRegistry(registry)
     val collection: MongoCollection[Person] = database.getCollection("people_opaque_fluent")
 
-    val person = Person(new ObjectId(), "Quinn", 44, Some(Address("999 Park Ave", "Boston", 02101)))
+    val person = Person(new ObjectId(), "Quinn", 44, Some(Address("999 Park Ave", "Boston", 2101)))
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -567,8 +559,7 @@ class RegistryBuilderIntegrationSpec
       .register[Person]
       .build
 
-    val registryWithEncode = baseBuilder
-      .encodeNone  // This creates a NEW builder, doesn't modify baseBuilder
+    val registryWithEncode = baseBuilder.encodeNone // This creates a NEW builder, doesn't modify baseBuilder
       .register[Person]
       .build
 
@@ -648,8 +639,7 @@ class RegistryBuilderIntegrationSpec
     given config: CodecConfig = CodecConfig()
 
     // Extension methods enabled by opaque type design
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder                    // Extension method returns RegistryBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder // Extension method returns RegistryBuilder
       .ignoreNone
       .register[Address]
       .register[Person]
@@ -679,7 +669,7 @@ class RegistryBuilderIntegrationSpec
 
     // The opaque type ensures compile-time type safety throughout
     val database = createDatabaseWithRegistry(registry)
-    
+
     val projectCollection: MongoCollection[Project] = database.getCollection("projects_opaque_tuple")
     val project = Project(new ObjectId(), "Opaque Type Demo", true, Set("scala3", "opaque", "types"))
     projectCollection.insertOne(project).toFuture().futureValue
@@ -824,8 +814,8 @@ class RegistryBuilderIntegrationSpec
     // Query and verify
     val allUsers = collection.find().toFuture().futureValue
     allUsers should have size 3
-    allUsers.map(_.userId.value) should contain allOf("alice_001", "bob_002", "charlie_003")
-    allUsers.map(_.email.value) should contain allOf("alice@test.com", "bob@test.com", "charlie@test.com")
+    allUsers.map(_.userId.value) should contain allOf ("alice_001", "bob_002", "charlie_003")
+    allUsers.map(_.email.value) should contain allOf ("alice@test.com", "bob@test.com", "charlie@test.com")
 
     database.drop().toFuture().futureValue
   }
@@ -900,10 +890,12 @@ class RegistryBuilderIntegrationSpec
 
     // Range query
     val midAgeUsers = collection
-      .find(Filters.and(
-        Filters.gte("age", 25),
-        Filters.lte("age", 35)
-      ))
+      .find(
+        Filters.and(
+          Filters.gte("age", 25),
+          Filters.lte("age", 35)
+        )
+      )
       .toFuture()
       .futureValue
 

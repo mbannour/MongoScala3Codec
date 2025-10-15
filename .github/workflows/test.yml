@@ -59,6 +59,9 @@ jobs:
         env:
           CI: true
 
+      - name: JMH smoke compile (benchmarks)
+        run: sbt ++${{ matrix.scala-version }} "benchmarks / Jmh / compile"
+
       - name: Clear cache (avoid caching sensitive files)
         run: |
           rm -rf ~/.ivy2/cache

@@ -93,9 +93,22 @@ lazy val integrationTests = project
     publish / skip := true
   )
 
+lazy val benchmarks = project
+  .in(file("benchmarks"))
+  .dependsOn(root)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    name := "MongoScala3Codec-benchmarks",
+    publish / skip := true,
+    Test / skip := true,
+    // Inherit scalaVersion/cross from ThisBuild; we only run on default in CI smoke
+    // Keep JMH runs fast locally by default; override in CLI as needed
+    fork := true
+  )
+
 lazy val rootProject = project
   .in(file("."))
-  .aggregate(root, integrationTests)
+  .aggregate(root, integrationTests, benchmarks)
   .settings(
     publish / skip := true
   )

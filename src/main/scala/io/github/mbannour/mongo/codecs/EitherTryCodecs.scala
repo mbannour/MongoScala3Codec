@@ -20,7 +20,9 @@ class TryCodec[T](valueCodec: Codec[T]) extends Codec[Try[T]]:
       case Failure(exception) =>
         writer.writeString("_tag", "Failure")
         writer.writeString("exception", exception.toString)
+    end match
     writer.writeEndDocument()
+  end encode
 
   override def decode(reader: BsonReader, decoderContext: DecoderContext): Try[T] =
     reader.readStartDocument()
@@ -40,13 +42,15 @@ class TryCodec[T](valueCodec: Codec[T]) extends Codec[Try[T]]:
           result = Failure(new Exception(exceptionMsg))
         case _ =>
           reader.skipValue()
+      end match
+    end while
 
     reader.readEndDocument()
 
-    if result == null then
-      throw new IllegalStateException(s"Invalid Try document: missing or invalid tag")
+    if result == null then throw new IllegalStateException(s"Invalid Try document: missing or invalid tag")
 
     result
+  end decode
 
   override def getEncoderClass: Class[Try[T]] = classOf[Try[T]]
 
@@ -69,7 +73,9 @@ class EitherCodec[L, R](leftCodec: Codec[L], rightCodec: Codec[R]) extends Codec
         writer.writeString("_tag", "Right")
         writer.writeName("value")
         rightCodec.encode(writer, r, encoderContext)
+    end match
     writer.writeEndDocument()
+  end encode
 
   override def decode(reader: BsonReader, decoderContext: DecoderContext): Either[L, R] =
     reader.readStartDocument()
@@ -89,15 +95,16 @@ class EitherCodec[L, R](leftCodec: Codec[L], rightCodec: Codec[R]) extends Codec
             case _       => reader.skipValue()
         case _ =>
           reader.skipValue()
+      end match
+    end while
 
     reader.readEndDocument()
 
-    if result == null then
-      throw new IllegalStateException(s"Invalid Either document: missing or invalid tag")
+    if result == null then throw new IllegalStateException(s"Invalid Either document: missing or invalid tag")
 
     result
+  end decode
 
   override def getEncoderClass: Class[Either[L, R]] = classOf[Either[L, R]]
 
 end EitherCodec
-

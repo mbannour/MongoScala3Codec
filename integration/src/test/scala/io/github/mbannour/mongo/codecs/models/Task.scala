@@ -14,7 +14,7 @@ case class Task(_id: ObjectId, title: String, priority: Priority)
 object Task:
 
   private val taskProvider = CodecProviderMacro.createCodecProviderEncodeNone[Task]
-  
+
   val priorityEnumProvider: CodecProvider = EnumValueCodecProvider.forStringEnum[Priority]
 
   val defaultRegistry: CodecRegistry =

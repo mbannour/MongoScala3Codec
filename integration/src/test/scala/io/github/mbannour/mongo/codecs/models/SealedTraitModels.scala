@@ -40,4 +40,3 @@ case class PurchaseAction(userId: String, orderId: String, amount: Double) exten
 case class ProfileUpdateAction(userId: String, fields: Map[String, String]) extends UserAction
 
 case class AuditLog(_id: ObjectId, action: UserAction, metadata: Option[Map[String, String]])
-

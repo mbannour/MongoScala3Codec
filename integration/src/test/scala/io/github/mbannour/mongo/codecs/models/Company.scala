@@ -6,7 +6,7 @@ import org.mongodb.scala.MongoClient
 
 case class Company(name: String, employees: Option[Seq[Person]])
 
-object Company {
+object Company:
 
   private val addressProvider = CodecProviderMacro.createCodecProviderEncodeNone[Address]
   private val personProvider = CodecProviderMacro.createCodecProviderEncodeNone[Person]
@@ -25,5 +25,4 @@ object Company {
     )
 
   given CodecRegistry = defaultRegistry
-  
-}
+end Company

@@ -9,16 +9,16 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 
 import scala.jdk.CollectionConverters.*
 
-class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
+class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers:
 
   case class SimplePerson(name: String, age: Int, height: Double, active: Boolean, id: Long)
-  
+
   case class PersonWithOptional(name: String, age: Option[Int], nickname: Option[String])
-  
+
   case class PersonWithAnnotation(@BsonProperty("full_name") name: String, age: Int)
-  
+
   case class PersonWithMap(name: String, attributes: Map[String, String])
-  
+
   case class PersonWithList(name: String, hobbies: List[String])
 
   "CaseClassBsonWriter" should "write simple primitive fields correctly" in {
@@ -27,7 +27,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -38,7 +38,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "John"
     document.getInt32("age").getValue shouldBe 30
     document.getDouble("height").getValue shouldBe 5.9
@@ -52,7 +52,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -63,7 +63,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Alice"
     document.getInt32("age").getValue shouldBe 25
     document.containsKey("nickname") shouldBe false
@@ -75,7 +75,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -86,7 +86,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Bob"
     document.getInt32("age").getValue shouldBe 30
     document.isNull("nickname") shouldBe true
@@ -98,7 +98,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -109,7 +109,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Charlie"
     document.getInt32("age").getValue shouldBe 35
     document.getString("nickname").getValue shouldBe "Chuck"
@@ -121,7 +121,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -132,7 +132,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("full_name").getValue shouldBe "David"
     document.getInt32("age").getValue shouldBe 40
     document.containsKey("name") shouldBe false
@@ -144,7 +144,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -155,7 +155,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Eve"
     val attributes = document.getDocument("attributes")
     attributes.getString("city").getValue shouldBe "NYC"
@@ -168,7 +168,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -179,7 +179,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Frank"
     val attributes = document.getDocument("attributes")
     attributes.isEmpty shouldBe true
@@ -191,7 +191,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -202,7 +202,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Grace"
     val hobbies = document.getArray("hobbies")
     val hobbyList = hobbies.getValues.asScala.map(_.asString().getValue).toList
@@ -215,7 +215,7 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
     val writer = new BsonDocumentWriter(document)
     val registry = CodecRegistries.fromProviders(new BsonValueCodecProvider())
     val encoderContext = EncoderContext.builder().build()
-    
+
     writer.writeStartDocument()
     CaseClassBsonWriter.writeCaseClassData(
       person.getClass.getSimpleName,
@@ -226,9 +226,9 @@ class CaseClassBsonWriterSpec extends AnyFlatSpec with Matchers {
       registry
     )
     writer.writeEndDocument()
-    
+
     document.getString("name").getValue shouldBe "Henry"
     val hobbies = document.getArray("hobbies")
     hobbies.isEmpty shouldBe true
   }
-}
+end CaseClassBsonWriterSpec

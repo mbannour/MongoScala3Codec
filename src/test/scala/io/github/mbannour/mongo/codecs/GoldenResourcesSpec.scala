@@ -93,4 +93,4 @@ class GoldenResourcesSpec extends AnyFlatSpec with Matchers:
     CodecTestKit.assertBsonStructure(model, expected)
     CodecTestKit.fromBsonDocument[Circle](expected) shouldBe model
   }
-
+end GoldenResourcesSpec

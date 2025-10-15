@@ -47,14 +47,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       def decode(r: BsonReader, dc: DecoderContext): EmployeeId = EmployeeId(r.readObjectId())
 
     val registry =
-      MongoClient.DEFAULT_CODEC_REGISTRY
-        .newBuilder
-        .encodeNone
+      MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.encodeNone
         .withCodec(employeeIdCodec)
         .register[Address]
         .register[Person]
         .build
-
 
     val database: MongoDatabase = MongoClient(mongoUri)
       .getDatabase("test_db")
@@ -75,7 +72,6 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       address = Some(Address("123 Main St", "Wonderland", 12345, EmployeeId())),
       nicknames = Seq("Ally", "Lissie")
     )
-
 
     collection.insertOne(person).toFuture().futureValue
 
@@ -245,8 +241,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class SimplePerson(name: String, age: Int, active: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[SimplePerson]
       .build
 
@@ -264,16 +259,15 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle None values correctly with ignoreNonePolicy" in {
     case class PersonWithOptionals(
-      _id: ObjectId,
-      name: String,
-      email: Option[String],
-      phone: Option[String],
-      age: Option[Int]
+        _id: ObjectId,
+        name: String,
+        email: Option[String],
+        phone: Option[String],
+        age: Option[Int]
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[PersonWithOptionals]
       .build
@@ -308,15 +302,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle None values correctly with encodeNonePolicy" in {
     case class PersonWithOptionals(
-      _id: ObjectId,
-      name: String,
-      email: Option[String],
-      phone: Option[String]
+        _id: ObjectId,
+        name: String,
+        email: Option[String],
+        phone: Option[String]
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[PersonWithOptionals]
       .build
@@ -355,8 +348,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Root(_id: ObjectId, level: Level1)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Level3]
       .register[Level2]
       .register[Level1]
@@ -388,15 +380,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle collections of different types (List, Set, Vector)" in {
     case class CollectionTypes(
-      _id: ObjectId,
-      listOfStrings: List[String],
-      setOfInts: Set[Int],
-      vectorOfDoubles: Vector[Double]
+        _id: ObjectId,
+        listOfStrings: List[String],
+        setOfInts: Set[Int],
+        vectorOfDoubles: Vector[Double]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[CollectionTypes]
       .build
 
@@ -423,15 +414,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle empty collections correctly" in {
     case class WithCollections(
-      _id: ObjectId,
-      emptyList: List[String],
-      emptySet: Set[Int],
-      emptyMap: Map[String, String]
+        _id: ObjectId,
+        emptyList: List[String],
+        emptySet: Set[Int],
+        emptyMap: Map[String, String]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithCollections]
       .build
 
@@ -461,8 +451,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithComplexMap(_id: ObjectId, configs: Map[String, Config])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Config]
       .register[WithComplexMap]
       .build
@@ -492,8 +481,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithUUID(_id: ObjectId, uuid: java.util.UUID, name: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithUUID]
       .build
 
@@ -518,8 +506,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Cat(name: String, indoor: Boolean) extends Animal
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_animalType")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Dog]
       .register[Cat]
@@ -548,8 +535,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class BulkData(_id: ObjectId, value: Int, category: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[BulkData]
       .build
 
@@ -575,8 +561,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Updatable(_id: ObjectId, name: String, version: Int, updated: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Updatable]
       .build
 
@@ -599,18 +584,17 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle case classes with all primitive types" in {
     case class AllPrimitives(
-      _id: ObjectId,
-      intVal: Int,
-      longVal: Long,
-      doubleVal: Double,
-      floatVal: Float,
-      boolVal: Boolean,
-      stringVal: String
+        _id: ObjectId,
+        intVal: Int,
+        longVal: Long,
+        doubleVal: Double,
+        floatVal: Float,
+        boolVal: Boolean,
+        stringVal: String
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[AllPrimitives]
       .build
 
@@ -641,8 +625,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class FilterTest(_id: ObjectId, name: String, age: Int, active: Boolean, score: Double)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[FilterTest]
       .build
 
@@ -660,16 +643,18 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     // Test multiple filters
     val activeAdults = collection
-      .find(Filters.and(
-        Filters.equal("active", true),
-        Filters.gte("age", 28),
-        Filters.gte("score", 90.0)
-      ))
+      .find(
+        Filters.and(
+          Filters.equal("active", true),
+          Filters.gte("age", 28),
+          Filters.gte("score", 90.0)
+        )
+      )
       .toFuture()
       .futureValue
 
     activeAdults should have size 2
-    activeAdults.map(_.name) should contain allOf("Alice", "Diana")
+    activeAdults.map(_.name) should contain allOf ("Alice", "Diana")
 
     database.drop().toFuture().futureValue
   }
@@ -679,8 +664,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Order(_id: ObjectId, items: Option[Seq[Item]], total: Double)
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Item]
       .register[Order]
@@ -722,8 +706,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Bicycle(_id: ObjectId, brand: String, gears: Int) extends Vehicle
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Car]
       .register[Motorcycle]
@@ -780,8 +763,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class User(_id: ObjectId, name: String, statuses: List[Active])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Active]
       .register[Inactive]
@@ -822,8 +804,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: Completed, currency: USD)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Pending]
       .register[Completed]
@@ -866,8 +847,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: PaymentStatus, currency: Currency)
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Pending]
       .register[Completed]
@@ -899,7 +879,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       currency = USD(150.00)
     )
 
-    try {
+    try
       collection.insertMany(Seq(transaction1, transaction2, transaction3)).toFuture().futureValue
 
       val retrieved1 = collection.find(Filters.equal("_id", transaction1._id)).first().toFuture().futureValue
@@ -918,12 +898,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       retrieved3.status.asInstanceOf[Failed].reason shouldBe "Insufficient funds"
 
       info("Polymorphic sealed trait fields are fully supported!")
-    } catch {
+    catch
       case e: Exception =>
         info(s"Polymorphic sealed trait fields not yet fully supported: ${e.getMessage}")
         info("Current workaround: Use concrete types in case class definitions")
         succeed // This is a known limitation for now
-    }
+    end try
 
     database.drop().toFuture().futureValue
   }
@@ -932,8 +912,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithDefaults(_id: ObjectId, name: String, score: Int = 100, active: Boolean = true, level: String = "beginner")
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithDefaults]
       .build
 
@@ -979,15 +958,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     import org.mongodb.scala.bson.annotations.BsonProperty
 
     case class Renamed(
-      _id: ObjectId,
-      @BsonProperty("n") name: String,
-      @BsonProperty("a") age: Int,
-      @BsonProperty("em") email: Option[String]
+        _id: ObjectId,
+        @BsonProperty("n") name: String,
+        @BsonProperty("a") age: Int,
+        @BsonProperty("em") email: Option[String]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Renamed]
       .build
 
@@ -1030,17 +1008,16 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle Byte, Short, and Char primitive types" in {
     case class NumericTypes(
-      _id: ObjectId,
-      byteVal: Byte,
-      shortVal: Short,
-      charVal: Char,
-      byteOpt: Option[Byte],
-      shortOpt: Option[Short]
+        _id: ObjectId,
+        byteVal: Byte,
+        shortVal: Short,
+        charVal: Char,
+        byteOpt: Option[Byte],
+        shortOpt: Option[Short]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[NumericTypes]
       .build
 
@@ -1071,14 +1048,13 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle nested maps with complex structures" in {
     case class NestedMaps(
-      _id: ObjectId,
-      data: Map[String, Map[String, Int]],
-      complexData: Map[String, Map[String, List[String]]]
+        _id: ObjectId,
+        data: Map[String, Map[String, Int]],
+        complexData: Map[String, Map[String, List[String]]]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[NestedMaps]
       .build
 
@@ -1103,7 +1079,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     retrieved shouldBe data
     retrieved.data("group1")("a") shouldBe 1
     retrieved.data("group2")("y") shouldBe 20
-    retrieved.complexData("category1")("tags") should contain allOf("tag1", "tag2")
+    retrieved.complexData("category1")("tags") should contain allOf ("tag1", "tag2")
     retrieved.complexData("category2")("tags") shouldBe List("tag3")
 
     database.drop().toFuture().futureValue
@@ -1113,8 +1089,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class ValidData(_id: ObjectId, name: String, count: Int)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[ValidData]
       .build
 

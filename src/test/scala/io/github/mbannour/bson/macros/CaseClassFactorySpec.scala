@@ -4,8 +4,8 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-case class Address1(@BsonProperty("c")city: String, zip: Int)
-case class Person1(@BsonProperty("n")name: String, age: Int, address: Address1)
+case class Address1(@BsonProperty("c") city: String, zip: Int)
+case class Person1(@BsonProperty("n") name: String, age: Int, address: Address1)
 case class ComplexPerson(name: String, age: Option[Int], address: Address1, tags: List[String])
 case class DefaultCase(name: String = "Unknown", age: Int = 0)
 case class NestedCaseClass(fieldA: String, nested: Address1)
@@ -25,7 +25,7 @@ case class Inner(level: Level)
 enum Color:
   case Red, Green, Blue
 
-class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
+class CaseClassFactorySpec extends AnyFlatSpec with Matchers:
 
   "CaseClassFactory" should "instantiate a simple case class" in {
     val fieldData = Map("c" -> "New York", "zip" -> 10001)
@@ -52,7 +52,6 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     val complexPerson = CaseClassFactory.getInstance[ComplexPerson](fieldData)
     complexPerson should ===(ComplexPerson("John", None, Address1("Los Angeles", 90001), List("tag1", "tag2")))
   }
-
 
   it should "fail for unsupported types at compile time" in {
     assertDoesNotCompile("""
@@ -83,7 +82,6 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     }
     exception.getMessage should include("Error casting field age. Expected: scala.Int, Actual: java.lang.String")
   }
-
 
   it should "instantiate a case class with a Scala 3 enum field" in {
     val fieldData = Map("enumField" -> "Red")
@@ -153,5 +151,4 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers {
     }
     ex.getMessage should include("No enum value with ordinal")
   }
-
-}
+end CaseClassFactorySpec

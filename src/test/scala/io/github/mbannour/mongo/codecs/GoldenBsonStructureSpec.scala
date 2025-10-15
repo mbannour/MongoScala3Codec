@@ -189,7 +189,7 @@ class GoldenBsonStructureSpec extends AnyFlatSpec with Matchers:
     bson.containsKey("_id") shouldBe true
     bson.containsKey("radius") shouldBe true
     bson.containsKey("shapeType") shouldBe true
-    
+
     bson.getObjectId("_id").getValue shouldBe circleId
     bson.getDouble("radius").getValue shouldBe 5.0
     bson.getString("shapeType").getValue shouldBe "Circle"
@@ -311,4 +311,4 @@ class GoldenBsonStructureSpec extends AnyFlatSpec with Matchers:
     json should include("\"city\"")
     json should include("\"zipCode\"")
   }
-
+end GoldenBsonStructureSpec

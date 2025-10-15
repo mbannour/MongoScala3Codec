@@ -149,8 +149,8 @@ object RegistryBuilder:
       *
       * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
-      * Performance note: Intermediate registries are cached to avoid rebuilding the same registry multiple times
-      * during chained register calls.
+      * Performance note: Intermediate registries are cached to avoid rebuilding the same registry multiple times during chained register
+      * calls.
       *
       * @tparam T
       *   The type to register (must be a case class)

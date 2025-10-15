@@ -27,44 +27,44 @@ class PropertyBasedCodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPr
   // Custom generators for test data
   given Arbitrary[ObjectId] = Arbitrary(Gen.const(new ObjectId()))
 
-  given Arbitrary[SimplePerson] = Arbitrary(for {
+  given Arbitrary[SimplePerson] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     name <- Gen.alphaNumStr.suchThat(_.nonEmpty)
     age <- Gen.choose(0, 120)
-  } yield SimplePerson(id, name, age))
+  yield SimplePerson(id, name, age))
 
-  given Arbitrary[PersonWithOption] = Arbitrary(for {
+  given Arbitrary[PersonWithOption] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     name <- Gen.alphaNumStr.suchThat(_.nonEmpty)
     email <- Gen.option(Gen.alphaNumStr.suchThat(_.nonEmpty).map(s => s"$s@example.com"))
     age <- Gen.choose(0, 120)
-  } yield PersonWithOption(id, name, email, age))
+  yield PersonWithOption(id, name, email, age))
 
-  given Arbitrary[Address] = Arbitrary(for {
+  given Arbitrary[Address] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     street <- Gen.alphaNumStr.suchThat(_.nonEmpty)
     city <- Gen.alphaNumStr.suchThat(_.nonEmpty)
     zipCode <- Gen.choose(10000, 99999)
-  } yield Address(id, street, city, zipCode))
+  yield Address(id, street, city, zipCode))
 
-  given Arbitrary[PersonWithNested] = Arbitrary(for {
+  given Arbitrary[PersonWithNested] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     name <- Gen.alphaNumStr.suchThat(_.nonEmpty)
     address <- Arbitrary.arbitrary[Address]
-  } yield PersonWithNested(id, name, address))
+  yield PersonWithNested(id, name, address))
 
-  given Arbitrary[CollectionHolder] = Arbitrary(for {
+  given Arbitrary[CollectionHolder] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     tags <- Gen.listOfN(5, Gen.alphaNumStr.suchThat(_.nonEmpty))
     scores <- Gen.listOfN(3, Gen.choose(0, 100))
-  } yield CollectionHolder(id, tags, scores))
+  yield CollectionHolder(id, tags, scores))
 
-  given Arbitrary[MapHolder] = Arbitrary(for {
+  given Arbitrary[MapHolder] = Arbitrary(for
     id <- Arbitrary.arbitrary[ObjectId]
     keys <- Gen.listOfN(3, Gen.alphaNumStr.suchThat(_.nonEmpty))
     values <- Gen.listOfN(3, Gen.alphaNumStr.suchThat(_.nonEmpty))
     attributes = keys.zip(values).toMap
-  } yield MapHolder(id, attributes))
+  yield MapHolder(id, attributes))
 
   // Generators for Either and Try
   given [L: Arbitrary, R: Arbitrary]: Arbitrary[Either[L, R]] = Arbitrary(
@@ -266,4 +266,4 @@ class PropertyBasedCodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPr
     roundTripped.status shouldBe "active"
     roundTripped.count shouldBe 0
   }
-
+end PropertyBasedCodecSpec
