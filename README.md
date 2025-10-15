@@ -13,17 +13,68 @@ MongoScala3Codec is a macro-based library for BSON serialization and deserializa
 - **Flexible Configuration**: Type-safe configuration for codec behavior.
 - **Pure Scala 3**: Built with opaque types and extension methods for idiomatic Scala 3 code.
 
-> **Note:**
-> - Scala 3 case classes are fully supported with automatic codec generation.
-> - For Scala 3 enums, use `EnumValueCodec` to register a codec for your enum type.
-> - **Not all Scala 3 enum types are supported.** Only plain enums (no parameters, no ADT/sealed traits, no custom fields) are fully supported.
+---
+
+## 🚀 Minimal Example - Get Started in 30 Seconds
+
+Here's everything you need - just copy, paste, and run:
+
+```scala
+// 1. Imports - only 3 lines needed!
+import org.bson.types.ObjectId
+import io.github.mbannour.mongo.codecs.{RegistryBuilder, CodecConfig, NoneHandling}
+import org.mongodb.scala.MongoClient
+
+// 2. Define your domain models
+// Nested case class example
+case class Address(street: String, city: String, zipCode: Int)
+case class Person(_id: ObjectId, name: String, address: Address, email: Option[String])
+
+// Sealed trait (ADT) example
+sealed trait Notification
+case class EmailNotif(_id: ObjectId, recipient: String, subject: String) extends Notification
+case class SmsNotif(_id: ObjectId, phone: String, message: String) extends Notification
+
+// 3. Generate codecs - automatic, zero boilerplate!
+given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .register[Address]      // Register nested type
+  .register[Person]       // Register parent type
+  .register[EmailNotif]   // Register sealed trait members
+  .register[SmsNotif]
+  .build
+
+// 4. Use with MongoDB - fully type-safe!
+val mongoClient = MongoClient("mongodb://localhost:27017")
+val database = mongoClient.getDatabase("myapp").withCodecRegistry(registry)
+
+// Type-safe collections
+val people = database.getCollection[Person]("people")
+val notifications = database.getCollection[EmailNotif]("notifications")
+
+// Save and retrieve - it just works!
+val person = Person(new ObjectId(), "Alice", Address("123 Main", "NYC", 10001), Some("alice@example.com"))
+people.insertOne(person).toFuture()
+
+val found = people.find().first().toFuture()
+// found is type Person with nested Address - fully decoded!
+```
+
+**That's it!** No manual codec writing, no reflection, no runtime overhead. 
+
+👉 **See [5-Minute Quickstart](docs/QUICKSTART.md)** for more examples and explanations.
 
 ---
 
 ## 📚 Documentation
 
 - **[5-Minute Quickstart](docs/QUICKSTART.md)** - Get started immediately
+- **[BSON Type Mapping](docs/BSON_TYPE_MAPPING.md)** - Complete type reference (35+ types)
 - **[Feature Overview](docs/FEATURES.md)** - Complete feature guide with examples
+- **[ADT Patterns](docs/ADT_PATTERNS.md)** - Sealed traits and validation patterns
+- **[MongoDB Interop](docs/MONGODB_INTEROP.md)** - Driver integration guide
 - **[How It Works](docs/HOW_IT_WORKS.md)** - Scala 3 derivation internals explained
 - **[Migration Guide](docs/MIGRATION.md)** - Migrate from other libraries
 - **[FAQ & Troubleshooting](docs/FAQ.md)** - Common issues and solutions

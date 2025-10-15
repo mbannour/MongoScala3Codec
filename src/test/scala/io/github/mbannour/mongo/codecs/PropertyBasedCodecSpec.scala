@@ -7,6 +7,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import org.scalacheck.{Arbitrary, Gen}
+import scala.util.{Try, Success, Failure}
 import RegistryBuilder.*
 
 /** Property-based tests for codec round-trip encoding/decoding using ScalaCheck.
@@ -64,6 +65,21 @@ class PropertyBasedCodecSpec extends AnyFlatSpec with Matchers with ScalaCheckPr
     values <- Gen.listOfN(3, Gen.alphaNumStr.suchThat(_.nonEmpty))
     attributes = keys.zip(values).toMap
   } yield MapHolder(id, attributes))
+
+  // Generators for Either and Try
+  given [L: Arbitrary, R: Arbitrary]: Arbitrary[Either[L, R]] = Arbitrary(
+    Gen.oneOf(
+      Arbitrary.arbitrary[L].map(Left(_)),
+      Arbitrary.arbitrary[R].map(Right(_))
+    )
+  )
+
+  given [T: Arbitrary]: Arbitrary[Try[T]] = Arbitrary(
+    Gen.oneOf(
+      Arbitrary.arbitrary[T].map(Success(_)),
+      Gen.alphaNumStr.map(msg => Failure(new Exception(msg)))
+    )
+  )
 
   // Default BSON codec registry
   private val defaultBsonRegistry = CodecRegistries.fromCodecs(
