@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs
 
-import scala.compiletime._
+import scala.compiletime.*
 import scala.reflect.ClassTag
 
 import org.bson.codecs.Codec
@@ -77,6 +77,20 @@ object RegistryBuilder:
   /** Create builder from base registry with custom configuration */
   def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
     State(base, config)
+
+  private def getOrBuildRegistry(state: State): CodecRegistry =
+    state.cachedRegistry.getOrElse(buildRegistry(state))
+
+  private def buildRegistry(state: State): CodecRegistry =
+    val parts = Vector.newBuilder[CodecRegistry]
+    parts += state.base
+
+    if state.codecs.nonEmpty then parts += fromCodecs(state.codecs*)
+
+    if state.providers.nonEmpty then parts += fromProviders(state.providers*)
+
+    fromRegistries(parts.result()*)
+  end buildRegistry
 
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
@@ -197,21 +211,6 @@ object RegistryBuilder:
         case _ =>
           // Otherwise build fresh
           buildRegistry(builder)
-
-    /** Get cached registry or build a new one. Used internally to optimize register chains. */
-    private def getOrBuildRegistry(state: State): CodecRegistry =
-      state.cachedRegistry.getOrElse(buildRegistry(state))
-
-    private def buildRegistry(state: State): CodecRegistry =
-      val parts = Vector.newBuilder[CodecRegistry]
-      parts += state.base
-
-      if state.codecs.nonEmpty then parts += fromCodecs(state.codecs*)
-
-      if state.providers.nonEmpty then parts += fromProviders(state.providers*)
-
-      fromRegistries(parts.result()*)
-    end buildRegistry
   end extension
 
   /** Extension methods for CodecRegistry to create builders */

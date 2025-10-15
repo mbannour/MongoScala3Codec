@@ -1,6 +1,6 @@
 package io.github.mbannour.bson.macros
 
-import scala.quoted._
+import scala.quoted.*
 
 object CaseClassFactory:
 
@@ -169,8 +169,6 @@ object CaseClassFactory:
                   case Some(null) => null
                   case other =>
                     throw new RuntimeException("Unexpected value type for enum field '" + $keyToUse + "': " + other.getClass)
-                  case None =>
-                    throw new RuntimeException("Missing enum field: " + $keyToUse)
               }
           end match
 

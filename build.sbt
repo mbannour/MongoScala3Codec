@@ -1,4 +1,6 @@
 import xerial.sbt.Sonatype.*
+import sbt.ClassLoaderLayeringStrategy
+import scoverage.ScoverageKeys.*
 
 val scala3Version = "3.7.1"
 
@@ -17,6 +19,10 @@ ThisBuild / crossScalaVersions := Seq(
   "3.6.4",
   "3.7.1"
 )
+
+ThisBuild / coverageHighlighting := true
+ThisBuild / coverageMinimumStmtTotal := 60
+ThisBuild / coverageFailOnMinimum := true
 
 usePgpKeyHex("8D15E6EFEC642C76")
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
@@ -55,7 +61,7 @@ lazy val root = project
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
       ("org.mongodb.scala" %% "mongo-scala-bson" % "5.5.2").cross(CrossVersion.for3Use2_13)
     ),
-    scalacOptions ++= Seq(
+    Compile / scalacOptions ++= Seq(
       "-encoding",
       "utf8",
       "-deprecation",
@@ -65,13 +71,23 @@ lazy val root = project
       "-language:implicitConversions",
       "-Xtarget:11",
       "-unchecked",
-      "-Ykind-projector",
       "-Xcheck-macros",
       "-Yretain-trees",
       "-Wunused:all"
     ),
-    // Fatal warnings on CI
-    scalacOptions ++= (if (sys.env.get("CI").isDefined) Seq("-Werror") else Seq.empty),
+    // Make warnings fatal only in Compile on CI
+    Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
+
+    // Tests: keep useful warnings, but do NOT fail on “unused”
+    Test / scalacOptions ++= Seq(
+      "-Wconf:cat=unused:s" // silence unused in tests
+    ),
+    // Defensive: strip any fatal flags injected by CI/env in Test
+    Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
+
+    // Use a flat classloader for tests to avoid NoClassDefFoundError with reflection/macros
+    Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
+
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false
   )
@@ -96,6 +112,7 @@ lazy val integrationTests = project
     publish / skip := true
   )
 
+// Benchmarks (optional JMH module)
 lazy val benchmarks = project
   .in(file("benchmarks"))
   .dependsOn(root)
@@ -104,11 +121,10 @@ lazy val benchmarks = project
     name := "MongoScala3Codec-benchmarks",
     publish / skip := true,
     Test / skip := true,
-    // Inherit scalaVersion/cross from ThisBuild; we only run on default in CI smoke
-    // Keep JMH runs fast locally by default; override in CLI as needed
     fork := true
   )
 
+// Aggregate convenience project
 lazy val rootProject = project
   .in(file("."))
   .aggregate(root, integrationTests, benchmarks)

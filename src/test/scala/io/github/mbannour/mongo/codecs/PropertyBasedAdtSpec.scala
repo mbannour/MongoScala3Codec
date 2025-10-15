@@ -8,7 +8,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
-import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 
 /** Property-based tests for a simple ADT (modeled as concrete case classes with a discriminator field).
   *

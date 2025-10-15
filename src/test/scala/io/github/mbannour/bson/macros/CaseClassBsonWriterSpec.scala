@@ -1,6 +1,6 @@
 package io.github.mbannour.bson.macros
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 import org.bson.codecs.configuration.CodecRegistries
 import org.bson.codecs.{BsonValueCodecProvider, EncoderContext}

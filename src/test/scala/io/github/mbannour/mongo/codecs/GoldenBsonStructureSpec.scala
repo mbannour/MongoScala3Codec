@@ -6,7 +6,7 @@ import org.bson.types.ObjectId
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder._
+import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 
 /** Golden tests that verify exact BSON structure for various types.
   *

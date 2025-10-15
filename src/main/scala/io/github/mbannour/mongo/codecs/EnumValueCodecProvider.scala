@@ -1,9 +1,9 @@
 package io.github.mbannour.mongo.codecs
 
-import scala.reflect.{ClassTag, Enum => ScalaEnum}
+import scala.reflect.{ClassTag, Enum as ScalaEnum}
 
-import org.bson._
-import org.bson.codecs._
+import org.bson.*
+import org.bson.codecs.*
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
 /** `EnumValueCodecProvider` is a helper object to generate a MongoDB [[org.bson.codecs.configuration.CodecProvider]] for Scala 3 enums that

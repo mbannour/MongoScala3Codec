@@ -1,7 +1,7 @@
 package io.github.mbannour.fields
 
-import scala.compiletime._
-import scala.deriving._
+import scala.compiletime.*
+import scala.deriving.*
 
 import io.github.mbannour.bson.macros.AnnotationName.extractAnnotationMap
 

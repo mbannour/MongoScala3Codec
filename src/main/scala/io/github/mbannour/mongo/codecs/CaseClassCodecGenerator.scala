@@ -3,14 +3,14 @@ package io.github.mbannour.mongo.codecs
 import java.util.UUID
 
 import scala.collection.mutable
-import scala.quoted._
+import scala.quoted.*
 import scala.reflect.ClassTag
 
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
 import org.bson.codecs.{Codec, DecoderContext, Encoder, EncoderContext}
 import org.bson.{BsonInvalidOperationException, BsonReader, BsonReaderMark, BsonType, BsonWriter}
 
-import io.github.mbannour.bson.macros._
+import io.github.mbannour.bson.macros.*
 
 /** Macro-based codec generator for BSON serialization/deserialization of case classes, supporting nested and sealed hierarchies.
   */

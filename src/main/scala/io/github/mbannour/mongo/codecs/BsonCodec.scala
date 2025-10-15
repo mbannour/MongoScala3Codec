@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs
 
-import scala.quoted._
+import scala.quoted.*
 import scala.reflect.ClassTag
 
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}

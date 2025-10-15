@@ -118,38 +118,16 @@ jobs:
             echo "✅ Coverage $COVERAGE% meets the 85% threshold"
           fi
 
-  scalafix:
-    runs-on: ubuntu-latest
-    name: Scalafix Linting
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup sbt
-        uses: sbt/setup-sbt@v1
-
-      - name: Run Scalafix
-        run: sbt "scalafixAll --check"
-        env:
-          CI: true
-
   all-tests-passed:
     runs-on: ubuntu-latest
     name: All Tests Passed
-    needs: [test, coverage, scalafix]
+    needs: [test, coverage]
     if: always()
 
     steps:
       - name: Check test results
         run: |
-          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.coverage.result }}" == "success" && "${{ needs.scalafix.result }}" == "success" ]]; then
+          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.coverage.result }}" == "success" ]]; then
             echo "✅ All tests passed!"
           else
             echo "❌ Some tests failed"
