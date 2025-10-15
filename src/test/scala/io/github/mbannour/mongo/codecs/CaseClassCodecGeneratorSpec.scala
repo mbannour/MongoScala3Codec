@@ -21,13 +21,13 @@ class CaseClassCodecGeneratorSpec extends AnyFlatSpec with Matchers {
     CodecRegistries.fromProviders(new BsonValueCodecProvider())
   }
 
-  private inline def createCodec[T](encodeNone: Boolean = false)(using ClassTag[T]): org.bson.codecs.Codec[T] = {
+  private inline def createCodec[T](config: CodecConfig = CodecConfig())(using ClassTag[T]): org.bson.codecs.Codec[T] = {
     val baseRegistry = createBaseRegistry()
-    CaseClassCodecGenerator.generateCodec[T](encodeNone, baseRegistry)
+    CaseClassCodecGenerator.generateCodec[T](config, baseRegistry)
   }
 
-  private inline def encodeToDocument[T](value: T, encodeNone: Boolean = false)(using ClassTag[T]): BsonDocument = {
-    val codec = createCodec[T](encodeNone)
+  private inline def encodeToDocument[T](value: T, config: CodecConfig = CodecConfig())(using ClassTag[T]): BsonDocument = {
+    val codec = createCodec[T](config)
     val document = new BsonDocument()
     val writer = new BsonDocumentWriter(document)
     val encoderContext = EncoderContext.builder().build()
@@ -52,7 +52,7 @@ class CaseClassCodecGeneratorSpec extends AnyFlatSpec with Matchers {
 
   it should "handle optional fields when encodeNone is false" in {
     val person = PersonWithOptional("Alice", Some(25), None)
-    val document = encodeToDocument(person, encodeNone = false)
+    val document = encodeToDocument(person, CodecConfig(noneHandling = NoneHandling.Ignore))
     
     document.getString("name").getValue shouldBe "Alice"
     document.getInt32("age").getValue shouldBe 25
@@ -61,7 +61,7 @@ class CaseClassCodecGeneratorSpec extends AnyFlatSpec with Matchers {
 
   it should "handle optional fields when encodeNone is true" in {
     val person = PersonWithOptional("Bob", Some(30), None)
-    val document = encodeToDocument(person, encodeNone = true)
+    val document = encodeToDocument(person, CodecConfig(noneHandling = NoneHandling.Encode))
     
     document.getString("name").getValue shouldBe "Bob"
     document.getInt32("age").getValue shouldBe 30

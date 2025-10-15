@@ -1,6 +1,5 @@
 package io.github.mbannour.fields
 
-import io.github.mbannour.bson.macros.AnnotationName
 import io.github.mbannour.bson.macros.AnnotationName.extractAnnotationMap
 
 import scala.deriving.*

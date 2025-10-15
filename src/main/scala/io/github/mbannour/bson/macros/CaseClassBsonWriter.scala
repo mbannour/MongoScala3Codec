@@ -34,11 +34,6 @@ object CaseClassBsonWriter:
 
     if !typeSymbol.flags.is(Flags.Case) then report.errorAndAbort(s"${typeSymbol.name} is not a case class.")
 
-    def getClassForType[T: Type](using Quotes): Expr[Class[T]] =
-      Expr.summon[ClassTag[T]] match
-        case Some(classTagExpr) => '{ $classTagExpr.runtimeClass.asInstanceOf[Class[T]] }
-        case None               => report.errorAndAbort(s"Could not find ClassTag for type: ${Type.show[T]}")
-
     val fieldWrites = typeSymbol.caseFields.map { field =>
 
       val res = AnnotationName.findAnnotationValue[T](Expr(field.name))
@@ -58,10 +53,20 @@ object CaseClassBsonWriter:
           '{ $writer.writeInt32(${ fieldName }, $fieldValueExpr.asInstanceOf[Int]) }
         case '[Double] =>
           '{ $writer.writeDouble(${ fieldName }, $fieldValueExpr.asInstanceOf[Double]) }
+        case '[Float] =>
+          '{ $writer.writeDouble(${ fieldName }, $fieldValueExpr.asInstanceOf[Float].toDouble) }
         case '[Boolean] =>
           '{ $writer.writeBoolean(${ fieldName }, $fieldValueExpr.asInstanceOf[Boolean]) }
         case '[Long] =>
           '{ $writer.writeInt64(${ fieldName }, $fieldValueExpr.asInstanceOf[Long]) }
+        case '[Byte] =>
+          '{ $writer.writeInt32(${ fieldName }, $fieldValueExpr.asInstanceOf[Byte].toInt) }
+        case '[Short] =>
+          '{ $writer.writeInt32(${ fieldName }, $fieldValueExpr.asInstanceOf[Short].toInt) }
+        case '[Char] =>
+          '{ $writer.writeInt32(${ fieldName }, $fieldValueExpr.asInstanceOf[Char].toInt) }
+        case '[java.util.UUID] =>
+          '{ $writer.writeString(${ fieldName }, $fieldValueExpr.asInstanceOf[java.util.UUID].toString) }
         case '[Option[t]] =>
           '{
             $fieldValueExpr.asInstanceOf[Option[t]] match
@@ -102,15 +107,16 @@ object CaseClassBsonWriter:
           nestedTypeRepr.asType match
             case '[nt] =>
               '{
-                val clazz = ${ getClassForType[nt] }
+                val fieldValue = $fieldValueExpr.asInstanceOf[nt]
+                // For sealed traits, use the actual runtime class
+                val actualClass = fieldValue.getClass.asInstanceOf[Class[nt]]
                 try
-                  val codec = $registry.get(clazz)
+                  val codec = $registry.get(actualClass)
                   $writer.writeName(${ fieldName })
-                  codec.encode($writer, $fieldValueExpr.asInstanceOf[nt], $encoderContext)
+                  codec.encode($writer, fieldValue, $encoderContext)
                 catch
                   case e: org.bson.codecs.configuration.CodecConfigurationException =>
-                    throw new IllegalArgumentException(s"No codec found for type: " + clazz.getName, e)
-
+                    throw new IllegalArgumentException(s"No codec found for type: " + actualClass.getName, e)
               }
           end match
       end match
@@ -147,6 +153,12 @@ object CaseClassBsonWriter:
         '{ $writer.writeBoolean($value.asInstanceOf[Boolean]) }
       case t if t =:= TypeRepr.of[Long] =>
         '{ $writer.writeInt64($value.asInstanceOf[Long]) }
+      case t if t =:= TypeRepr.of[Byte] =>
+        '{ $writer.writeInt32($value.asInstanceOf[Byte].toInt) }
+      case t if t =:= TypeRepr.of[Short] =>
+        '{ $writer.writeInt32($value.asInstanceOf[Short].toInt) }
+      case t if t =:= TypeRepr.of[Char] =>
+        '{ $writer.writeInt32($value.asInstanceOf[Char].toInt) }
       case t =>
         t.asType match
           case '[nt] =>
