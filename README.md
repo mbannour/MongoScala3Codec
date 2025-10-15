@@ -630,6 +630,26 @@ println(bson.toJson())
 
 ---
 
+## What's Next?
+
+Want to make MongoScala3Codec even better? Check out:
+
+- **[ROADMAP.md](ROADMAP.md)** - Planned features and enhancements
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute
+- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Recent improvements and best practices
+- **[examples/](examples/)** - Example code for future features
+
+### High-Priority Missing Features
+
+1. **Polymorphic Sealed Trait Fields** - Full ADT support with discriminator fields
+2. **Case Object Support** - Complete sealed hierarchy support  
+3. **Custom Field Transformations** - snake_case, camelCase, etc.
+4. **Enhanced Enum Support** - Parameterized enums (ADT-style)
+
+See [ROADMAP.md](ROADMAP.md) for details and implementation status.
+
+---
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
