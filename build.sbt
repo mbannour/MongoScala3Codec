@@ -15,13 +15,6 @@ ThisBuild / crossScalaVersions := Seq(
   "3.7.1"
 )
 
-ThisBuild / dependencyOverrides ++= Seq(
-  "org.scala-lang" %% "scala3-library"     % scalaVersion.value,
-  "org.scala-lang" %% "tasty-core"         % scalaVersion.value,
-  "org.scala-lang" %% "scala3-interfaces"  % scalaVersion.value,
-  "org.scala-lang" %% "scala3-compiler"    % scalaVersion.value
-)
-
 ThisBuild / conflictManager := ConflictManager.default
 
 ThisBuild / coverageHighlighting := true
