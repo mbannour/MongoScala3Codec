@@ -8,12 +8,12 @@ import io.github.mbannour.fields.MongoPath.syntax.?
 /** Comprehensive test suite for MongoPath.
   *
   * Tests cover:
-  * - Simple field selection
-  * - Nested field selection
-  * - @BsonProperty annotation handling
-  * - Option type handling (filters out .value)
-  * - Multiple levels of nesting
-  * - Complex scenarios with mixed annotations
+  *   - Simple field selection
+  *   - Nested field selection
+  *   - \@BsonProperty annotation handling
+  *   - Option type handling (filters out .value)
+  *   - Multiple levels of nesting
+  *   - Complex scenarios with mixed annotations
   */
 class MongoPathSpec extends AnyFunSuite with Matchers:
 
@@ -205,7 +205,7 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
     case class SingleChar(a: String, b: Int)
     val pathA = MongoPath.of[SingleChar](_.a)
     val pathB = MongoPath.of[SingleChar](_.b)
-    
+
     pathA shouldBe "a"
     pathB shouldBe "b"
   }
@@ -214,7 +214,7 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
     case class WithUnderscore(field_name: String, another_field: Int)
     val path1 = MongoPath.of[WithUnderscore](_.field_name)
     val path2 = MongoPath.of[WithUnderscore](_.another_field)
-    
+
     path1 shouldBe "field_name"
     path2 shouldBe "another_field"
   }
@@ -224,7 +224,7 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
     val path1 = MongoPath.of[CamelCase](_.firstName)
     val path2 = MongoPath.of[CamelCase](_.lastName)
     val path3 = MongoPath.of[CamelCase](_.emailAddress)
-    
+
     path1 shouldBe "firstName"
     path2 shouldBe "lastName"
     path3 shouldBe "emailAddress"
@@ -276,7 +276,7 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
         inner: Option[Inner],
         normalField: String
     )
-    
+
     MongoPath.of[Outer](_.id) shouldBe "_id"
     MongoPath.of[Outer](_.normalField) shouldBe "normalField"
     MongoPath.of[Outer](_.inner) shouldBe "inner"
@@ -305,12 +305,12 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
         email: String,
         profile: Option[UserProfile]
     )
-    
+
     case class UserProfile(
         @BsonProperty("full_name") fullName: String,
         bio: Option[String]
     )
-    
+
     MongoPath.of[User](_.id) shouldBe "_id"
     MongoPath.of[User](_.username) shouldBe "user_name"
     MongoPath.of[User](_.email) shouldBe "email"

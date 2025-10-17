@@ -30,11 +30,6 @@ import org.mongodb.scala.MongoClient
 case class Address(street: String, city: String, zipCode: Int)
 case class Person(_id: ObjectId, name: String, address: Address, email: Option[String])
 
-// Sealed trait (ADT) example
-sealed trait Notification
-case class EmailNotif(_id: ObjectId, recipient: String, subject: String) extends Notification
-case class SmsNotif(_id: ObjectId, phone: String, message: String) extends Notification
-
 // 3. Generate codecs - automatic, zero boilerplate!
 given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
 
@@ -42,8 +37,6 @@ val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[Address]      // Register nested type
   .register[Person]       // Register parent type
-  .register[EmailNotif]   // Register sealed trait members
-  .register[SmsNotif]
   .build
 
 // 4. Use with MongoDB - fully type-safe!
@@ -52,7 +45,6 @@ val database = mongoClient.getDatabase("myapp").withCodecRegistry(registry)
 
 // Type-safe collections
 val people = database.getCollection[Person]("people")
-val notifications = database.getCollection[EmailNotif]("notifications")
 
 // Save and retrieve - it just works!
 val person = Person(new ObjectId(), "Alice", Address("123 Main", "NYC", 10001), Some("alice@example.com"))
@@ -149,7 +141,6 @@ val codecRegistry: CodecRegistry = RegistryBuilder
   .register[Task]
   .build
 
-given CodecRegistry = codecRegistry
 ```
 
 ### 3. Use with MongoDB
