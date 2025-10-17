@@ -9,16 +9,20 @@ ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
 
 ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
-  "3.4.0",
-  "3.4.1",
   "3.4.2",
-  "3.5.0",
-  "3.5.1",
-  "3.5.2",
   "3.6.3",
   "3.6.4",
   "3.7.1"
 )
+
+ThisBuild / dependencyOverrides ++= Seq(
+  "org.scala-lang" %% "scala3-library"     % scalaVersion.value,
+  "org.scala-lang" %% "tasty-core"         % scalaVersion.value,
+  "org.scala-lang" %% "scala3-interfaces"  % scalaVersion.value,
+  "org.scala-lang" %% "scala3-compiler"    % scalaVersion.value
+)
+
+ThisBuild / conflictManager := ConflictManager.default
 
 ThisBuild / coverageHighlighting := true
 ThisBuild / coverageMinimumStmtTotal := 60
@@ -37,7 +41,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.6",
+    version := "0.0.7-M2",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -89,7 +93,12 @@ lazy val root = project
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
 
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
-    Test / publishArtifact := false
+    Test / publishArtifact := false,
+    mimaPreviousArtifacts := Set(
+      organization.value %% moduleName.value % "0.0.6"
+    ),
+    // Optional: don’t fail if there’s no previous artifact yet (e.g. first release)
+    mimaFailOnNoPrevious := false
   )
 
 lazy val integrationTests = project
@@ -97,6 +106,8 @@ lazy val integrationTests = project
   .dependsOn(root)
   .settings(
     name := "integration-tests",
+    // Limit cross-building here to the primary Scala version to avoid test dep gaps
+    crossScalaVersions := Seq(scala3Version),
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.scalactic" %% "scalactic" % "3.2.19" % Test,
@@ -109,22 +120,24 @@ lazy val integrationTests = project
     testFrameworks += new TestFramework("org.scalatest.tools.Framework"),
     fork := true,
     Test / parallelExecution := false,
-    publish / skip := true
+    publish / skip := true,
+    mimaPreviousArtifacts := Set.empty
   )
 
-// Benchmarks (optional JMH module)
 lazy val benchmarks = project
   .in(file("benchmarks"))
   .dependsOn(root)
   .enablePlugins(JmhPlugin)
   .settings(
     name := "MongoScala3Codec-benchmarks",
+    // Limit cross here too to reduce matrix and avoid dep gaps
+    crossScalaVersions := Seq(scala3Version),
     publish / skip := true,
     Test / skip := true,
-    fork := true
+    fork := true,
+    mimaPreviousArtifacts := Set.empty
   )
 
-// Aggregate convenience project
 lazy val rootProject = project
   .in(file("."))
   .aggregate(root, integrationTests, benchmarks)
