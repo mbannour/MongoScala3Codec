@@ -22,6 +22,9 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import java.time.ZonedDateTime
 import scala.concurrent.Future
 
+import io.github.mbannour.fields.MongoPath
+import io.github.mbannour.fields.MongoPath.syntax.?
+
 class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig = PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -47,14 +50,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       def decode(r: BsonReader, dc: DecoderContext): EmployeeId = EmployeeId(r.readObjectId())
 
     val registry =
-      MongoClient.DEFAULT_CODEC_REGISTRY
-        .newBuilder
-        .encodeNone
+      MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.encodeNone
         .withCodec(employeeIdCodec)
         .register[Address]
         .register[Person]
         .build
-
 
     val database: MongoDatabase = MongoClient(mongoUri)
       .getDatabase("test_db")
@@ -76,12 +76,16 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       nicknames = Seq("Ally", "Lissie")
     )
 
-
     collection.insertOne(person).toFuture().futureValue
 
     val retrievedPerson =
       collection
-        .find(Filters.and(Filters.equal(PersonFields.id, person._id), Filters.equal(PersonFields.address.zipCode, 12345)))
+        .find(
+          Filters.and(
+            Filters.equal(MongoPath.of[Person](_._id), person._id),
+            Filters.equal(MongoPath.of[Person](_.address.?.zipCode), 12345)
+          )
+        )
         .first()
         .toFuture()
         .futureValue
@@ -91,7 +95,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     collection.insertOne(personWithoutMiddleName).toFuture().futureValue
 
     val retrievedPersonWithoutMiddleName =
-      collection.find(Filters.equal("_id", personWithoutMiddleName._id)).first().toFuture().futureValue
+      collection.find(Filters.equal(MongoPath.of[Person](_._id), personWithoutMiddleName._id)).first().toFuture().futureValue
 
     retrievedPersonWithoutMiddleName shouldBe personWithoutMiddleName
 
@@ -117,7 +121,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertOne(person).toFuture().futureValue
     val retrieved =
-      collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
+      collection.find(Filters.equal(MongoPath.of[Person](_._id), person._id)).first().toFuture().futureValue
     retrieved shouldBe person
 
     database.drop().toFuture().futureValue
@@ -136,7 +140,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertOne(event).toFuture().futureValue
     val retrievedEvent =
-      collection.find(Filters.equal("_id", event._id)).first().toFuture().futureValue
+      collection.find(Filters.equal(MongoPath.of[Event](_._id), event._id)).first().toFuture().futureValue
     retrievedEvent._id shouldBe event._id
 
     database.drop().toFuture().futureValue
@@ -174,7 +178,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertOne(company).toFuture().futureValue
     val retrievedCompany =
-      collection.find(Filters.equal("name", "TechCorp")).first().toFuture().futureValue
+      collection.find(Filters.equal(MongoPath.of[Company](_.name), "TechCorp")).first().toFuture().futureValue
     retrievedCompany shouldBe company
 
     database.drop().toFuture().futureValue
@@ -193,7 +197,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertOne(task).toFuture().futureValue
     val retrievedTask =
-      collection.find(Filters.and(Filters.equal("_id", task._id), Filters.equal("priority", Priority.High))).first().toFuture().futureValue
+      collection
+        .find(Filters.and(Filters.equal(MongoPath.of[Task](_._id), task._id), Filters.equal(MongoPath.of[Task](_.priority), Priority.High)))
+        .first()
+        .toFuture()
+        .futureValue
     retrievedTask shouldBe task
 
     database.drop().toFuture().futureValue
@@ -231,7 +239,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     val retrievalStartTime = System.nanoTime()
     val retrievalFutures = persons.map { person =>
-      collection.find(Filters.equal("_id", person._id)).first().toFuture()
+      collection.find(Filters.equal(MongoPath.of[Person](_._id), person._id)).first().toFuture()
     }
     val retrievedPersons = Future.sequence(retrievalFutures).futureValue
     val retrievalDurationMs = (System.nanoTime() - retrievalStartTime) / 1e6
@@ -245,8 +253,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class SimplePerson(name: String, age: Int, active: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[SimplePerson]
       .build
 
@@ -256,7 +263,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val person = SimplePerson("John", 30, true)
     collection.insertOne(person).toFuture().futureValue
 
-    val retrieved = collection.find(Filters.equal("name", "John")).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[SimplePerson](_.name), "John")).first().toFuture().futureValue
     retrieved shouldBe person
 
     database.drop().toFuture().futureValue
@@ -264,16 +271,15 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle None values correctly with ignoreNonePolicy" in {
     case class PersonWithOptionals(
-      _id: ObjectId,
-      name: String,
-      email: Option[String],
-      phone: Option[String],
-      age: Option[Int]
+        _id: ObjectId,
+        name: String,
+        email: Option[String],
+        phone: Option[String],
+        age: Option[Int]
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[PersonWithOptionals]
       .build
@@ -294,13 +300,13 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     // Verify that None fields are not in the document
     import org.bson.Document
     val docCollection: MongoCollection[Document] = database.getCollection("optional_people")
-    val doc = docCollection.find(Filters.equal("name", "Alice")).first().toFuture().futureValue
+    val doc = docCollection.find(Filters.equal(MongoPath.of[PersonWithOptionals](_.name), "Alice")).first().toFuture().futureValue
 
     doc.containsKey("email") shouldBe true
     doc.containsKey("phone") shouldBe false
     doc.containsKey("age") shouldBe false
 
-    val retrieved = collection.find(Filters.equal("name", "Alice")).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[PersonWithOptionals](_.name), "Alice")).first().toFuture().futureValue
     retrieved shouldBe person
 
     database.drop().toFuture().futureValue
@@ -308,15 +314,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle None values correctly with encodeNonePolicy" in {
     case class PersonWithOptionals(
-      _id: ObjectId,
-      name: String,
-      email: Option[String],
-      phone: Option[String]
+        _id: ObjectId,
+        name: String,
+        email: Option[String],
+        phone: Option[String]
     )
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[PersonWithOptionals]
       .build
@@ -336,13 +341,13 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     // Verify that None fields are encoded as null
     import org.bson.Document
     val docCollection: MongoCollection[Document] = database.getCollection("encoded_optional_people")
-    val doc = docCollection.find(Filters.equal("name", "Bob")).first().toFuture().futureValue
+    val doc = docCollection.find(Filters.equal(MongoPath.of[PersonWithOptionals](_.name), "Bob")).first().toFuture().futureValue
 
     doc.containsKey("email") shouldBe true
     doc.containsKey("phone") shouldBe true
     doc.get("phone") shouldBe null
 
-    val retrieved = collection.find(Filters.equal("name", "Bob")).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[PersonWithOptionals](_.name), "Bob")).first().toFuture().futureValue
     retrieved shouldBe person
 
     database.drop().toFuture().futureValue
@@ -355,8 +360,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Root(_id: ObjectId, level: Level1)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Level3]
       .register[Level2]
       .register[Level1]
@@ -378,7 +382,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(root).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", root._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[Root](_._id), root._id)).first().toFuture().futureValue
 
     retrieved shouldBe root
     retrieved.level.nested.data.value shouldBe "deep value"
@@ -388,15 +392,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle collections of different types (List, Set, Vector)" in {
     case class CollectionTypes(
-      _id: ObjectId,
-      listOfStrings: List[String],
-      setOfInts: Set[Int],
-      vectorOfDoubles: Vector[Double]
+        _id: ObjectId,
+        listOfStrings: List[String],
+        setOfInts: Set[Int],
+        vectorOfDoubles: Vector[Double]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[CollectionTypes]
       .build
 
@@ -411,7 +414,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[CollectionTypes](_._id), data._id)).first().toFuture().futureValue
 
     retrieved._id shouldBe data._id
     retrieved.listOfStrings shouldBe data.listOfStrings
@@ -423,15 +426,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle empty collections correctly" in {
     case class WithCollections(
-      _id: ObjectId,
-      emptyList: List[String],
-      emptySet: Set[Int],
-      emptyMap: Map[String, String]
+        _id: ObjectId,
+        emptyList: List[String],
+        emptySet: Set[Int],
+        emptyMap: Map[String, String]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithCollections]
       .build
 
@@ -446,7 +448,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[WithCollections](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     retrieved.emptyList shouldBe empty
@@ -461,8 +463,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithComplexMap(_id: ObjectId, configs: Map[String, Config])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Config]
       .register[WithComplexMap]
       .build
@@ -479,7 +480,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[WithComplexMap](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     retrieved.configs("feature1").enabled shouldBe true
@@ -492,8 +493,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithUUID(_id: ObjectId, uuid: java.util.UUID, name: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithUUID]
       .build
 
@@ -504,7 +504,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val data = WithUUID(_id = new ObjectId(), uuid = uuid, name = "test")
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[WithUUID](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     retrieved.uuid shouldBe uuid
@@ -518,8 +518,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Cat(name: String, indoor: Boolean) extends Animal
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_animalType")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Dog]
       .register[Cat]
@@ -534,7 +533,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val dog = Dog("Buddy", "Golden Retriever")
     dogCollection.insertOne(dog).toFuture().futureValue
 
-    val retrievedDog = dogCollection.find(Filters.equal("name", "Buddy")).first().toFuture().futureValue
+    val retrievedDog = dogCollection.find(Filters.equal(MongoPath.of[Dog](_.name), "Buddy")).first().toFuture().futureValue
     retrievedDog shouldBe dog
 
     // For a sealed hierarchy test, we'd need a collection of the parent trait
@@ -548,8 +547,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class BulkData(_id: ObjectId, value: Int, category: String)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[BulkData]
       .build
 
@@ -562,8 +560,8 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertMany(bulkData).toFuture().futureValue
 
-    val evenCount = collection.countDocuments(Filters.equal("category", "even")).toFuture().futureValue
-    val oddCount = collection.countDocuments(Filters.equal("category", "odd")).toFuture().futureValue
+    val evenCount = collection.countDocuments(Filters.equal(MongoPath.of[BulkData](_.category), "even")).toFuture().futureValue
+    val oddCount = collection.countDocuments(Filters.equal(MongoPath.of[BulkData](_.category), "odd")).toFuture().futureValue
 
     evenCount shouldBe 50
     oddCount shouldBe 50
@@ -575,8 +573,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Updatable(_id: ObjectId, name: String, version: Int, updated: Boolean)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Updatable]
       .build
 
@@ -587,9 +584,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     collection.insertOne(original).toFuture().futureValue
 
     val updated = original.copy(version = 2, updated = true)
-    collection.replaceOne(Filters.equal("_id", original._id), updated).toFuture().futureValue
+    collection.replaceOne(Filters.equal(MongoPath.of[Updatable](_._id), original._id), updated).toFuture().futureValue
 
-    val retrieved = collection.find(Filters.equal("_id", original._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[Updatable](_._id), original._id)).first().toFuture().futureValue
     retrieved shouldBe updated
     retrieved.version shouldBe 2
     retrieved.updated shouldBe true
@@ -599,18 +596,17 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle case classes with all primitive types" in {
     case class AllPrimitives(
-      _id: ObjectId,
-      intVal: Int,
-      longVal: Long,
-      doubleVal: Double,
-      floatVal: Float,
-      boolVal: Boolean,
-      stringVal: String
+        _id: ObjectId,
+        intVal: Int,
+        longVal: Long,
+        doubleVal: Double,
+        floatVal: Float,
+        boolVal: Boolean,
+        stringVal: String
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[AllPrimitives]
       .build
 
@@ -628,7 +624,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[AllPrimitives](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     // Note: Float values may have slight precision differences due to BSON Double conversion
@@ -641,8 +637,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class FilterTest(_id: ObjectId, name: String, age: Int, active: Boolean, score: Double)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[FilterTest]
       .build
 
@@ -660,16 +655,18 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     // Test multiple filters
     val activeAdults = collection
-      .find(Filters.and(
-        Filters.equal("active", true),
-        Filters.gte("age", 28),
-        Filters.gte("score", 90.0)
-      ))
+      .find(
+        Filters.and(
+          Filters.equal(MongoPath.of[FilterTest](_.active), true),
+          Filters.gte(MongoPath.of[FilterTest](_.age), 28),
+          Filters.gte(MongoPath.of[FilterTest](_.score), 90.0)
+        )
+      )
       .toFuture()
       .futureValue
 
     activeAdults should have size 2
-    activeAdults.map(_.name) should contain allOf("Alice", "Diana")
+    activeAdults.map(_.name) should contain allOf ("Alice", "Diana")
 
     database.drop().toFuture().futureValue
   }
@@ -679,8 +676,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Order(_id: ObjectId, items: Option[Seq[Item]], total: Double)
 
     given config: CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Item]
       .register[Order]
@@ -703,11 +699,11 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     collection.insertMany(Seq(orderWithItems, emptyOrder)).toFuture().futureValue
 
-    val retrieved1 = collection.find(Filters.equal("_id", orderWithItems._id)).first().toFuture().futureValue
+    val retrieved1 = collection.find(Filters.equal(MongoPath.of[Order](_._id), orderWithItems._id)).first().toFuture().futureValue
     retrieved1 shouldBe orderWithItems
     retrieved1.items.get should have size 2
 
-    val retrieved2 = collection.find(Filters.equal("_id", emptyOrder._id)).first().toFuture().futureValue
+    val retrieved2 = collection.find(Filters.equal(MongoPath.of[Order](_._id), emptyOrder._id)).first().toFuture().futureValue
     retrieved2 shouldBe emptyOrder
     retrieved2.items shouldBe None
 
@@ -722,8 +718,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Bicycle(_id: ObjectId, brand: String, gears: Int) extends Vehicle
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Car]
       .register[Motorcycle]
@@ -737,7 +732,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val car = Car(new ObjectId(), "Toyota", 4)
     carCollection.insertOne(car).toFuture().futureValue
 
-    val retrievedCar = carCollection.find(Filters.equal("_id", car._id)).first().toFuture().futureValue
+    val retrievedCar = carCollection.find(Filters.equal(MongoPath.of[Car](_._id), car._id)).first().toFuture().futureValue
     retrievedCar shouldBe car
     retrievedCar.brand shouldBe "Toyota"
     retrievedCar.doors shouldBe 4
@@ -747,7 +742,8 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val motorcycle = Motorcycle(new ObjectId(), "Harley", 1200)
     motorcycleCollection.insertOne(motorcycle).toFuture().futureValue
 
-    val retrievedMotorcycle = motorcycleCollection.find(Filters.equal("_id", motorcycle._id)).first().toFuture().futureValue
+    val retrievedMotorcycle =
+      motorcycleCollection.find(Filters.equal(MongoPath.of[Motorcycle](_._id), motorcycle._id)).first().toFuture().futureValue
     retrievedMotorcycle shouldBe motorcycle
     retrievedMotorcycle.brand shouldBe "Harley"
     retrievedMotorcycle.cc shouldBe 1200
@@ -757,7 +753,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val bicycle = Bicycle(new ObjectId(), "Trek", 21)
     bicycleCollection.insertOne(bicycle).toFuture().futureValue
 
-    val retrievedBicycle = bicycleCollection.find(Filters.equal("_id", bicycle._id)).first().toFuture().futureValue
+    val retrievedBicycle = bicycleCollection.find(Filters.equal(MongoPath.of[Bicycle](_._id), bicycle._id)).first().toFuture().futureValue
     retrievedBicycle shouldBe bicycle
     retrievedBicycle.brand shouldBe "Trek"
     retrievedBicycle.gears shouldBe 21
@@ -780,8 +776,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class User(_id: ObjectId, name: String, statuses: List[Active])
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Active]
       .register[Inactive]
@@ -801,7 +796,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(user).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", user._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[User](_._id), user._id)).first().toFuture().futureValue
 
     retrieved.name shouldBe "Alice"
     retrieved.statuses should have size 2
@@ -822,8 +817,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: Completed, currency: USD)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Pending]
       .register[Completed]
@@ -842,7 +836,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(transaction).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", transaction._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[Transaction](_._id), transaction._id)).first().toFuture().futureValue
 
     retrieved.status.transactionId shouldBe "TXN123"
     retrieved.currency.amount shouldBe 99.99
@@ -866,8 +860,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class Transaction(_id: ObjectId, status: PaymentStatus, currency: Currency)
 
     given config: CodecConfig = CodecConfig(discriminatorField = "_type")
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .withConfig(config)
       .register[Pending]
       .register[Completed]
@@ -899,12 +892,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       currency = USD(150.00)
     )
 
-    try {
+    try
       collection.insertMany(Seq(transaction1, transaction2, transaction3)).toFuture().futureValue
 
-      val retrieved1 = collection.find(Filters.equal("_id", transaction1._id)).first().toFuture().futureValue
-      val retrieved2 = collection.find(Filters.equal("_id", transaction2._id)).first().toFuture().futureValue
-      val retrieved3 = collection.find(Filters.equal("_id", transaction3._id)).first().toFuture().futureValue
+      val retrieved1 = collection.find(Filters.equal(MongoPath.of[Transaction](_._id), transaction1._id)).first().toFuture().futureValue
+      val retrieved2 = collection.find(Filters.equal(MongoPath.of[Transaction](_._id), transaction2._id)).first().toFuture().futureValue
+      val retrieved3 = collection.find(Filters.equal(MongoPath.of[Transaction](_._id), transaction3._id)).first().toFuture().futureValue
 
       // Verify polymorphic deserialization works
       retrieved1.status shouldBe a[Completed]
@@ -918,12 +911,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
       retrieved3.status.asInstanceOf[Failed].reason shouldBe "Insufficient funds"
 
       info("Polymorphic sealed trait fields are fully supported!")
-    } catch {
+    catch
       case e: Exception =>
         info(s"Polymorphic sealed trait fields not yet fully supported: ${e.getMessage}")
         info("Current workaround: Use concrete types in case class definitions")
         succeed // This is a known limitation for now
-    }
+    end try
 
     database.drop().toFuture().futureValue
   }
@@ -932,8 +925,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class WithDefaults(_id: ObjectId, name: String, score: Int = 100, active: Boolean = true, level: String = "beginner")
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[WithDefaults]
       .build
 
@@ -950,7 +942,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
     collection.insertOne(fullData).toFuture().futureValue
 
-    val retrieved1 = collection.find(Filters.equal("_id", fullData._id)).first().toFuture().futureValue
+    val retrieved1 = collection.find(Filters.equal(MongoPath.of[WithDefaults](_._id), fullData._id)).first().toFuture().futureValue
     retrieved1 shouldBe fullData
     retrieved1.score shouldBe 200
     retrieved1.active shouldBe false
@@ -966,7 +958,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     docCollection.insertOne(partialDoc).toFuture().futureValue
 
-    val retrieved2 = collection.find(Filters.equal("_id", partialDoc.get("_id"))).first().toFuture().futureValue
+    val retrieved2 = collection.find(Filters.equal(MongoPath.of[WithDefaults](_._id), partialDoc.get("_id"))).first().toFuture().futureValue
     retrieved2.name shouldBe "Bob"
     retrieved2.score shouldBe 100 // default value
     retrieved2.active shouldBe true // default value
@@ -979,15 +971,14 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     import org.mongodb.scala.bson.annotations.BsonProperty
 
     case class Renamed(
-      _id: ObjectId,
-      @BsonProperty("n") name: String,
-      @BsonProperty("a") age: Int,
-      @BsonProperty("em") email: Option[String]
+        _id: ObjectId,
+        @BsonProperty("n") name: String,
+        @BsonProperty("a") age: Int,
+        @BsonProperty("em") email: Option[String]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[Renamed]
       .build
 
@@ -1006,21 +997,21 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     // Verify that BSON document has renamed fields
     import org.bson.Document
     val docCollection: MongoCollection[Document] = database.getCollection("renamed_fields")
-    val doc = docCollection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
+    val doc = docCollection.find(Filters.equal(MongoPath.of[Renamed](_._id), person._id)).first().toFuture().futureValue
 
-    doc.containsKey("n") shouldBe true
-    doc.containsKey("a") shouldBe true
-    doc.containsKey("em") shouldBe true
+    doc.containsKey(MongoPath.of[Renamed](_.name)) shouldBe true
+    doc.containsKey(MongoPath.of[Renamed](_.age)) shouldBe true
+    doc.containsKey(MongoPath.of[Renamed](_.email)) shouldBe true
     doc.containsKey("name") shouldBe false
     doc.containsKey("age") shouldBe false
     doc.containsKey("email") shouldBe false
 
-    doc.getString("n") shouldBe "Charlie"
-    doc.getInteger("a") shouldBe 35
-    doc.getString("em") shouldBe "charlie@example.com"
+    doc.getString(MongoPath.of[Renamed](_.name)) shouldBe "Charlie"
+    doc.getInteger(MongoPath.of[Renamed](_.age)) shouldBe 35
+    doc.getString(MongoPath.of[Renamed](_.email)) shouldBe "charlie@example.com"
 
     // Verify retrieval works with remapped fields
-    val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[Renamed](_._id), person._id)).first().toFuture().futureValue
     retrieved shouldBe person
     retrieved.name shouldBe "Charlie"
     retrieved.age shouldBe 35
@@ -1030,17 +1021,16 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle Byte, Short, and Char primitive types" in {
     case class NumericTypes(
-      _id: ObjectId,
-      byteVal: Byte,
-      shortVal: Short,
-      charVal: Char,
-      byteOpt: Option[Byte],
-      shortOpt: Option[Short]
+        _id: ObjectId,
+        byteVal: Byte,
+        shortVal: Short,
+        charVal: Char,
+        byteOpt: Option[Byte],
+        shortOpt: Option[Short]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[NumericTypes]
       .build
 
@@ -1057,7 +1047,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[NumericTypes](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     retrieved.byteVal shouldBe 127.toByte
@@ -1071,14 +1061,13 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
   it should "handle nested maps with complex structures" in {
     case class NestedMaps(
-      _id: ObjectId,
-      data: Map[String, Map[String, Int]],
-      complexData: Map[String, Map[String, List[String]]]
+        _id: ObjectId,
+        data: Map[String, Map[String, Int]],
+        complexData: Map[String, Map[String, List[String]]]
     )
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[NestedMaps]
       .build
 
@@ -1098,12 +1087,12 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     )
 
     collection.insertOne(data).toFuture().futureValue
-    val retrieved = collection.find(Filters.equal("_id", data._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[NestedMaps](_._id), data._id)).first().toFuture().futureValue
 
     retrieved shouldBe data
     retrieved.data("group1")("a") shouldBe 1
     retrieved.data("group2")("y") shouldBe 20
-    retrieved.complexData("category1")("tags") should contain allOf("tag1", "tag2")
+    retrieved.complexData("category1")("tags") should contain allOf ("tag1", "tag2")
     retrieved.complexData("category2")("tags") shouldBe List("tag3")
 
     database.drop().toFuture().futureValue
@@ -1113,8 +1102,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     case class ValidData(_id: ObjectId, name: String, count: Int)
 
     given config: CodecConfig = CodecConfig()
-    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    given registry: CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[ValidData]
       .build
 
@@ -1137,7 +1125,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
 
     // Try to retrieve the corrupted document - should fail gracefully
     val thrown = intercept[Exception] {
-      collection.find(Filters.equal("_id", corruptDoc.get("_id"))).first().toFuture().futureValue
+      collection.find(Filters.equal(MongoPath.of[ValidData](_._id), corruptDoc.get("_id"))).first().toFuture().futureValue
     }
 
     // Verify that we get a meaningful error message
@@ -1145,7 +1133,7 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     info(s"Error message for type mismatch: ${thrown.getMessage}")
 
     // Verify valid data still works
-    val retrieved = collection.find(Filters.equal("_id", validData._id)).first().toFuture().futureValue
+    val retrieved = collection.find(Filters.equal(MongoPath.of[ValidData](_._id), validData._id)).first().toFuture().futureValue
     retrieved shouldBe validData
 
     database.drop().toFuture().futureValue

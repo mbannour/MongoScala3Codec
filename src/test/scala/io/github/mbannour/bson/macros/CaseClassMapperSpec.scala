@@ -15,7 +15,7 @@ case class Truck(model: String) extends Vehicle
 case class Standalone(name: String, truck: Truck)
 class NonCaseClass
 
-class CaseClassMapperSpec extends AnyFlatSpec with Matchers {
+class CaseClassMapperSpec extends AnyFlatSpec with Matchers:
 
   import io.github.mbannour.bson.macros.CaseClassMapper.*
 
@@ -42,7 +42,7 @@ class CaseClassMapperSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "fail for non-case classes" ignore {
-    //FIXME this test has to be fixed
+    // FIXME this test has to be fixed
     assertThrows[Exception] {
       caseClassMap[NonCaseClass]
     }
@@ -59,6 +59,4 @@ class CaseClassMapperSpec extends AnyFlatSpec with Matchers {
       "InnerB" -> classOf[InnerB]
     )
   }
-}
-
-
+end CaseClassMapperSpec

@@ -1,10 +1,11 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.Codec
-import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
-import org.bson.codecs.configuration.CodecRegistries.{fromRegistries, fromProviders, fromCodecs}
-import scala.reflect.ClassTag
 import scala.compiletime.*
+import scala.reflect.ClassTag
+
+import org.bson.codecs.Codec
+import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
+import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
 /** Type-safe, immutable registry builder using Scala 3 opaque types and extension methods.
   *
@@ -76,6 +77,20 @@ object RegistryBuilder:
   /** Create builder from base registry with custom configuration */
   def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
     State(base, config)
+
+  private def getOrBuildRegistry(state: State): CodecRegistry =
+    state.cachedRegistry.getOrElse(buildRegistry(state))
+
+  private def buildRegistry(state: State): CodecRegistry =
+    val parts = Vector.newBuilder[CodecRegistry]
+    parts += state.base
+
+    if state.codecs.nonEmpty then parts += fromCodecs(state.codecs*)
+
+    if state.providers.nonEmpty then parts += fromProviders(state.providers*)
+
+    fromRegistries(parts.result()*)
+  end buildRegistry
 
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
@@ -149,8 +164,8 @@ object RegistryBuilder:
       *
       * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
-      * Performance note: Intermediate registries are cached to avoid rebuilding the same registry multiple times
-      * during chained register calls.
+      * Performance note: Intermediate registries are cached to avoid rebuilding the same registry multiple times during chained register
+      * calls.
       *
       * @tparam T
       *   The type to register (must be a case class)
@@ -196,21 +211,6 @@ object RegistryBuilder:
         case _ =>
           // Otherwise build fresh
           buildRegistry(builder)
-
-    /** Get cached registry or build a new one. Used internally to optimize register chains. */
-    private def getOrBuildRegistry(state: State): CodecRegistry =
-      state.cachedRegistry.getOrElse(buildRegistry(state))
-
-    private def buildRegistry(state: State): CodecRegistry =
-      val parts = Vector.newBuilder[CodecRegistry]
-      parts += state.base
-
-      if state.codecs.nonEmpty then parts += fromCodecs(state.codecs*)
-
-      if state.providers.nonEmpty then parts += fromProviders(state.providers*)
-
-      fromRegistries(parts.result()*)
-    end buildRegistry
   end extension
 
   /** Extension methods for CodecRegistry to create builders */

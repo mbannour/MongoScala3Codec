@@ -22,11 +22,12 @@ object PersonFields:
   def apply(field: String): String =
     fieldMap.getOrElse(field, throw new IllegalArgumentException(s"Unknown MongoDB field: $field"))
 
-  val id   = apply("_id")
-  val name = apply("n")
-  val age  = apply("age")
+  val id = apply("_id")
+  val name = apply("name")
+  val age = apply("age")
 
   object address:
-    val city    = apply("address.city")
-    val street  = apply("address.street")
+    val city = apply("address.city")
+    val street = apply("address.street")
     val zipCode = apply("address.zipCode")
+end PersonFields
