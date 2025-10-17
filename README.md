@@ -88,7 +88,7 @@ val found = people.find().first().toFuture()
 - ✅ Support for options and nested case classes
 - ✅ **Sealed trait hierarchies** with concrete case class implementations
 - ✅ Custom field name annotations (e.g., `@BsonProperty`)
-- ✅ Compile-time safe MongoDB field path extraction via `MongoFieldResolver`
+- ✅ Compile-time safe MongoDB field path extraction via `MongoPath`
 - ✅ Scala 3 enum support via `EnumValueCodec`
 - ✅ **UUID and Float primitive types** built-in support
 - ✅ **Complete primitive type coverage** (Byte, Short, Char)
@@ -171,6 +171,65 @@ taskCollection.insertOne(task).toFuture()
 val foundPerson = peopleCollection.find().first().head()
 val foundTask = taskCollection.find().first().head()
 ```
+
+---
+
+## MongoPath – compile-time MongoDB field paths
+
+`MongoPath` lets you extract MongoDB field paths from type-safe lambdas, at compile time. It respects `@BsonProperty` and supports a transparent hop into `Option` via a tiny helper.
+
+This prevents runtime failures from using wrong/typoed field names in Filters, Updates, Deletes, Projections, Sorts, or any operation that needs a field path—paths are validated at compile time.
+
+### Import and basics
+
+```scala
+import io.github.mbannour.fields.MongoPath
+// For the transparent Option hop syntax
+import io.github.mbannour.fields.MongoPath.syntax.?
+
+import org.bson.types.ObjectId
+import org.mongodb.scala.bson.annotations.BsonProperty
+
+case class Address(street: String, @BsonProperty("zip") zipCode: Int)
+case class User(_id: ObjectId, name: String, address: Option[Address])
+
+MongoPath.of[User](_._id)              // "_id"
+MongoPath.of[User](_.name)             // "name"
+MongoPath.of[User](_.address)          // "address"
+MongoPath.of[User](_.address.?.zipCode) // "address.zip"  (respects @BsonProperty)
+```
+
+### Use in queries
+
+```scala
+import org.mongodb.scala.model.Filters
+
+// Find all users by nested zip code (Option hop handled transparently)
+val filter = Filters.equal(MongoPath.of[User](_.address.?.zipCode), 12345)
+val results = database.getCollection[User]("users").find(filter)
+```
+
+### Use in updates and deletes
+
+```scala
+import org.mongodb.scala.model.{Filters, Updates}
+
+val users = database.getCollection[User]("users")
+
+// Update: set name using a compile-time-checked path
+val id: ObjectId = new ObjectId("...")
+val update = Updates.set(MongoPath.of[User](_.name), "Bob")
+users.updateOne(Filters.equal(MongoPath.of[User](_._id), id), update)
+
+// Delete: filter by _id using a compile-time-checked path
+users.deleteOne(Filters.equal(MongoPath.of[User](_._id), id))
+```
+
+Notes:
+- Import `MongoPath.syntax.?` to enable the transparent `.?` hop for `Option`.
+- The selector must be a simple field access chain (e.g. `_.a.b.c`).
+- `@BsonProperty` values are used automatically when present on constructor params.
+- Prevents stringly-typed bugs across Filters, Updates, Deletes, Projections, Sorts, Aggregations, etc.
 
 ---
 
@@ -447,217 +506,6 @@ println(retrieved.userId.value)  // "user_12345"
 println(retrieved.email.value)   // "john@example.com"
 println(retrieved.age.value)     // 28
 ```
-
-### Type Safety at Compile Time
-
-Opaque types prevent type confusion at compile time:
-
-```scala
-val userId = UserId("user_123")
-val email = Email("test@example.com")
-val age = Age(30)
-
-// ✅ These compile
-userId.value   // "user_123"
-email.value    // "test@example.com"
-age.value      // 30
-
-// ❌ These DO NOT compile - type safety enforced
-val wrong1: UserId = email      // Compile error: type mismatch
-val wrong2: Email = userId      // Compile error: type mismatch
-val wrong3: Age = userId        // Compile error: type mismatch
-```
-
-### BSON Storage - Zero Overhead
-
-Opaque types are stored as their underlying primitive types in MongoDB:
-
-```scala
-// In MongoDB, the document looks like:
-{
-  "_id": ObjectId("..."),
-  "userId": "user_12345",        // Stored as String
-  "email": "john@example.com",   // Stored as String
-  "age": 28,                     // Stored as Int
-  "displayName": "John Doe"
-}
-
-// No wrapper objects, no performance penalty
-// Type safety exists only at compile time
-```
-
-### Querying with Opaque Types
-
-Opaque types are transparent in MongoDB queries:
-
-```scala
-import org.mongodb.scala.model.Filters
-
-val collection = database.getCollection[UserProfile]("users")
-
-// Query using the underlying type value
-val youngUsers = collection
-  .find(Filters.lt("age", 25))
-  .toFuture()
-
-// Range queries work naturally
-val midAgeUsers = collection
-  .find(Filters.and(
-    Filters.gte("age", 25),
-    Filters.lte("age", 35)
-  ))
-  .toFuture()
-
-// String field queries
-val specificUser = collection
-  .find(Filters.eq("userId", "user_12345"))
-  .first()
-  .head()
-```
-
-### Advanced: Opaque Types with Validation
-
-Combine opaque types with smart constructors for validated domain types:
-
-```scala
-object ValidatedTypes:
-  opaque type Email = String
-  object Email:
-    def apply(value: String): Either[String, Email] =
-      if value.contains("@") then Right(value)
-      else Left("Invalid email format")
-    
-    def unsafe(value: String): Email = value
-    
-    extension (email: Email)
-      def value: String = email
-  
-  opaque type PositiveInt = Int
-  object PositiveInt:
-    def apply(value: Int): Either[String, PositiveInt] =
-      if value > 0 then Right(value)
-      else Left("Must be positive")
-    
-    def unsafe(value: Int): PositiveInt = value
-    
-    extension (n: PositiveInt)
-      def value: Int = n
-
-import ValidatedTypes.*
-
-case class Product(
-  _id: ObjectId,
-  name: String,
-  price: PositiveInt,
-  contactEmail: Email
-)
-
-// Use validated construction
-val emailResult = Email("invalid")  // Left("Invalid email format")
-val validEmail = Email("contact@example.com")  // Right(Email)
-
-validEmail match
-  case Right(email) =>
-    val product = Product(
-      new ObjectId(),
-      "Widget",
-      PositiveInt.unsafe(100),
-      email
-    )
-    // Save to MongoDB with type-safe validated values
-  case Left(error) =>
-    println(s"Validation failed: $error")
-```
-
-### Opaque Types in Collections
-
-Opaque types work seamlessly in collections:
-
-```scala
-object Types:
-  opaque type TagId = String
-  object TagId:
-    def apply(value: String): TagId = value
-    extension (id: TagId) def value: String = id
-
-import Types.*
-
-case class Article(
-  _id: ObjectId,
-  title: String,
-  tags: List[TagId],
-  authorIds: Set[UserId]
-)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Article]
-  .build
-
-val article = Article(
-  _id = new ObjectId(),
-  title = "Scala 3 Guide",
-  tags = List(TagId("scala"), TagId("functional")),
-  authorIds = Set(UserId("author_1"), UserId("author_2"))
-)
-
-// Collections of opaque types stored as primitive arrays
-// In MongoDB: {"tags": ["scala", "functional"], "authorIds": ["author_1", "author_2"]}
-```
-
-### Combining Opaque Types with RegistryBuilder
-
-The library's `RegistryBuilder` is itself an opaque type, providing type-safe builder patterns:
-
-```scala
-// Two levels of type safety:
-// 1. RegistryBuilder opaque type (type-safe API)
-// 2. Domain opaque types (UserId, Email, etc.)
-
-val builder: RegistryBuilder = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-
-val configured: RegistryBuilder = builder.ignoreNone
-val withCodec: RegistryBuilder = configured.register[UserProfile]
-val registry: CodecRegistry = withCodec.build
-
-// All operations are type-safe with fluent chaining
-val registryFluent = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .ignoreNone
-  .discriminator("_type")
-  .register[UserProfile]
-  .build
-```
-
-### Best Practices
-
-✅ **Use opaque types for domain concepts** - UserId, Email, Price, etc.  
-✅ **Add validation in smart constructors** - Keep invalid states unrepresentable  
-✅ **Provide extension methods for access** - Use `.value` convention  
-✅ **Group related opaque types** - Use objects to namespace types  
-✅ **No runtime overhead** - Perfect for high-performance applications  
-
-❌ **Don't overuse** - Simple strings/ints don't always need wrapping  
-❌ **Don't expose underlying value** - Keep implementation details hidden  
-
-### Performance Benefits
-
-```scala
-// Traditional approach with case classes
-case class UserId(value: String)  // ❌ Allocates object wrapper
-case class Email(value: String)   // ❌ Allocates object wrapper
-
-// Opaque type approach
-opaque type UserId = String        // ✅ Zero allocation
-opaque type Email = String         // ✅ Zero allocation
-
-// With 1 million users, opaque types save:
-// - No object allocations (saves heap memory)
-// - No indirection (faster field access)
-// - Same type safety as case classes
-```
-
 ### Testing Opaque Types
 
 Opaque types work seamlessly with `CodecTestKit`:
@@ -689,9 +537,4 @@ val bson = CodecTestKit.toBsonDocument(user)
 println(bson.toJson())
 // {"_id": {...}, "userId": "test_user", "email": "test@example.com", "age": 25, ...}
 ```
-
 ---
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the LICENSE file for details.

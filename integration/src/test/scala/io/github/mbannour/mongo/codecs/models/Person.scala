@@ -23,7 +23,7 @@ object PersonFields:
     fieldMap.getOrElse(field, throw new IllegalArgumentException(s"Unknown MongoDB field: $field"))
 
   val id = apply("_id")
-  val name = apply("n")
+  val name = apply("name")
   val age = apply("age")
 
   object address:
