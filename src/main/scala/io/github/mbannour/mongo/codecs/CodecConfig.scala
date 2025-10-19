@@ -7,20 +7,16 @@ package io.github.mbannour.mongo.codecs
   *
   * @param noneHandling
   *   Strategy for handling `None` values in `Option` fields.
-  * @param discriminatorField
-  *   Field name used to store type discriminators for sealed hierarchies (default: "_t").
   *
   * ===Example Usage===
   * {{{
   *   val config = CodecConfig(
-  *     noneHandling = NoneHandling.Ignore,
-  *     discriminatorField = "_type"
+  *     noneHandling = NoneHandling.Ignore
   *   )
   * }}}
   */
 case class CodecConfig(
-    noneHandling: NoneHandling = NoneHandling.Encode,
-    discriminatorField: String = "_t"
+    noneHandling: NoneHandling = NoneHandling.Encode
 ):
   /** Returns true if None values should be encoded as BSON null. */
   def shouldEncodeNone: Boolean = noneHandling == NoneHandling.Encode
@@ -42,17 +38,6 @@ case class CodecConfig(
     *   }}}
     */
   def withEncodeNone: CodecConfig = copy(noneHandling = NoneHandling.Encode)
-
-  /** Helper method to set discriminator field - fluent API for functional configuration.
-    *
-    * @param field
-    *   The field name to use for type discriminators
-    * @example
-    *   {{{
-    *   builder.configure(_.withDiscriminator("_type"))
-    *   }}}
-    */
-  def withDiscriminator(field: String): CodecConfig = copy(discriminatorField = field)
 end CodecConfig
 
 /** Strategy for handling `None` values in `Option` fields during BSON encoding.

@@ -21,7 +21,6 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   - Add individual codecs with `withCodec` or many at once with `withCodecs`
   *   - Automatically derive codecs for **case classes** with `register[T]`
   *   - Batch registration with `registerAll[(Type1, Type2, ...)]`
-  *   - Configure discriminator field names for sealed hierarchies
   *   - Extension methods for fluent, idiomatic Scala 3 API
   *
   * ===Common Patterns===
@@ -59,8 +58,7 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   val registry = RegistryBuilder
   *     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   *     .configure(_.copy(
-  *       noneHandling = NoneHandling.Ignore,
-  *       discriminatorField = "_type"
+  *       noneHandling = NoneHandling.Ignore
   *     ))
   *     .withCodec(employeeIdCodec)
   *     .register[Person]
@@ -72,7 +70,6 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *     .configure { config =>
   *       config
   *         .withIgnoreNone
-  *         .withDiscriminator("_type")
   *     }
   *     .registerAll[(Address, Person, Department)]
   *     .build
@@ -145,7 +142,7 @@ object RegistryBuilder:
       *   builder.configure(_.copy(noneHandling = NoneHandling.Ignore))
       *
       *   // Using helper methods on CodecConfig
-      *   builder.configure(_.withIgnoreNone.withDiscriminator("_type"))
+      *   builder.configure(_.withIgnoreNone)
       *
       *   // Conditional configuration
       *   builder.configure { config =>
@@ -171,14 +168,6 @@ object RegistryBuilder:
     /** Switch policy: encode `None` as BSON `null`. */
     def encodeNone: RegistryBuilder =
       configure(_.copy(noneHandling = NoneHandling.Encode))
-
-    /** Set the discriminator field name for sealed hierarchies.
-      *
-      * @param field
-      *   The field name to use for type discriminators (default: "_t")
-      */
-    def discriminator(field: String): RegistryBuilder =
-      configure(_.copy(discriminatorField = field))
 
     /** Add a single explicit codec.
       *
@@ -381,7 +370,7 @@ object RegistryBuilder:
       val noneHandling = builder.config.noneHandling match
         case NoneHandling.Ignore => "ignore None fields"
         case NoneHandling.Encode => "encode None as null"
-      s"RegistryBuilder(providers=${builder.providers.size}, codecs=${builder.codecs.size}, $noneHandling, discriminator='${builder.config.discriminatorField}', cached=${builder.cachedRegistry.isDefined})"
+      s"RegistryBuilder(providers=${builder.providers.size}, codecs=${builder.codecs.size}, $noneHandling, cached=${builder.cachedRegistry.isDefined})"
 
   end extension
 

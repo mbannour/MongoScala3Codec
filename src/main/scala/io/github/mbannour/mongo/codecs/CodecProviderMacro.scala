@@ -145,8 +145,7 @@ object CodecProviderMacro:
           */
         @SuppressWarnings(Array("unchecked"))
         def get[C](clazz: Class[C], registry: CodecRegistry): Codec[C] =
-          if $classTag.runtimeClass.isAssignableFrom(clazz) then
-            generateCodec[T]($config, registry)(using $classTag).asInstanceOf[Codec[C]]
+          if $classTag.runtimeClass.isAssignableFrom(clazz) then generateCodec[T]($config, registry)(using $classTag).asInstanceOf[Codec[C]]
           else null
     }
   end createCodecProviderImpl

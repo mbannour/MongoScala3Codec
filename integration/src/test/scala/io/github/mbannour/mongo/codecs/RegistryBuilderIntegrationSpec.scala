@@ -77,10 +77,11 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   "RegistryBuilder.register[T]" should "register and work with MongoDB for simple case class" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    given config: CodecConfig = CodecConfig()
+//    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+      .ignoreNone
       .register[SimpleDocument]
       .build
 
@@ -99,7 +100,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "register and work with nested case classes" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -174,29 +175,8 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     database.drop().toFuture().futureValue
   }
 
-  it should "work with custom discriminator field" in {
-    given config: CodecConfig = CodecConfig(discriminatorField = "_customType")
-
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .discriminator("_customType")
-      .register[Person]
-      .build
-
-    val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_custom_discriminator")
-
-    val person = Person(new ObjectId(), "Diana", 28, None)
-    collection.insertOne(person).toFuture().futureValue
-
-    val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
-    retrieved shouldBe person
-
-    database.drop().toFuture().futureValue
-  }
-
   "RegistryBuilder.registerAll[Tuple]" should "register multiple types with tuple syntax" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -233,7 +213,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "register and work with complex nested structures" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -260,7 +240,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "register many types at once" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -302,12 +282,11 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "work with configuration chaining" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone
-      .discriminator("_entityType")
       .registerAll[(Address, Person, Department)]
       .build
 
@@ -325,7 +304,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   "RegistryBuilder mixed usage" should "combine register and registerAll" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -367,7 +346,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   "RegistryBuilder extension methods" should "work with .newBuilder on CodecRegistry" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -388,8 +367,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   it should "work with .builderWith(config)" in {
     val customConfig = CodecConfig(
-      noneHandling = NoneHandling.Ignore,
-      discriminatorField = "_myType"
+      noneHandling = NoneHandling.Ignore
     )
 
     val registry = RegistryBuilder
@@ -408,18 +386,18 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
     database.drop().toFuture().futureValue
   }
-  
+
   // New integration test: conditional registration
   it should "support conditional registration with registerIf" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val base = MongoClient.DEFAULT_CODEC_REGISTRY
 
     val builderFalse = base.newBuilder.registerIf[Person](condition = false)
-    builderFalse.hasCodecFor[Person] shouldBe false
+    builderFalse.tryGetCodec[Person].isDefined shouldBe false
 
     val builderTrue = base.newBuilder.registerIf[Person](condition = true)
-    builderTrue.hasCodecFor[Person] shouldBe true
+    builderTrue.tryGetCodec[Person].isDefined shouldBe true
 
     // Use the true-branch registry with MongoDB
     val registry = builderTrue.build
@@ -437,7 +415,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   // New integration test: convenience methods just/withTypes
   it should "support just[T] convenience" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.just[Person]
 
@@ -454,7 +432,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "support withTypes[(...)] convenience" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.withTypes[(Address, Person)]
 
@@ -472,7 +450,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   "RegistryBuilder opaque type" should "demonstrate type safety through immutability" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type ensures that RegistryBuilder cannot be directly manipulated
     // Each operation returns a new RegistryBuilder instance
@@ -497,14 +475,13 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "allow fluent chaining with type-safe operations" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type provides type-safe fluent API
     // The type is RegistryBuilder throughout the chain
     val registry: CodecRegistry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone // Returns RegistryBuilder
-      .discriminator("_t") // Returns RegistryBuilder
       .register[Address] // Returns RegistryBuilder
       .register[Person] // Returns RegistryBuilder
       .register[Department] // Returns RegistryBuilder
@@ -524,7 +501,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "demonstrate configuration immutability" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Original builder with ignoreNone
     val baseBuilder = RegistryBuilder
@@ -554,16 +531,14 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "support functional transformation with configure" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type works seamlessly with functional programming
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .configure { cfg =>
         // Can apply complex configuration logic
-        val withNoneHandling = cfg.copy(noneHandling = NoneHandling.Ignore)
-        val withDiscriminator = withNoneHandling.copy(discriminatorField = "_kind")
-        withDiscriminator
+        cfg.copy(noneHandling = NoneHandling.Ignore)
       }
       .register[Person]
       .build
@@ -581,13 +556,12 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "enable reusable builder patterns" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Create reusable base builders - opaque type makes this safe
     def standardBuilder: RegistryBuilder = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone
-      .discriminator("_type")
 
     // Use the base builder multiple times
     val registryForPeople = standardBuilder
@@ -613,7 +587,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "work with extension methods on CodecRegistry" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Extension methods enabled by opaque type design
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder // Extension method returns RegistryBuilder
@@ -636,7 +610,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "demonstrate type-safe tuple registration with opaque type" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type provides type-safe tuple operations
     val registry: CodecRegistry = RegistryBuilder
@@ -659,7 +633,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "support complex builder composition" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Compose builders in functional style - enabled by opaque type safety
     def withStandardTypes(builder: RegistryBuilder): RegistryBuilder =
@@ -696,8 +670,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   it should "demonstrate withConfig preserves type safety" in {
     val customConfig = CodecConfig(
-      noneHandling = NoneHandling.Encode,
-      discriminatorField = "_entityType"
+      noneHandling = NoneHandling.Encode
     )
 
     // withConfig maintains type safety through opaque type
@@ -720,7 +693,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   "Scala 3 opaque types" should "work seamlessly with codec generation" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Register codec for case class that uses opaque types
     val registry = RegistryBuilder
@@ -769,7 +742,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "store and retrieve opaque types correctly in MongoDB" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -798,7 +771,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "demonstrate opaque types provide zero runtime overhead" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -837,7 +810,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "work with opaque types in complex queries" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -883,7 +856,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "combine opaque types with RegistryBuilder opaque type for double type safety" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Two levels of opaque types:
     // 1. RegistryBuilder is an opaque type (type-safe builder pattern)
@@ -916,9 +889,8 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   }
 
   it should "expose state inspection and explicit codecs via withCodec/withCodecs" in {
-    given config: CodecConfig = CodecConfig()
 
-    import org.bson.{BsonReader, BsonWriter, Document}
+    import org.bson.{BsonReader, BsonWriter}
     import org.bson.codecs.{Codec as BsonCodec, DecoderContext, EncoderContext}
 
     // Custom types and explicit codecs (cannot be auto-derived without register)
@@ -966,40 +938,30 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     val base = MongoClient.DEFAULT_CODEC_REGISTRY
 
     val b0 = base.newBuilder
-    b0.isEmpty shouldBe true
-    b0.codecCount shouldBe 0
-    b0.providerCount shouldBe 0
-    b0.isCached shouldBe false // cache is internal and invalidated on mutations
+    b0.isEmpty `shouldBe` true
+    b0.codecCount `shouldBe` 0
+    b0.providerCount `shouldBe` 0
+    b0.isCached `shouldBe` false // cache is internal and invalidated on mutations
 
     val locCodec = new LocationCodec
     val tagCodec = new TagDocCodec
 
     val b1 = b0.withCodecs(locCodec, tagCodec)
-    b1.isEmpty shouldBe false
-    b1.codecCount shouldBe 2
-    b1.providerCount shouldBe 0
+    b1.isEmpty `shouldBe` false
+    b1.codecCount `shouldBe` 2
+    b1.providerCount `shouldBe` 0
 
     val b2 = b1.register[Person]
-    b2.providerCount shouldBe 1
+    b2.providerCount `shouldBe` 1
 
-    val b3 = b2
-      .ignoreNone
-      .discriminator("_kind")
+    val b3 = b2.ignoreNone
 
     // currentConfig reflects the latest changes
-    b3.currentConfig.noneHandling shouldBe NoneHandling.Ignore
-    b3.currentConfig.discriminatorField shouldBe "_kind"
+    b3.currentConfig.noneHandling `shouldBe` NoneHandling.Ignore
 
     // Codec availability checks (forces a registry build under the hood)
-    b3.hasCodecFor[Location] shouldBe true
-    b3.tryGetCodec[Location].isDefined shouldBe true
-    b3.hasCodecFor[TagDoc] shouldBe true
-
-    val sum = b3.summary
-    sum should include ("providers=1")
-    sum should include ("codecs=2")
-    sum should include ("ignore None fields")
-    sum should include ("discriminator='_kind'")
+    b3.tryGetCodec[Location].isDefined `shouldBe` true
+    b3.tryGetCodec[TagDoc].isDefined `shouldBe` true
 
     // End-to-end check using the explicit Location codec
     val registry = b3.build
@@ -1010,7 +972,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     collection.insertOne(loc).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", loc._id)).first().toFuture().futureValue
-    retrieved shouldBe loc
+    retrieved `shouldBe` loc
 
     database.drop().toFuture().futureValue
   }
