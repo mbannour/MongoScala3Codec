@@ -408,20 +408,25 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
     database.drop().toFuture().futureValue
   }
-
-  "RegistryBuilder functional configuration" should "work with configure function" in {
+  
+  // New integration test: conditional registration
+  it should "support conditional registration with registerIf" in {
     given config: CodecConfig = CodecConfig()
 
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .configure(_.copy(noneHandling = NoneHandling.Ignore, discriminatorField = "_docType"))
-      .registerAll[(Person, Address)]
-      .build
+    val base = MongoClient.DEFAULT_CODEC_REGISTRY
 
+    val builderFalse = base.newBuilder.registerIf[Person](condition = false)
+    builderFalse.hasCodecFor[Person] shouldBe false
+
+    val builderTrue = base.newBuilder.registerIf[Person](condition = true)
+    builderTrue.hasCodecFor[Person] shouldBe true
+
+    // Use the true-branch registry with MongoDB
+    val registry = builderTrue.build
     val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_functional")
+    val collection: MongoCollection[Person] = database.getCollection("people_register_if")
 
-    val person = Person(new ObjectId(), "Leo", 42, None)
+    val person = Person(new ObjectId(), "Yara", 26, None)
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -430,43 +435,16 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     database.drop().toFuture().futureValue
   }
 
-  it should "allow multiple configuration changes" in {
+  // New integration test: convenience methods just/withTypes
+  it should "support just[T] convenience" in {
     given config: CodecConfig = CodecConfig()
 
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .ignoreNone
-      .register[Address]
-      .encodeNone // Change policy
-      .register[Person]
-      .discriminator("_type")
-      .register[Department]
-      .build
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.just[Person]
 
     val database = createDatabaseWithRegistry(registry)
+    val collection: MongoCollection[Person] = database.getCollection("people_just")
 
-    val personCollection: MongoCollection[Person] = database.getCollection("people_multi_config")
-    val person = Person(new ObjectId(), "Maya", 33, None)
-    personCollection.insertOne(person).toFuture().futureValue
-
-    val retrieved = personCollection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
-    retrieved shouldBe person
-
-    database.drop().toFuture().futureValue
-  }
-
-  "RegistryBuilder backward compatibility" should "work with modern register method" in {
-    given config: CodecConfig = CodecConfig()
-
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .register[Person]
-      .build
-
-    val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_register")
-
-    val person = Person(new ObjectId(), "Nina", 27, None)
+    val person = Person(new ObjectId(), "Zack", 37, None)
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -475,21 +453,20 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     database.drop().toFuture().futureValue
   }
 
-  it should "support modern newBuilder API" in {
+  it should "support withTypes[(...)] convenience" in {
     given config: CodecConfig = CodecConfig()
 
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
-      .register[Person]
-      .build
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.withTypes[(Address, Person)]
 
     val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_new_builder")
+    val collection: MongoCollection[Person] = database.getCollection("people_with_types")
 
-    val person = Person(new ObjectId(), "Oscar", 55, None)
+    val person = Person(new ObjectId(), "Amy", 22, Some(Address("12 Main", "LA", 90001)))
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
     retrieved shouldBe person
+    retrieved.address.map(_.city) shouldBe Some("LA")
 
     database.drop().toFuture().futureValue
   }
@@ -934,6 +911,106 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     retrieved.userId.value shouldBe "safe_user"
     retrieved.email.value shouldBe "safe@example.com"
     retrieved.age.value shouldBe 45
+
+    database.drop().toFuture().futureValue
+  }
+
+  it should "expose state inspection and explicit codecs via withCodec/withCodecs" in {
+    given config: CodecConfig = CodecConfig()
+
+    import org.bson.{BsonReader, BsonWriter, Document}
+    import org.bson.codecs.{Codec as BsonCodec, DecoderContext, EncoderContext}
+
+    // Custom types and explicit codecs (cannot be auto-derived without register)
+    final case class Location(_id: ObjectId, lat: Double, lon: Double)
+    final case class TagDoc(_id: ObjectId, labels: List[String])
+
+    final class LocationCodec extends BsonCodec[Location]:
+      override def getEncoderClass: Class[Location] = classOf[Location]
+      override def encode(writer: BsonWriter, value: Location, encoderContext: EncoderContext): Unit =
+        writer.writeStartDocument()
+        writer.writeName("_id"); org.bson.codecs.ObjectIdCodec().encode(writer, value._id, encoderContext)
+        writer.writeName("lat"); writer.writeDouble(value.lat)
+        writer.writeName("lon"); writer.writeDouble(value.lon)
+        writer.writeEndDocument()
+      override def decode(reader: BsonReader, decoderContext: DecoderContext): Location =
+        reader.readStartDocument()
+        reader.readName("_id"); val id = org.bson.codecs.ObjectIdCodec().decode(reader, decoderContext)
+        reader.readName("lat"); val lat = reader.readDouble()
+        reader.readName("lon"); val lon = reader.readDouble()
+        reader.readEndDocument()
+        Location(id, lat, lon)
+
+    final class TagDocCodec extends BsonCodec[TagDoc]:
+      override def getEncoderClass: Class[TagDoc] = classOf[TagDoc]
+      override def encode(writer: BsonWriter, value: TagDoc, encoderContext: EncoderContext): Unit =
+        writer.writeStartDocument()
+        writer.writeName("_id"); org.bson.codecs.ObjectIdCodec().encode(writer, value._id, encoderContext)
+        writer.writeName("labels")
+        writer.writeStartArray()
+        value.labels.foreach(writer.writeString)
+        writer.writeEndArray()
+        writer.writeEndDocument()
+      override def decode(reader: BsonReader, decoderContext: DecoderContext): TagDoc =
+        reader.readStartDocument()
+        reader.readName("_id"); val id = org.bson.codecs.ObjectIdCodec().decode(reader, decoderContext)
+        reader.readName("labels")
+        val buf = scala.collection.mutable.ListBuffer.empty[String]
+        reader.readStartArray()
+        while reader.readBsonType() != org.bson.BsonType.END_OF_DOCUMENT do
+          buf += reader.readString()
+        reader.readEndArray()
+        reader.readEndDocument()
+        TagDoc(id, buf.toList)
+
+    val base = MongoClient.DEFAULT_CODEC_REGISTRY
+
+    val b0 = base.newBuilder
+    b0.isEmpty shouldBe true
+    b0.codecCount shouldBe 0
+    b0.providerCount shouldBe 0
+    b0.isCached shouldBe false // cache is internal and invalidated on mutations
+
+    val locCodec = new LocationCodec
+    val tagCodec = new TagDocCodec
+
+    val b1 = b0.withCodecs(locCodec, tagCodec)
+    b1.isEmpty shouldBe false
+    b1.codecCount shouldBe 2
+    b1.providerCount shouldBe 0
+
+    val b2 = b1.register[Person]
+    b2.providerCount shouldBe 1
+
+    val b3 = b2
+      .ignoreNone
+      .discriminator("_kind")
+
+    // currentConfig reflects the latest changes
+    b3.currentConfig.noneHandling shouldBe NoneHandling.Ignore
+    b3.currentConfig.discriminatorField shouldBe "_kind"
+
+    // Codec availability checks (forces a registry build under the hood)
+    b3.hasCodecFor[Location] shouldBe true
+    b3.tryGetCodec[Location].isDefined shouldBe true
+    b3.hasCodecFor[TagDoc] shouldBe true
+
+    val sum = b3.summary
+    sum should include ("providers=1")
+    sum should include ("codecs=2")
+    sum should include ("ignore None fields")
+    sum should include ("discriminator='_kind'")
+
+    // End-to-end check using the explicit Location codec
+    val registry = b3.build
+    val database = createDatabaseWithRegistry(registry)
+    val collection: MongoCollection[Location] = database.getCollection("locations_explicit_codec")
+
+    val loc = Location(new ObjectId(), 48.8566, 2.3522)
+    collection.insertOne(loc).toFuture().futureValue
+
+    val retrieved = collection.find(Filters.equal("_id", loc._id)).first().toFuture().futureValue
+    retrieved shouldBe loc
 
     database.drop().toFuture().futureValue
   }

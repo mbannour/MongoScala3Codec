@@ -38,8 +38,6 @@ class CodecTestKitIntegrationSpec extends AnyFlatSpec with ForAllTestContainer w
   "CodecTestKit.roundTrip" should "encode and decode simple case classes correctly" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    given config: CodecConfig = CodecConfig()
-
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .register[SimpleUser]

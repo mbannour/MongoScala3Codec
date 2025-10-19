@@ -2,6 +2,7 @@ package io.github.mbannour.mongo.codecs
 
 import scala.quoted.*
 import scala.reflect.ClassTag
+import scala.annotation.unused
 
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
@@ -109,7 +110,7 @@ object CodecProviderMacro:
   private def createCodecProviderImpl[T: Type](
       classTag: Expr[ClassTag[T]],
       config: Expr[CodecConfig],
-      codecRegistry: Expr[CodecRegistry]
+      @unused codecRegistry: Expr[CodecRegistry]
   )(using Quotes) =
     import quotes.reflect.*
 
@@ -135,7 +136,8 @@ object CodecProviderMacro:
         s"${mainTypeSymbol.name} is an abstract class. Only concrete case classes are supported."
       )
 
-    val codecExpr = '{ generateCodec[T]($config, $codecRegistry)(using $classTag) }
+    // Note: we intentionally use the runtime `registry` passed to `get` for nested lookups,
+    // so multiple providers registered together can resolve each other.
     '{
       new CodecProvider:
         /** Returns a Codec for the given class if it matches the expected type. The unchecked cast is safe because we verify runtimeClass
@@ -143,7 +145,8 @@ object CodecProviderMacro:
           */
         @SuppressWarnings(Array("unchecked"))
         def get[C](clazz: Class[C], registry: CodecRegistry): Codec[C] =
-          if $classTag.runtimeClass.isAssignableFrom(clazz) then $codecExpr.asInstanceOf[Codec[C]]
+          if $classTag.runtimeClass.isAssignableFrom(clazz) then
+            generateCodec[T]($config, registry)(using $classTag).asInstanceOf[Codec[C]]
           else null
     }
   end createCodecProviderImpl

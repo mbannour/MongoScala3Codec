@@ -7,6 +7,9 @@ val scala3Version = "3.7.1"
 ThisBuild / semanticdbEnabled := true
 ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
 
+// Disable pipelined compilation to avoid macro TASTy classpath issues in tests
+ThisBuild / incOptions := (ThisBuild / incOptions).value.withPipelining(false)
+
 ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
   "3.4.2",
@@ -28,6 +31,9 @@ ThisBuild / versionScheme := Some("early-semver")
 
 ThisBuild / publishMavenStyle := true
 ThisBuild / publishTo := sonatypePublishToBundle.value
+
+// Reduce sbt lint noise for keys intentionally set but not used by any task
+Global / excludeLintKeys += publishMavenStyle
 
 lazy val root = project
   .in(file("."))
@@ -82,6 +88,12 @@ lazy val root = project
     // Defensive: strip any fatal flags injected by CI/env in Test
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
 
+    // Silence or demote Scaladoc warnings to avoid noisy false positives like repeated -classpath in Scala 3
+    Compile / doc / scalacOptions ++= Seq(
+      "-nowarn",
+      "-Wconf:any:s"
+    ),
+
     // Use a flat classloader for tests to avoid NoClassDefFoundError with reflection/macros
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
 
@@ -129,11 +141,4 @@ lazy val benchmarks = project
     Test / skip := true,
     fork := true,
     mimaPreviousArtifacts := Set.empty
-  )
-
-lazy val rootProject = project
-  .in(file("."))
-  .aggregate(root, integrationTests, benchmarks)
-  .settings(
-    publish / skip := true
   )

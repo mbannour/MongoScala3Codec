@@ -15,7 +15,7 @@ MongoScala3Codec is a macro-based library for BSON serialization and deserializa
 
 ---
 
-## 🚀 Minimal Example - Get Started in 30 Seconds
+## 🚀 Minimal Example 
 
 Here's everything you need - just copy, paste, and run:
 
