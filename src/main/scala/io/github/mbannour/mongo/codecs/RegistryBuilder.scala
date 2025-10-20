@@ -16,7 +16,7 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   * ===Features===
   *   - **Opaque types** for enhanced type safety without runtime overhead
   *   - **Immutable by design** - all operations return new instances
-  *   - **Lazy registry building** - registries are only built once at the end
+  *   - **Efficient caching** - temporary derivation registry cached across chained operations
   *   - Choose between **encode `None` as `null`** or **ignore `None` fields**
   *   - Add individual codecs with `withCodec` or many at once with `withCodecs`
   *   - Automatically derive codecs for **case classes** with `register[T]`
@@ -40,6 +40,10 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   val builder = baseRegistry.newBuilder
   *     .registerIf[AdminUser](isProduction)
   *     .registerIf[DebugInfo](!isProduction)
+  *
+  *   // Merge builders
+  *   val commonTypes = baseBuilder.register[Address].register[Person]
+  *   val fullBuilder = commonTypes ++ specificTypesBuilder
   * }}}
   *
   * ===Example Usage===
@@ -74,12 +78,32 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *     .registerAll[(Address, Person, Department)]
   *     .build
   * }}}
+  *
+  * ===Performance Notes===
+  *   - The builder maintains a cached temporary registry used for codec derivation
+  *   - Chaining `register[A].register[B]...` is O(N) total, not O(N²)
+  *   - The cache is preserved across register calls and only rebuilt when base/codecs change
+  *   - The final registry is assembled once in `build()` with all accumulated providers
   */
 opaque type RegistryBuilder = RegistryBuilder.State
 
 object RegistryBuilder:
 
-  /** Internal state representation */
+  /** Internal state representation.
+    *
+    * @param base
+    *   The base codec registry (e.g., MongoClient.DEFAULT_CODEC_REGISTRY)
+    * @param config
+    *   Codec configuration (None handling, discriminator, etc.)
+    * @param providers
+    *   Accumulated codec providers from register/registerAll calls
+    * @param codecs
+    *   Explicitly added codecs via withCodec/withCodecs
+    * @param cachedRegistry
+    *   Cached temporary registry used for codec derivation during register calls. This is NOT the final assembled registry - it's a
+    *   "derivation environment" containing base + codecs (but not providers being added). Preserved across register calls for O(N)
+    *   performance.
+    */
   private[codecs] final case class State(
       base: CodecRegistry,
       config: CodecConfig = CodecConfig(),
@@ -95,7 +119,6 @@ object RegistryBuilder:
   def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
     State(base, config)
 
-  // Get a cached registry if present; otherwise build it once and cache it in the returned state
   private def getOrBuildRegistry(state: State): (CodecRegistry, State) =
     state.cachedRegistry match
       case Some(r) => (r, state)
@@ -103,7 +126,6 @@ object RegistryBuilder:
         val r = buildRegistry(state)
         (r, state.copy(cachedRegistry = Some(r)))
 
-  // Build a registry snapshot from the accumulated parts
   private def buildRegistry(state: State): CodecRegistry =
     val parts = Vector.newBuilder[CodecRegistry]
     parts += state.base
@@ -115,17 +137,25 @@ object RegistryBuilder:
     fromRegistries(parts.result()*)
   end buildRegistry
 
-  // Helper for registerAll: accumulate providers for a tuple of types without rebuilding registry
-  private inline def accumulateProviders[T <: Tuple](state: State, tempRegistry: CodecRegistry): State =
+  private inline def accumulateProvidersLoop[T <: Tuple](
+      acc: List[CodecProvider],
+      state: State,
+      tempRegistry: CodecRegistry
+  ): List[CodecProvider] =
     inline erasedValue[T] match
-      case _: EmptyTuple => state
+      case _: EmptyTuple => acc
       case _: (h *: t) =>
         val prov = CodecProviderMacro.createCodecProvider[h](using
           summonInline[ClassTag[h]],
           state.config,
           tempRegistry
         )
-        accumulateProviders[t](state.copy(providers = state.providers :+ prov, cachedRegistry = None), tempRegistry)
+        accumulateProvidersLoop[t](prov :: acc, state, tempRegistry)
+
+  private inline def accumulateProviders[T <: Tuple](state: State, tempRegistry: CodecRegistry): State =
+
+    val added = accumulateProvidersLoop[T](Nil, state, tempRegistry)
+    state.copy(providers = state.providers ++ added.reverse)
 
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
@@ -191,27 +221,23 @@ object RegistryBuilder:
       *
       * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
-      * Performance: O(1) - Uses cached registry from previous operations, no rebuilding until `build()` is called.
-      *
       * @tparam T
       *   The type to register (must be a case class or sealed trait)
       */
     inline def register[T: ClassTag]: RegistryBuilder =
       val (tempRegistry, b1) = getOrBuildRegistry(builder)
       val provider = CodecProviderMacro.createCodecProvider[T](using
-        summon[ClassTag[T]],
+        summonInline[ClassTag[T]],
         b1.config,
         tempRegistry
       )
-      // Invalidate cache since we're adding a new provider
-      b1.copy(providers = b1.providers :+ provider, cachedRegistry = None)
+
+      b1.copy(providers = b1.providers :+ provider)
     end register
 
     /** Batch register multiple types using tuple syntax.
       *
       * This is more efficient than calling `register` multiple times separately as it builds the temporary registry only once.
-      *
-      * Performance: O(1) registry build for N types, compared to O(N) with chained `register` calls.
       *
       * @tparam T
       *   A tuple of types to register
@@ -222,10 +248,8 @@ object RegistryBuilder:
       */
     inline def registerAll[T <: Tuple]: RegistryBuilder =
       val (temp, b0) = getOrBuildRegistry(builder)
-      // Note: b0 now has a cached registry, but we're about to add providers to it
-      // We must invalidate the cache since the providers will be added AFTER the cache was built
-      val result = accumulateProviders[T](b0.copy(cachedRegistry = None), temp)
-      result
+
+      accumulateProviders[T](b0, temp)
 
     /** Conditionally register a type based on a runtime condition.
       *
@@ -249,20 +273,16 @@ object RegistryBuilder:
       *
       * This is when the actual registry is constructed from all registered codecs and providers. Call this method only once at the end of
       * your configuration chain.
-      *
-      * Performance: O(1) if nothing was added since last cache, otherwise O(N) where N = number of providers + codecs.
       */
     def build: CodecRegistry =
-      builder.cachedRegistry match
-        case Some(cached) if builder.providers.isEmpty && builder.codecs.isEmpty =>
-          // If we have a cached registry and nothing was added after caching, reuse it
-          cached
-        case _ =>
-          // Otherwise build fresh
-          val r = buildRegistry(builder)
-          r
+      buildRegistry(builder)
 
-    // ===== Convenience Methods for Common Patterns =====
+    /** Alias for `build`. Constructs the final codec registry.
+      *
+      * @return
+      *   The assembled CodecRegistry
+      */
+    def toRegistry: CodecRegistry = build
 
     /** Register a single type and immediately build the registry.
       *
@@ -292,7 +312,37 @@ object RegistryBuilder:
     inline def withTypes[T <: Tuple]: CodecRegistry =
       registerAll[T].build
 
-    // ===== State Inspection Methods =====
+    /** Merge two builders, combining their providers and codecs.
+      *
+      * Config and base from the left builder are used; only providers and codecs are merged.
+      *
+      * @param other
+      *   The builder to merge with
+      * @return
+      *   A new builder with combined providers and codecs
+      * @example
+      *   {{{
+      *   val common = baseBuilder.register[Address].register[Person]
+      *   val full = common ++ specificBuilder
+      *   }}}
+      */
+    def ++(other: RegistryBuilder): RegistryBuilder =
+      builder.copy(
+        providers = builder.providers ++ other.providers,
+        codecs = builder.codecs ++ other.codecs,
+        cachedRegistry = None // Invalidate cache when merging
+      )
+
+    /** Clear the cached temporary registry.
+      *
+      * Mainly useful for testing or debugging. The cache will be rebuilt on next register call.
+      *
+      * @return
+      *   A new builder with cache cleared
+      */
+    def clearCache: RegistryBuilder =
+      builder.copy(cachedRegistry = None)
+
 
     /** Get the current codec configuration.
       *
@@ -337,7 +387,7 @@ object RegistryBuilder:
 
     /** Attempt to get a codec for a given type from the current registry state.
       *
-      * This builds the registry if needed and attempts to retrieve a codec.
+      * This builds a snapshot registry if needed and attempts to retrieve a codec. Does not cache the result.
       *
       * @tparam T
       *   The type to check
@@ -346,7 +396,7 @@ object RegistryBuilder:
       */
     def tryGetCodec[T: ClassTag]: Option[Codec[T]] =
       val registry = builder.cachedRegistry.getOrElse(buildRegistry(builder))
-      val clazz = summon[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]]
+      val clazz = summonInline[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]]
       Try(registry.get(clazz)).toOption
 
     /** Check if a codec is available for a given type.

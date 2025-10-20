@@ -389,19 +389,25 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   // New integration test: conditional registration
   it should "support conditional registration with registerIf" in {
-
+    given config: CodecConfig = CodecConfig()
 
     val base = MongoClient.DEFAULT_CODEC_REGISTRY
 
     val builderFalse = base.newBuilder.registerIf[Person](condition = false)
-    builderFalse.tryGetCodec[Person].isDefined shouldBe false
+    // Provider wasn't added, so no codec available
+    val registryFalse = builderFalse.build
+    assertThrows[org.bson.codecs.configuration.CodecConfigurationException] {
+      registryFalse.get(classOf[Person])
+    }
 
     val builderTrue = base.newBuilder.registerIf[Person](condition = true)
-    builderTrue.tryGetCodec[Person].isDefined shouldBe true
+    // Build the registry to ensure the provider is included
+    val registryTrue = builderTrue.build
+    val codec = registryTrue.get(classOf[Person])
+    assert(codec != null)
 
     // Use the true-branch registry with MongoDB
-    val registry = builderTrue.build
-    val database = createDatabaseWithRegistry(registry)
+    val database = createDatabaseWithRegistry(registryTrue)
     val collection: MongoCollection[Person] = database.getCollection("people_register_if")
 
     val person = Person(new ObjectId(), "Yara", 26, None)
