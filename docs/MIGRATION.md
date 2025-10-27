@@ -232,7 +232,7 @@ val registry = RegistryBuilder
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.6",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M2",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1" cross CrossVersion.for3Use2_13
 )
 
@@ -398,7 +398,7 @@ val registry = RegistryBuilder
 
 ---
 
-### Issue 4: Sealed Trait Not Recognized
+### Issue 4: Sealed Trait Fields Not Supported
 
 **Problem:**
 ```scala
@@ -406,16 +406,24 @@ sealed trait Animal
 case class Dog(name: String) extends Animal
 case class Cat(name: String) extends Animal
 
-// Only registers Animal, not subtypes
+case class Person(pet: Animal)  // ❌ Polymorphic field - NOT SUPPORTED
 ```
 
-**Solution:** Register the sealed trait (subtypes are automatic):
+**Important:** MongoScala3Codec does NOT support polymorphic sealed trait/class fields. You cannot use a sealed trait as a field type.
+
+**Solution:** Register concrete case class types only:
 ```scala
+// ✅ SUPPORTED - Use concrete types in fields
+case class DogOwner(pet: Dog)
+case class CatOwner(pet: Cat)
+
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Animal]  // Automatically includes Dog and Cat
+  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
   .build
 ```
+
+See [Limitations](FEATURES.md#limitations) for more details.
 
 ---
 

@@ -5,8 +5,8 @@ MongoScala3Codec provides comprehensive BSON codec generation for Scala 3 applic
 ## Table of Contents
 
 - [Automatic Codec Generation](#automatic-codec-generation)
+- [RegistryBuilder Enhancements (New in 0.0.7-M2)](#registrybuilder-enhancements-new-in-007-m2)
 - [Case Classes](#case-classes)
-- [Sealed Traits (ADTs)](#sealed-traits-adts)
 - [Optional Fields](#optional-fields)
 - [Collections](#collections)
 - [Nested Structures](#nested-structures)
@@ -17,6 +17,7 @@ MongoScala3Codec provides comprehensive BSON codec generation for Scala 3 applic
 - [Type-Safe Configuration](#type-safe-configuration)
 - [Type-Safe Field Path Resolution](#type-safe-field-path-resolution)
 - [Testing Utilities](#testing-utilities)
+- [Limitations](#limitations)
 
 ---
 
@@ -41,6 +42,145 @@ val registry = RegistryBuilder
 - ✅ Compile-time type safety
 - ✅ Optimized performance
 - ✅ No boilerplate code
+
+---
+
+## RegistryBuilder Enhancements (New in 0.0.7-M2)
+
+Version 0.0.7-M2 introduces significant enhancements to `RegistryBuilder` with improved performance, convenience methods, and state inspection capabilities.
+
+### Convenience Methods
+
+#### Single Type Registration with `just[T]`
+Register one type and build immediately:
+```scala
+given CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
+  .newBuilder
+  .just[User]
+```
+
+#### Batch Registration with `registerAll`
+More efficient than chaining multiple `register` calls:
+```scala
+val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+  .newBuilder
+  .ignoreNone
+  .registerAll[(User, Address, Order, Product)]
+  .build
+```
+
+**Performance:** `registerAll` builds the temporary registry only once for all types, making it significantly faster than chained `register` calls.
+
+#### Conditional Registration with `registerIf`
+Register types based on runtime conditions:
+```scala
+val registry = baseRegistry.newBuilder
+  .register[CommonType]
+  .registerIf[DebugInfo](isDevelopment)
+  .registerIf[AdminTools](isAdmin)
+  .build
+```
+
+#### Batch and Build with `withTypes`
+Register multiple types and build in one call:
+```scala
+val registry = baseRegistry.newBuilder
+  .ignoreNone
+  .withTypes[(User, Order, Product)]
+```
+
+### Builder Composition
+
+Merge multiple builders using the `++` operator:
+```scala
+val commonTypes = baseRegistry.newBuilder
+  .register[Address]
+  .register[Person]
+
+val specificTypes = baseRegistry.newBuilder
+  .register[Department]
+  .register[Employee]
+
+val registry = (commonTypes ++ specificTypes).build
+```
+
+### State Inspection
+
+Query builder state for debugging and conditional logic:
+
+```scala
+val builder = registry.newBuilder
+  .ignoreNone
+  .register[User]
+  .register[Order]
+
+// Get current configuration
+val config = builder.currentConfig
+println(s"None handling: ${config.noneHandling}")
+
+// Count registered items
+println(s"Providers: ${builder.providerCount}")  // 2
+println(s"Codecs: ${builder.codecCount}")        // 0
+println(s"Is empty: ${builder.isEmpty}")         // false
+
+// Check codec availability
+if builder.hasCodecFor[User] then
+  println("User codec is available")
+
+// Get codec if available
+builder.tryGetCodec[User] match
+  case Some(codec) => println("Found User codec")
+  case None => println("No codec for User")
+
+// Get summary
+println(builder.summary)
+// Output: "RegistryBuilder(providers=2, codecs=0, ignore None fields, cached=true)"
+```
+
+### Performance Optimizations
+
+**Efficient Caching:** The builder maintains a cached temporary registry used for codec derivation:
+- Chaining `register[A].register[B]...` is now O(N) total instead of O(N²)
+- The cache is preserved across register calls
+- Only rebuilt when base/codecs change
+
+**Batch Registration:** `registerAll[(A, B, C)]` is N× faster than chaining individual `register` calls:
+```scala
+// Slower (rebuilds registry N times)
+val registry = builder
+  .register[Type1]
+  .register[Type2]
+  .register[Type3]
+  .build
+
+// Faster (builds registry once)
+val registry = builder
+  .registerAll[(Type1, Type2, Type3)]
+  .build
+```
+
+### Cleaner Configuration API
+
+The configuration API has been simplified:
+
+```scala
+// Old style (still works)
+given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withConfig(summon[CodecConfig])
+  .register[User]
+  .build
+
+// New style (recommended)
+val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+  .newBuilder
+  .ignoreNone  // or .encodeNone
+  .register[User]
+  .build
+```
+
+For more details, see [RegistryBuilder Enhancements Documentation](REGISTRY_BUILDER_ENHANCEMENTS.md).
 
 ---
 
@@ -97,26 +237,6 @@ val product = Product(new ObjectId(), "Laptop", 999.99, true)
 collection.insertOne(product).toFuture()
 ```
 
----
-
-## Sealed Traits (ADTs)
-
-Automatic codec generation for sealed trait hierarchies with discriminator support.
-
-### Basic ADT
-
-```scala
-sealed trait Shape
-case class Circle(_id: ObjectId, radius: Double) extends Shape
-case class Rectangle(_id: ObjectId, width: Double, height: Double) extends Shape
-case class Triangle(_id: ObjectId, base: Double, height: Double) extends Shape
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Shape]  // ← Automatically registers all subtypes
-  .build
-```
-
 **Stored in MongoDB:**
 ```json
 {
@@ -126,42 +246,7 @@ val registry = RegistryBuilder
 }
 ```
 
-### Custom Discriminator Field
-
-```scala
-given CodecConfig = CodecConfig(discriminatorField = "_type")
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
-  .register[Shape]
-  .build
-```
-
-**Stored in MongoDB:**
-```json
-{
-  "_id": ObjectId("..."),
-  "_type": "Circle",
-  "radius": 5.0
-}
-```
-
-### Complex ADT Example
-
-```scala
-sealed trait Event
-case class UserEvent(_id: ObjectId, userId: String, action: String, timestamp: Long) extends Event
-case class SystemEvent(_id: ObjectId, level: String, message: String, timestamp: Long) extends Event
-case class ErrorEvent(_id: ObjectId, error: String, stackTrace: Option[String], timestamp: Long) extends Event
-
-// Query specific event type
-collection
-  .find(Filters.eq("_t", "UserEvent"))
-  .toFuture()
-```
-
----
+**Note:** As of version 0.0.7-M2, discriminator field customization has been simplified. The library uses a standard discriminator approach for sealed trait hierarchies.
 
 ## Optional Fields
 
@@ -170,13 +255,11 @@ Handle `Option[T]` with two strategies: encode as `null` or omit from document.
 ### Omit None Values (Recommended)
 
 ```scala
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-
 case class User(_id: ObjectId, name: String, email: Option[String])
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
+  .ignoreNone  // Cleaner API in 0.0.7-M2+
   .register[User]
   .build
 
@@ -187,11 +270,9 @@ val user = User(new ObjectId(), "Alice", None)
 ### Encode None as null
 
 ```scala
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
-
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
+  .encodeNone  // Cleaner API in 0.0.7-M2+
   .register[User]
   .build
 
@@ -560,6 +641,80 @@ assert(bsonDoc.getString("name").getValue == "Alice")
 val roundTripped = CodecTestKit.roundTrip(user)
 assert(roundTripped == user)
 ```
+
+---
+
+## Limitations
+
+### Sealed Traits and Polymorphism
+
+⚠️ **Polymorphic sealed trait/class fields are NOT supported**
+
+You cannot use a sealed trait or sealed abstract class as a field type. The library supports registering concrete case classes that extend sealed traits, but the fields must be typed as the concrete implementation.
+
+**❌ NOT SUPPORTED:**
+```scala
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case class Cat(name: String) extends Animal
+
+case class Person(pet: Animal)  // ❌ Polymorphic field - NOT SUPPORTED
+```
+
+**✅ SUPPORTED:**
+```scala
+sealed trait Animal
+case class Dog(name: String) extends Animal
+case class Cat(name: String) extends Animal
+
+case class DogOwner(pet: Dog)  // ✅ Concrete type - SUPPORTED
+case class CatOwner(pet: Cat)  // ✅ Concrete type - SUPPORTED
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
+  .build
+```
+
+### Collections of Sealed Traits
+
+⚠️ **Collections containing sealed trait types are NOT supported**
+
+```scala
+// ❌ NOT SUPPORTED
+case class Zoo(animals: List[Animal])  // List of sealed trait
+
+// ✅ SUPPORTED
+case class DogPark(dogs: List[Dog])  // List of concrete type
+```
+
+### Case Objects in Sealed Hierarchies
+
+⚠️ **Case objects as sealed trait members are not fully supported**
+
+Prefer parameterless case classes instead:
+
+```scala
+// ⚠️ Limited support
+sealed trait Status
+case object Active extends Status
+case object Inactive extends Status
+
+// ✅ Recommended
+sealed trait Status
+case class Active() extends Status
+case class Inactive() extends Status
+```
+
+### Summary
+
+The library is designed for **concrete case class codecs**, not polymorphic type resolution. This design choice:
+- ✅ Provides compile-time type safety
+- ✅ Eliminates runtime reflection overhead
+- ✅ Generates optimal code
+- ❌ Requires explicit typing of fields
+
+For more details, see [FAQ & Troubleshooting](FAQ.md).
 
 ---
 

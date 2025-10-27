@@ -159,25 +159,24 @@ case class User(status: Status)
 
 **Cause:** Enums with parameters are not supported for automatic codec generation.
 
-**Solution:** Use sealed traits instead:
+**Solution:** For simple cases, use sealed traits with concrete case class fields:
 ```scala
-sealed trait Status:
-  def code: Int
+sealed trait Status
+case class Active(code: Int) extends Status
+case class Inactive(code: Int) extends Status
 
-case object Active extends Status:
-  val code = 1
-
-case object Inactive extends Status:
-  val code = 0
-
-case class User(status: Status)
+// Register each concrete case class
+case class User(status: Active)  // Use concrete type, not sealed trait
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Status]
+  .register[Active]
+  .register[Inactive]
   .register[User]
   .build
 ```
+
+**Important:** Polymorphic sealed trait fields (e.g., `status: Status`) are **NOT supported**. Always use the concrete case class type in your fields.
 
 For simple enums (no parameters), use `EnumValueCodecProvider`:
 ```scala
@@ -356,39 +355,57 @@ case class Circle(radius: Double) extends Shape
 // Throws exception when decoding
 ```
 
-**Cause:** Document has wrong or missing discriminator field.
+**Cause:** Attempting to use polymorphic sealed trait fields, which are not supported.
 
-**Solution:** Ensure documents have the correct discriminator:
+**Solution:** Use concrete case class types in your fields:
 ```scala
-// Check discriminator field name matches config
-given CodecConfig = CodecConfig(discriminatorField = "_t")
+sealed trait Shape
+case class Circle(radius: Double) extends Shape
+case class Rectangle(width: Double, height: Double) extends Shape
 
-// Verify documents in MongoDB have correct _t value
-// Should be: {"_t": "Circle", "radius": 5.0}
+// ❌ NOT SUPPORTED
+// case class Drawing(shape: Shape)  // Polymorphic field
+
+// ✅ SUPPORTED - Use concrete types
+case class CircleDrawing(shape: Circle)
+case class RectangleDrawing(shape: Rectangle)
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .register[Circle]
+  .register[Rectangle]
+  .register[CircleDrawing]
+  .register[RectangleDrawing]
+  .build
 ```
 
 ---
 
 ## Configuration Questions
 
-### Q: How do I change the discriminator field name?
+### Q: Can I use sealed trait hierarchies?
 
-**A:**
+**A:** You can register concrete case classes that extend sealed traits, but you cannot use the sealed trait type itself as a field type.
+
 ```scala
-given CodecConfig = CodecConfig(discriminatorField = "_type")
+sealed trait Animal
+case class Dog(name: String, breed: String) extends Animal
+case class Cat(name: String, indoor: Boolean) extends Animal
+
+// ❌ NOT SUPPORTED - Polymorphic field
+// case class Person(pet: Animal)
+
+// ✅ SUPPORTED - Concrete type fields
+case class DogOwner(pet: Dog)
+case class CatOwner(pet: Cat)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
-  .register[MyTrait]
+  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
   .build
-
-// Now uses "_type" instead of "_t"
 ```
 
-### Q: Can I omit the discriminator field entirely?
-
-**A:** No. Sealed traits require a discriminator field to identify the concrete type during deserialization. This is a MongoDB best practice for polymorphic types.
+**Note:** As of version 0.0.7-M2, discriminator field customization has been simplified and is managed internally by the library.
 
 ### Q: How do I configure different settings for different types?
 

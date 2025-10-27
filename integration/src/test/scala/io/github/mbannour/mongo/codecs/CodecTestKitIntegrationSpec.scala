@@ -59,10 +59,7 @@ class CodecTestKitIntegrationSpec extends AnyFlatSpec with ForAllTestContainer w
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .register[SimpleUser]
-      .register[Product]
-      .register[Order]
-      .register[Profile]
+      .registerAll[(SimpleUser,Product, Order,Profile)]
       .build
 
     given userCodec: Codec[SimpleUser] = registry.get(classOf[SimpleUser])

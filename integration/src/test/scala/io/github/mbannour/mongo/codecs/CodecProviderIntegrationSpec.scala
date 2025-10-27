@@ -42,16 +42,9 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
   "CaseClassCodecGenerator" should "handle nested case classes and optional fields with custom codecs" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    given employeeIdCodec: Codec[EmployeeId] with
-      def getEncoderClass = classOf[EmployeeId]
-
-      def encode(w: BsonWriter, v: EmployeeId, ec: EncoderContext): Unit = w.writeObjectId(v.value)
-
-      def decode(r: BsonReader, dc: DecoderContext): EmployeeId = EmployeeId(r.readObjectId())
-
     val registry =
       MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.encodeNone
-        .withCodec(employeeIdCodec)
+        .withCodec(EmployeeId.employeeIdBsonCodec)
         .register[Address]
         .register[Person]
         .build

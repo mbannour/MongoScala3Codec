@@ -35,7 +35,6 @@ Complete reference for BSON type support in MongoScala3Codec.
 | `Either[L, R]` | Document | ✅ Full | Tagged union with discriminator |
 | `scala.util.Try[T]` | Document | ✅ Full | Success/Failure discriminated |
 | Case Classes | Document | ✅ Full | Nested documents |
-| Sealed Traits | Document | ✅ Full | With type discriminator |
 | Enums (simple) | String/Int | ✅ Full | Via EnumValueCodecProvider |
 | Opaque Types | Underlying Type | ✅ Full | Zero-cost abstraction |
 
@@ -584,8 +583,6 @@ case object Inactive extends Status { val code = 0 }
 | Collection decode | O(n) | Linear in collection size |
 | Nested document encode | O(fields) | Linear in field count |
 | Nested document decode | O(fields) | Linear in field count |
-| Sealed trait encode | O(1) | Pattern match |
-| Sealed trait decode | O(1) | Discriminator lookup |
 
 **Memory Overhead:** Minimal - only allocations are for the decoded objects themselves.
 

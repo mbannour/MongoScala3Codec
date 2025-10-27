@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs.models
 
-import org.bson.codecs.{DecoderContext, EncoderContext, IntegerCodec, ObjectIdCodec, StringCodec, Codec as BSONCodec}
+import org.bson.codecs.{DecoderContext, EncoderContext, ObjectIdCodec, Codec as BSONCodec}
 import org.bson.types.ObjectId
 import org.bson.{BsonReader, BsonWriter}
 
@@ -21,15 +21,14 @@ import scala.reflect.ClassTag
   * @return
   *   A BSONCodec for `T`
   */
-def typedWrapperBSONCodec[T: ClassTag, V](fromV: V => T, toV: T => V, codecV: BSONCodec[V]): BSONCodec[T] =
+def typedWrapperBSONCodecOpaque[T, V](fromV: V => T, toV: T => V, codecV: BSONCodec[V]): BSONCodec[T] =
   new BSONCodec[T]:
-    override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit =
-      codecV.encode(writer, toV(value), encoderContext)
-
-    override def decode(reader: BsonReader, decoderContext: DecoderContext): T =
-      fromV(codecV.decode(reader, decoderContext))
+    override def encode(w: BsonWriter, value: T, ec: EncoderContext): Unit =
+      codecV.encode(w, toV(value), ec)
+    override def decode(r: BsonReader, dc: DecoderContext): T =
+      fromV(codecV.decode(r, dc))
     override def getEncoderClass: Class[T] =
-      summon[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]]
+      codecV.getEncoderClass.asInstanceOf[Class[T]]
 
 /** Creates a new BSON codec for a wrapper type `T` that wraps an `ObjectId`.
   *
@@ -44,4 +43,4 @@ def typedWrapperBSONCodec[T: ClassTag, V](fromV: V => T, toV: T => V, codecV: BS
   */
 def typedObjectIdBSONCodec[T: ClassTag](fromObjectId: ObjectId => T, toObjectId: T => ObjectId): BSONCodec[T] =
   // Here we use the provided ObjectIdCodec from the MongoDB driver.
-  typedWrapperBSONCodec[T, ObjectId](fromObjectId, toObjectId, new ObjectIdCodec())
+  typedWrapperBSONCodecOpaque[T, ObjectId](fromObjectId, toObjectId, new ObjectIdCodec())

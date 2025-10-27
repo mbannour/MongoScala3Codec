@@ -13,8 +13,8 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.6"
-libraryDependencies += "org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1" cross CrossVersion.for3Use2_13
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M2"
+libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
 ```
 
 ## Step 2: Define Your Domain Models (1 minute)
@@ -40,34 +40,28 @@ case class Customer(
   tags: List[String]
 )
 
-// ADT (Algebraic Data Type) with sealed trait
-sealed trait Notification
-case class EmailNotification(_id: ObjectId, recipient: String, subject: String) extends Notification
-case class SMSNotification(_id: ObjectId, phoneNumber: String, message: String) extends Notification
-case class PushNotification(_id: ObjectId, deviceId: String, title: String, body: String) extends Notification
 ```
 
 ## Step 3: Register Codecs (1 minute)
 
 ```scala
-import io.github.mbannour.mongo.codecs.{RegistryBuilder, CodecConfig, NoneHandling}
+import io.github.mbannour.mongo.codecs.RegistryBuilder
 import org.mongodb.scala.MongoClient
 import org.bson.codecs.configuration.CodecRegistry
 
-// Create codec configuration
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-
 // Build codec registry - registers codecs for all your types
+// Using the new convenience methods for cleaner, more efficient registration
 val codecRegistry: CodecRegistry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[User]              // Simple case class
-  .register[Address]           // Nested case class
-  .register[Customer]          // Case class with nested types
-  .register[Notification]      // Sealed trait (ADT)
+  .ignoreNone                  // Omit None fields from BSON (vs encoding as null)
+  .registerAll[(User, Address, Customer)]  // Batch register multiple types (faster!)
   .build
 
 given CodecRegistry = codecRegistry
 ```
+
+**New in 0.0.7-M2:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
+
 
 ## Step 4: Connect to MongoDB (30 seconds)
 
@@ -80,7 +74,6 @@ val database = mongoClient.getDatabase("myapp").withCodecRegistry(codecRegistry)
 // Type-safe collections!
 val userCollection: MongoCollection[User] = database.getCollection[User]("users")
 val customerCollection: MongoCollection[Customer] = database.getCollection[Customer]("customers")
-val notificationCollection: MongoCollection[Notification] = database.getCollection[Notification]("notifications")
 ```
 
 ## Step 5: Insert and Query Data (2 minutes)
@@ -129,24 +122,6 @@ val springfieldCustomers = Await.result(
 )
 println(s"Customers in Springfield: ${springfieldCustomers.size}")
 
-// INSERT: ADT (sealed trait) - automatic discriminator handling
-val notifications = Seq(
-  EmailNotification(new ObjectId(), "user@example.com", "Welcome!"),
-  SMSNotification(new ObjectId(), "+1234567890", "Your code: 1234"),
-  PushNotification(new ObjectId(), "device-abc", "New Message", "You have 3 new messages")
-)
-
-Await.result(
-  notificationCollection.insertMany(notifications).toFuture(),
-  10.seconds
-)
-
-// QUERY: Find all email notifications (polymorphic query)
-val emailNotifications = Await.result(
-  notificationCollection.find(Filters.eq("_t", "EmailNotification")).toFuture(),
-  10.seconds
-)
-println(s"Email notifications: ${emailNotifications.size}")
 ```
 
 ## Complete Working Example

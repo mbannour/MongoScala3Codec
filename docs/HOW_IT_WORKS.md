@@ -157,67 +157,72 @@ stringCodec.encode(writer, user.name, context)
 
 ## Sealed Trait Handling
 
+⚠️ **IMPORTANT LIMITATION:** MongoScala3Codec supports registering concrete case classes that extend sealed traits, but **does NOT support polymorphic sealed trait fields**. You cannot use `shape: Shape` as a field type. This section explains the internal mechanism for codec generation of concrete types.
+
 ### Type Discrimination Strategy
 
-For sealed traits, MongoScala3Codec uses a discriminator field to identify subtypes.
+MongoScala3Codec generates codecs for individual concrete case classes that extend sealed traits.
 
 ```scala
 sealed trait Shape
 case class Circle(radius: Double) extends Shape
 case class Square(side: Double) extends Shape
 
-// At compile-time:
-// 1. Detect sealed trait
-// 2. Find all direct subtypes
-// 3. Generate discriminated codec
+// ✅ SUPPORTED: Register concrete types
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .register[Circle]
+  .register[Square]
+  .build
+
+// ❌ NOT SUPPORTED: Polymorphic field
+// case class Drawing(shape: Shape)  // This will NOT work
+
+// ✅ SUPPORTED: Concrete type field
+case class CircleDrawing(shape: Circle)  // This works
 ```
 
-### Generated Encoder for Sealed Traits
+### Generated Encoder for Concrete Types
 
 ```scala
-// Conceptual generated code
-def encode(writer: BsonWriter, shape: Shape, context: EncoderContext): Unit =
+// Conceptual generated code for Circle
+def encodeCircle(writer: BsonWriter, circle: Circle, context: EncoderContext): Unit =
   writer.writeStartDocument()
-  
-  shape match
-    case circle: Circle =>
-      writer.writeString("_t", "Circle")
-      writer.writeName("radius")
-      doubleCodec.encode(writer, circle.radius, context)
-    
-    case square: Square =>
-      writer.writeString("_t", "Square")
-      writer.writeName("side")
-      doubleCodec.encode(writer, square.side, context)
-  
+  writer.writeName("radius")
+  doubleCodec.encode(writer, circle.radius, context)
+  writer.writeEndDocument()
+
+// Conceptual generated code for Square
+def encodeSquare(writer: BsonWriter, square: Square, context: EncoderContext): Unit =
+  writer.writeStartDocument()
+  writer.writeName("side")
+  doubleCodec.encode(writer, square.side, context)
   writer.writeEndDocument()
 ```
 
-### Generated Decoder for Sealed Traits
+**Note:** Each concrete case class gets its own codec. There is no polymorphic codec for the sealed trait itself.
+
+### Generated Decoder for Concrete Types
 
 ```scala
-// Conceptual generated code
-def decode(reader: BsonReader, context: DecoderContext): Shape =
+// Conceptual generated code for Circle
+def decodeCircle(reader: BsonReader, context: DecoderContext): Circle =
   reader.readStartDocument()
-  
-  var discriminator: String = null
-  var shape: Shape = null
-  
-  // First pass: find discriminator
+  var radius: Double = 0.0
+
   while reader.readBsonType() != BsonType.END_OF_DOCUMENT do
     val fieldName = reader.readName()
-    if fieldName == "_t" then
-      discriminator = reader.readString()
-      // Reset reader and decode specific type
-      discriminator match
-        case "Circle" => shape = decodeCircle(reader, context)
-        case "Square" => shape = decodeSquare(reader, context)
-    else
-      reader.skipValue()
-  
+    fieldName match
+      case "radius" => radius = reader.readDouble()
+      case _ => reader.skipValue()
+
   reader.readEndDocument()
-  shape
+  Circle(radius)
+
+// Each concrete type has its own independent decoder
 ```
+
+**Note:** Each concrete case class decodes directly. There is no polymorphic decoder that dispatches based on a discriminator field, since polymorphic fields are not supported.
 
 ---
 

@@ -209,6 +209,21 @@ object RegistryBuilder:
     def withCodec[A](codec: Codec[A]): RegistryBuilder =
       builder.copy(codecs = builder.codecs :+ codec, cachedRegistry = None)
 
+    /** Add a single codec provider.
+      *
+      * @param provider
+      */
+    def withProvider(provider: CodecProvider): RegistryBuilder =
+      builder.copy(providers = builder.providers :+ provider, cachedRegistry = None)
+
+    /** Add multiple codec providers at once.
+      *
+      * @param providers
+      *   Variable number of codec providers to add
+      */
+    def withProviders(providers: CodecProvider*): RegistryBuilder =
+      builder.copy(providers = builder.providers ++ providers, cachedRegistry = None)
+
     /** Add multiple codecs at once.
       *
       * @param codecs
@@ -342,7 +357,6 @@ object RegistryBuilder:
       */
     def clearCache: RegistryBuilder =
       builder.copy(cachedRegistry = None)
-
 
     /** Get the current codec configuration.
       *

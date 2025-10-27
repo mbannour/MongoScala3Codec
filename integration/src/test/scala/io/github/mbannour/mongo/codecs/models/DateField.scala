@@ -5,9 +5,14 @@ import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
-case class DateField(time: ZonedDateTime) extends AnyVal
+opaque type DateField = ZonedDateTime
 
 object DateField:
+  def apply(time: ZonedDateTime): DateField = time
+
+  extension (df: DateField)
+    def time: ZonedDateTime = df
+
   given dateFieldCodec: Codec[DateField] with
     override def encode(writer: BsonWriter, value: DateField, encoderContext: EncoderContext): Unit =
       writer.writeDateTime(value.time.toInstant.toEpochMilli)
@@ -16,6 +21,6 @@ object DateField:
       val epochMilli = reader.readDateTime()
       DateField(ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.systemDefault()))
 
-    override def getEncoderClass: Class[DateField] = classOf[DateField]
+    override def getEncoderClass: Class[DateField] = classOf[ZonedDateTime].asInstanceOf[Class[DateField]]
   end dateFieldCodec
 end DateField
