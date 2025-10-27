@@ -3,7 +3,6 @@ package io.github.mbannour.mongo.codecs
 import scala.compiletime.*
 import scala.reflect.ClassTag
 import scala.util.Try
-
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
@@ -237,16 +236,11 @@ object RegistryBuilder:
       * Relies on Scala 3 inline macros to auto-generate the BSON codec. Works for nested case classes and sealed hierarchies.
       *
       * @tparam T
-      *   The type to register (must be a case class or sealed trait)
+      *   The type to register (must be a case class)
       */
-    inline def register[T: ClassTag]: RegistryBuilder =
+    inline def register[T](using ct: ClassTag[T]): RegistryBuilder =
       val (tempRegistry, b1) = getOrBuildRegistry(builder)
-      val provider = CodecProviderMacro.createCodecProvider[T](using
-        summonInline[ClassTag[T]],
-        b1.config,
-        tempRegistry
-      )
-
+      val provider = CodecProviderMacro.createCodecProvider[T](using ct, b1.config, tempRegistry)
       b1.copy(providers = b1.providers :+ provider)
     end register
 
