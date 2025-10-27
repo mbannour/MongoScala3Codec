@@ -1,14 +1,16 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
-import org.bson.codecs.{Codec, DecoderContext, Encoder, EncoderContext}
-import io.github.mbannour.bson.macros.*
-import org.bson.{BsonInvalidOperationException, BsonReader, BsonReaderMark, BsonType, BsonWriter}
-
 import java.util.UUID
+
 import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag
+
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+import org.bson.codecs.{Codec, DecoderContext, Encoder, EncoderContext}
+import org.bson.{BsonInvalidOperationException, BsonReader, BsonType, BsonWriter}
+
+import io.github.mbannour.bson.macros.*
 
 /** Macro-based codec generator for BSON serialization/deserialization of case classes, supporting nested and sealed hierarchies.
   */
@@ -68,13 +70,9 @@ object CaseClassCodecGenerator:
           */
         private val encoderClass: Class[T] = $classTag.runtimeClass.asInstanceOf[Class[T]]
 
-        /** Configuration for codec behavior (None handling, discriminator field, etc.)
+        /** Configuration for codec behavior (None handling, etc.)
           */
         private val codecConfig: CodecConfig = $config
-
-        /** Discriminator field used for sealed hierarchies to distinguish subtypes.
-          */
-        private val discriminatorField: String = codecConfig.discriminatorField
 
         // Maps from discriminator values to classes and vice versa.
         private val caseClassesMap: Map[String, Class[?]] = CaseClassMapper.caseClassMap[T]
@@ -87,9 +85,6 @@ object CaseClassCodecGenerator:
           $baseRegistry,
           CodecRegistries.fromCodecs(this)
         )
-
-        // Indicates if a discriminator is required (when more than one case class is present)
-        private lazy val hasDiscriminator: Boolean = caseClassesMap.size > 1
 
         private def getInstance(fieldsData: Map[String, Any]): T =
           CaseClassFactory.getInstance[T](fieldsData)
@@ -125,15 +120,13 @@ object CaseClassCodecGenerator:
         end writeValue
 
         override def decode(reader: BsonReader, decoderContext: DecoderContext): T =
-          val discriminator = extractDiscriminator(reader, decoderContext)
+          val discriminator = caseClassesMap.head._1
           val fieldTypeArgs: Map[String, List[Class[?]]] = fieldTypeArgsMapByClass.getOrElse(discriminator, Map.empty)
           val fieldsData = mutable.Map.empty[String, Any]
           reader.readStartDocument()
           while reader.readBsonType != BsonType.END_OF_DOCUMENT do
             val name = reader.readName
-            val typeArgs =
-              if name == discriminatorField then List(classOf[String])
-              else fieldTypeArgs.getOrElse(name, List.empty)
+            val typeArgs = fieldTypeArgs.getOrElse(name, List.empty)
             if typeArgs.isEmpty then reader.skipValue()
             else
               val value = readValue(reader, decoderContext, typeArgs.head, typeArgs.tail, fieldTypeArgs)
@@ -183,22 +176,22 @@ object CaseClassCodecGenerator:
               // Note: MongoDB stores Float as BSON Double (64-bit)
               // Converting back to Float may result in precision loss or overflow
               val doubleValue = reader.readDouble()
-              if doubleValue.isNaN || doubleValue.isInfinite then
-                doubleValue.toFloat.asInstanceOf[V]
+              if doubleValue.isNaN || doubleValue.isInfinite then doubleValue.toFloat.asInstanceOf[V]
               else if doubleValue > Float.MaxValue then
                 throw new BsonInvalidOperationException(
                   s"Double value $doubleValue exceeds Float.MaxValue (${Float.MaxValue}). " +
-                  s"Cannot safely convert to Float without overflow."
+                    s"Cannot safely convert to Float without overflow."
                 )
               else if doubleValue < Float.MinValue then
                 throw new BsonInvalidOperationException(
                   s"Double value $doubleValue is below Float.MinValue (${Float.MinValue}). " +
-                  s"Cannot safely convert to Float without overflow."
+                    s"Cannot safely convert to Float without overflow."
                 )
               else
                 // Safe conversion within Float range
                 // Note: Precision loss may still occur for values requiring more than 24 bits of mantissa
                 doubleValue.toFloat.asInstanceOf[V]
+              end if
             case BsonType.INT32 if clazz == classOf[Byte] || clazz == classOf[java.lang.Byte] =>
               reader.readInt32().toByte.asInstanceOf[V]
             case BsonType.INT32 if clazz == classOf[Short] || clazz == classOf[java.lang.Short] =>
@@ -262,34 +255,6 @@ object CaseClassCodecGenerator:
             end while
             reader.readEndDocument()
             docFields.toMap.asInstanceOf[V]
-
-        /** Extracts the discriminator (type identifier) from the BSON document. */
-        private def extractDiscriminator(reader: BsonReader, decoderContext: DecoderContext): String =
-          if hasDiscriminator then
-            @scala.annotation.tailrec
-            def readOptionalDiscriminator(): Option[String] =
-              val currentType = reader.readBsonType
-              if currentType == BsonType.END_OF_DOCUMENT then None
-              else
-                val name = reader.readName
-                if name == discriminatorField then Some(registry.get(classOf[String]).decode(reader, decoderContext))
-                else
-                  reader.skipValue()
-                  readOptionalDiscriminator()
-            end readOptionalDiscriminator
-            val mark: BsonReaderMark = reader.getMark()
-            reader.readStartDocument()
-            val maybeDiscriminator = readOptionalDiscriminator()
-            mark.reset()
-            maybeDiscriminator.getOrElse {
-              throw new BsonInvalidOperationException(
-                s"Missing discriminator field '$discriminatorField' for sealed case class hierarchy. " +
-                  s"Ensure the document contains the discriminator field."
-              )
-            }
-          else
-            // For non-sealed hierarchies, return the first available discriminator.
-            caseClassesMap.head._1
 
         override def getEncoderClass: Class[T] = encoderClass
     }

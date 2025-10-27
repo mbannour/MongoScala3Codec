@@ -1,11 +1,12 @@
 package io.github.mbannour.bson.macros
 
+import scala.annotation.unused
+import scala.quoted.*
+import scala.reflect.ClassTag
+
 import org.bson.BsonWriter
 import org.bson.codecs.EncoderContext
 import org.bson.codecs.configuration.CodecRegistry
-
-import scala.quoted.*
-import scala.reflect.ClassTag
 
 object CaseClassBsonWriter:
 
@@ -20,7 +21,7 @@ object CaseClassBsonWriter:
     ${ writeCaseClassDataImpl[T]('className, 'writer, 'value, 'encoderContext, 'encodeNone, 'registry) }
 
   private[mbannour] def writeCaseClassDataImpl[T: Type](
-      className: Expr[String],
+      @unused className: Expr[String],
       writer: Expr[BsonWriter],
       value: Expr[T],
       encoderContext: Expr[EncoderContext],
@@ -126,11 +127,11 @@ object CaseClassBsonWriter:
   end writeCaseClassDataImpl
 
   def writeOptionField[T: Type](
-      fieldType: Type[T],
+      @unused fieldType: Type[T],
       value: Expr[Any],
       writer: Expr[BsonWriter],
       encoderContext: Expr[EncoderContext],
-      encodeNone: Expr[Boolean],
+      @unused encodeNone: Expr[Boolean],
       registry: Expr[CodecRegistry]
   )(using
       Quotes

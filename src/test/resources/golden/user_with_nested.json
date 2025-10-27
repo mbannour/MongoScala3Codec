@@ -1,0 +1,2 @@
+{ "_id": { "$oid": "507f1f77bcf86cd799439013" }, "name": "Diana", "address": { "_id": { "$oid": "507f1f77bcf86cd799439012" }, "street": "123 Main St", "city": "Springfield", "zipCode": 12345 } }
+

@@ -1,8 +1,8 @@
 package io.github.mbannour.mongo.codecs
 
-import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
-import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistry
+import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
+import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
 
 /** Testing utilities for BSON codecs.
   *
@@ -61,7 +61,7 @@ object CodecTestKit:
     *   The value to test
     * @param codec
     *   The codec to test
-    * @throws AssertionError
+    * @throws java.lang.AssertionError
     *   if the round-trip does not preserve the value
     */
   def assertCodecSymmetry[T](value: T)(using codec: Codec[T]): Unit =
@@ -79,7 +79,7 @@ object CodecTestKit:
     *   The expected BSON document structure
     * @param codec
     *   The codec to use
-    * @throws AssertionError
+    * @throws java.lang.AssertionError
     *   if the encoded value doesn't match expectations
     */
   def assertBsonStructure[T](value: T, expectedBson: BsonDocument)(using codec: Codec[T]): Unit =

@@ -14,12 +14,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Seconds, Span}
 import RegistryBuilder.{*, given}
 
-class CodecTestKitIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class CodecTestKitIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -43,8 +38,6 @@ class CodecTestKitIntegrationSpec
   "CodecTestKit.roundTrip" should "encode and decode simple case classes correctly" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    given config: CodecConfig = CodecConfig()
-
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .register[SimpleUser]
@@ -66,10 +59,7 @@ class CodecTestKitIntegrationSpec
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .register[SimpleUser]
-      .register[Product]
-      .register[Order]
-      .register[Profile]
+      .registerAll[(SimpleUser,Product, Order,Profile)]
       .build
 
     given userCodec: Codec[SimpleUser] = registry.get(classOf[SimpleUser])
@@ -206,10 +196,10 @@ class CodecTestKitIntegrationSpec
 
     bsonWithEmail.containsKey("email") shouldBe true
     bsonWithEmail.getString("email").getValue shouldBe "helen@example.com"
-    
+
     val roundTripped = CodecTestKit.roundTrip(userWithoutEmail)
     roundTripped shouldBe userWithoutEmail
-    
+
     CodecTestKit.assertCodecSymmetry(userWithEmail)
   }
 
@@ -361,4 +351,4 @@ class CodecTestKitIntegrationSpec
     companyBson.getString("name").getValue shouldBe "TechCorp"
     companyBson.getArray("employees").size() shouldBe 2
   }
-
+end CodecTestKitIntegrationSpec

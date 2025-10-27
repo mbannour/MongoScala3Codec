@@ -1,9 +1,9 @@
 package io.github.mbannour.bson.macros
 
-import io.github.mbannour.bson.macros.AnnotationName.findAnnotationValue
-
 import scala.quoted.*
 import scala.reflect.ClassTag
+
+import io.github.mbannour.bson.macros.AnnotationName.findAnnotationValue
 
 /** Provides macros for mapping a discriminator (simple class name) to the runtime Class of a case class. This is especially useful for
   * sealed hierarchies where a custom annotation may override the default name.

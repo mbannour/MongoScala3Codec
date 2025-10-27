@@ -1,4 +1,3 @@
-
 # steward:off
 name: Test Scala Library
 
@@ -12,30 +11,32 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    name: Test (Scala ${{ matrix.scala-version }}, JDK ${{ matrix.java-version }})
 
     strategy:
       matrix:
-        scala-version: ["3.4.0", "3.4.1", "3.4.2", "3.5.0", "3.5.1", "3.5.2", "3.6.3", "3.6.4", "3.7.1"]
+        scala-version: ["3.3.1", "3.4.2", "3.7.1"]
+        java-version: ["17"]
+      fail-fast: false
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: ${{ matrix.java-version }}
 
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
 
       - name: Verify sbt installation
-        run: |
-          sbt sbtVersion
+        run: sbt sbtVersion
 
       - name: Cache sbt and dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.ivy2/cache
@@ -45,17 +46,91 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sbt-
 
-      - name: Run sbt tests
-        run: |
-          sbt ++${{ matrix.scala-version }} test
+      - name: Check code formatting
+        run: sbt ++${{ matrix.scala-version }} scalafmtCheckAll
+
+      - name: Run unit tests
+        run: sbt ++${{ matrix.scala-version }} test
+        env:
+          CI: true
 
       - name: Run integration tests
-        run: |
-          sbt ++${{ matrix.scala-version }} integrationTests/test
+        run: sbt ++${{ matrix.scala-version }} integrationTests/test
+        env:
+          CI: true
+
+      - name: JMH smoke compile (benchmarks)
+        run: sbt ++${{ matrix.scala-version }} "benchmarks / Jmh / compile"
 
       - name: Clear cache (avoid caching sensitive files)
         run: |
           rm -rf ~/.ivy2/cache
           rm -rf ~/.sbt/boot
           rm -rf ~/.coursier
+
+  coverage:
+    runs-on: ubuntu-latest
+    name: Code Coverage
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Cache sbt and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.coursier
+          key: ${{ runner.os }}-sbt-coverage-${{ hashFiles('**/build.sbt') }}
+          restore-keys: |
+            ${{ runner.os }}-sbt-
+
+      - name: Run tests with coverage
+        run: sbt clean coverage test coverageReport
+        env:
+          CI: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./target/scala-3.7.1/scoverage-report/scoverage.xml
+          fail_ci_if_error: false
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(grep -oP 'statement-rate="\K[^"]+' target/scala-3.7.1/scoverage-report/scoverage.xml | head -1)
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+            echo "❌ Coverage $COVERAGE% is below 60% threshold"
+            exit 1
+          else
+            echo "✅ Coverage $COVERAGE% meets the 60% threshold"
+          fi
+
+  all-tests-passed:
+    runs-on: ubuntu-latest
+    name: All Tests Passed
+    needs: [test, coverage]
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.coverage.result }}" == "success" ]]; then
+            echo "✅ All tests passed!"
+          else
+            echo "❌ Some tests failed"
+            exit 1
+          fi
 # scala-steward:on

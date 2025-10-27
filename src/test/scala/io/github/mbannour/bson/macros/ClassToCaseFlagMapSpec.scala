@@ -1,11 +1,11 @@
 package io.github.mbannour.bson.macros
 
+import scala.reflect.ClassTag
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import scala.reflect.ClassTag
-
-class ClassToCaseFlagMapSpec extends AnyFlatSpec with Matchers {
+class ClassToCaseFlagMapSpec extends AnyFlatSpec with Matchers:
 
   case class Car(brand: String, model: String, engine: Engine)
 
@@ -45,7 +45,6 @@ class ClassToCaseFlagMapSpec extends AnyFlatSpec with Matchers {
     result(classOf[java.lang.String]) shouldBe false
   }
 
-
   it should "not flag non-case classes as case classes" in {
     val result = ClassToCaseFlagMap.classToCaseClassMap[NonCaseClass]
     result should contain key classOf[NonCaseClass]
@@ -57,5 +56,4 @@ class ClassToCaseFlagMapSpec extends AnyFlatSpec with Matchers {
     result should contain key classOf[NonCaseClass]
     result(classOf[NonCaseClass]) shouldBe false
   }
-
-}
+end ClassToCaseFlagMapSpec

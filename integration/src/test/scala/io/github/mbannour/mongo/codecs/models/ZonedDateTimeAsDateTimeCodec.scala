@@ -25,13 +25,15 @@ class ZonedDateTimeAsDateTimeCodec extends Codec[ZonedDateTime]:
           s"Unsupported ZonedDateTime value '$value' could not be converted to milliseconds: $e",
           e
         )
+  end encode
 
   override def getEncoderClass: Class[ZonedDateTime] = classOf[ZonedDateTime]
+end ZonedDateTimeAsDateTimeCodec
 
 object ZonedDateTimeAsDateTimeCodec:
   def zonedDateTimeAtUTC(value: ZonedDateTime): ZonedDateTime =
     value.withZoneSameInstant(ZoneOffset.UTC)
-  
+
   given transformZonedDateTime: BsonTransformer[ZonedDateTime] with
     def apply(value: ZonedDateTime): BsonValue =
       BsonDateTime(zonedDateTimeAtUTC(value).toInstant.toEpochMilli)

@@ -1,26 +1,24 @@
 package io.github.mbannour.bson.macros
 
+import scala.reflect.ClassTag
+
 import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.scalatest.matchers.should.Matchers.*
-
-import scala.reflect.ClassTag
-
 
 case class Address(city: String, zip: Int)
 
 case class Person(@BsonProperty("n") name: String, age: Int, address: Address)
 
 case class Complex(
-                    id: Long,
-                    isActive: Boolean,
-                    tags: List[String],
-                    nested: Option[Address]
-                  )
+    id: Long,
+    isActive: Boolean,
+    tags: List[String],
+    nested: Option[Address]
+)
 
-class CaseClassFieldMapperSpec extends AnyFlatSpec with Matchers with TypeCheckedTripleEquals {
+class CaseClassFieldMapperSpec extends AnyFlatSpec with Matchers with TypeCheckedTripleEquals:
 
   "CaseClassFieldMapper" should "map case class fields correctly" in {
     val result = CaseClassFieldMapper.createClassFieldTypeArgsMap[Person]
@@ -61,5 +59,4 @@ class CaseClassFieldMapperSpec extends AnyFlatSpec with Matchers with TypeChecke
       CaseClassFieldMapper.createClassFieldTypeArgsMap[Unsupported]
     """ shouldNot compile
   }
-
-}
+end CaseClassFieldMapperSpec

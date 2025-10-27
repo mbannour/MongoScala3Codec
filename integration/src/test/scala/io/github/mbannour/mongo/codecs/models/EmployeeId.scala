@@ -3,10 +3,15 @@ package io.github.mbannour.mongo.codecs.models
 import org.bson.codecs.{Codec as BSONCodec}
 import org.bson.types.ObjectId
 
-final case class EmployeeId(value: ObjectId) extends AnyVal
+opaque type EmployeeId = ObjectId
 
 object EmployeeId:
-  def apply(): EmployeeId = EmployeeId(new ObjectId)
+  def apply(value: ObjectId): EmployeeId = value
 
-  val dealerIdBsonCodec: BSONCodec[EmployeeId] =
+  def apply(): EmployeeId = new ObjectId
+
+  extension (id: EmployeeId)
+    def value: ObjectId = id
+
+  val employeeIdBsonCodec: BSONCodec[EmployeeId] =
     typedObjectIdBSONCodec(EmployeeId.apply, _.value)

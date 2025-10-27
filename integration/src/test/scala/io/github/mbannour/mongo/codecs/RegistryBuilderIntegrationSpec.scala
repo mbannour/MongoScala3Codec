@@ -15,12 +15,7 @@ import scala.util.chaining.*
 // Import extension methods
 import RegistryBuilder.{*, given}
 
-class RegistryBuilderIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -55,39 +50,38 @@ class RegistryBuilderIntegrationSpec
     opaque type UserId = String
     object UserId:
       def apply(value: String): UserId = value
-      extension (userId: UserId)
-        def value: String = userId
-    
+      extension (userId: UserId) def value: String = userId
+
     opaque type Email = String
     object Email:
       def apply(value: String): Email = value
-      extension (email: Email)
-        def value: String = email
-    
+      extension (email: Email) def value: String = email
+
     opaque type Age = Int
     object Age:
       def apply(value: Int): Age = value
-      extension (age: Age)
-        def value: Int = age
+      extension (age: Age) def value: Int = age
+  end OpaqueTypes
 
   import OpaqueTypes.*
 
   // Case class using opaque types for stronger type safety
   case class UserProfile(
-    _id: ObjectId,
-    userId: UserId,
-    email: Email,
-    age: Age,
-    displayName: String
+      _id: ObjectId,
+      userId: UserId,
+      email: Email,
+      age: Age,
+      displayName: String
   )
 
   "RegistryBuilder.register[T]" should "register and work with MongoDB for simple case class" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
 
-    given config: CodecConfig = CodecConfig()
+//    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+      .ignoreNone
       .register[SimpleDocument]
       .build
 
@@ -106,7 +100,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "register and work with nested case classes" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -181,29 +175,8 @@ class RegistryBuilderIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  it should "work with custom discriminator field" in {
-    given config: CodecConfig = CodecConfig(discriminatorField = "_customType")
-
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .discriminator("_customType")
-      .register[Person]
-      .build
-
-    val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_custom_discriminator")
-
-    val person = Person(new ObjectId(), "Diana", 28, None)
-    collection.insertOne(person).toFuture().futureValue
-
-    val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
-    retrieved shouldBe person
-
-    database.drop().toFuture().futureValue
-  }
-
   "RegistryBuilder.registerAll[Tuple]" should "register multiple types with tuple syntax" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -240,7 +213,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "register and work with complex nested structures" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -267,7 +240,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "register many types at once" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -309,12 +282,11 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "work with configuration chaining" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone
-      .discriminator("_entityType")
       .registerAll[(Address, Person, Department)]
       .build
 
@@ -332,7 +304,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   "RegistryBuilder mixed usage" should "combine register and registerAll" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -374,7 +346,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   "RegistryBuilder extension methods" should "work with .newBuilder on CodecRegistry" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -395,8 +367,7 @@ class RegistryBuilderIntegrationSpec
 
   it should "work with .builderWith(config)" in {
     val customConfig = CodecConfig(
-      noneHandling = NoneHandling.Ignore,
-      discriminatorField = "_myType"
+      noneHandling = NoneHandling.Ignore
     )
 
     val registry = RegistryBuilder
@@ -416,19 +387,30 @@ class RegistryBuilderIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  "RegistryBuilder functional configuration" should "work with configure function" in {
+  // New integration test: conditional registration
+  it should "support conditional registration with registerIf" in {
     given config: CodecConfig = CodecConfig()
 
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .configure(_.copy(noneHandling = NoneHandling.Ignore, discriminatorField = "_docType"))
-      .registerAll[(Person, Address)]
-      .build
+    val base = MongoClient.DEFAULT_CODEC_REGISTRY
 
-    val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_functional")
+    val builderFalse = base.newBuilder.registerIf[Person](condition = false)
+    // Provider wasn't added, so no codec available
+    val registryFalse = builderFalse.build
+    assertThrows[org.bson.codecs.configuration.CodecConfigurationException] {
+      registryFalse.get(classOf[Person])
+    }
 
-    val person = Person(new ObjectId(), "Leo", 42, None)
+    val builderTrue = base.newBuilder.registerIf[Person](condition = true)
+    // Build the registry to ensure the provider is included
+    val registryTrue = builderTrue.build
+    val codec = registryTrue.get(classOf[Person])
+    assert(codec != null)
+
+    // Use the true-branch registry with MongoDB
+    val database = createDatabaseWithRegistry(registryTrue)
+    val collection: MongoCollection[Person] = database.getCollection("people_register_if")
+
+    val person = Person(new ObjectId(), "Yara", 26, None)
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -437,43 +419,16 @@ class RegistryBuilderIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  it should "allow multiple configuration changes" in {
-    given config: CodecConfig = CodecConfig()
+  // New integration test: convenience methods just/withTypes
+  it should "support just[T] convenience" in {
 
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .ignoreNone
-      .register[Address]
-      .encodeNone // Change policy
-      .register[Person]
-      .discriminator("_type")
-      .register[Department]
-      .build
+
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.just[Person]
 
     val database = createDatabaseWithRegistry(registry)
+    val collection: MongoCollection[Person] = database.getCollection("people_just")
 
-    val personCollection: MongoCollection[Person] = database.getCollection("people_multi_config")
-    val person = Person(new ObjectId(), "Maya", 33, None)
-    personCollection.insertOne(person).toFuture().futureValue
-
-    val retrieved = personCollection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
-    retrieved shouldBe person
-
-    database.drop().toFuture().futureValue
-  }
-
-  "RegistryBuilder backward compatibility" should "work with modern register method" in {
-    given config: CodecConfig = CodecConfig()
-
-    val registry = RegistryBuilder
-      .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .register[Person]
-      .build
-
-    val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_register")
-
-    val person = Person(new ObjectId(), "Nina", 27, None)
+    val person = Person(new ObjectId(), "Zack", 37, None)
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -482,35 +437,33 @@ class RegistryBuilderIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  it should "support modern newBuilder API" in {
-    given config: CodecConfig = CodecConfig()
+  it should "support withTypes[(...)] convenience" in {
 
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
-      .register[Person]
-      .build
+
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder.withTypes[(Address, Person)]
 
     val database = createDatabaseWithRegistry(registry)
-    val collection: MongoCollection[Person] = database.getCollection("people_new_builder")
+    val collection: MongoCollection[Person] = database.getCollection("people_with_types")
 
-    val person = Person(new ObjectId(), "Oscar", 55, None)
+    val person = Person(new ObjectId(), "Amy", 22, Some(Address("12 Main", "LA", 90001)))
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
     retrieved shouldBe person
+    retrieved.address.map(_.city) shouldBe Some("LA")
 
     database.drop().toFuture().futureValue
   }
 
   "RegistryBuilder opaque type" should "demonstrate type safety through immutability" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type ensures that RegistryBuilder cannot be directly manipulated
     // Each operation returns a new RegistryBuilder instance
     val builder1: RegistryBuilder = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
     val builder2: RegistryBuilder = builder1.ignoreNone
     val builder3: RegistryBuilder = builder2.register[Person]
-    
+
     // Each builder is independent and immutable
     val registry = builder3.build
 
@@ -528,23 +481,22 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "allow fluent chaining with type-safe operations" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type provides type-safe fluent API
     // The type is RegistryBuilder throughout the chain
     val registry: CodecRegistry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-      .ignoreNone              // Returns RegistryBuilder
-      .discriminator("_t")     // Returns RegistryBuilder
-      .register[Address]       // Returns RegistryBuilder
-      .register[Person]        // Returns RegistryBuilder
-      .register[Department]    // Returns RegistryBuilder
-      .build                   // Returns CodecRegistry
+      .ignoreNone // Returns RegistryBuilder
+      .register[Address] // Returns RegistryBuilder
+      .register[Person] // Returns RegistryBuilder
+      .register[Department] // Returns RegistryBuilder
+      .build // Returns CodecRegistry
 
     val database = createDatabaseWithRegistry(registry)
     val collection: MongoCollection[Person] = database.getCollection("people_opaque_fluent")
 
-    val person = Person(new ObjectId(), "Quinn", 44, Some(Address("999 Park Ave", "Boston", 02101)))
+    val person = Person(new ObjectId(), "Quinn", 44, Some(Address("999 Park Ave", "Boston", 2101)))
     collection.insertOne(person).toFuture().futureValue
 
     val retrieved = collection.find(Filters.equal("_id", person._id)).first().toFuture().futureValue
@@ -555,7 +507,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "demonstrate configuration immutability" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Original builder with ignoreNone
     val baseBuilder = RegistryBuilder
@@ -567,8 +519,7 @@ class RegistryBuilderIntegrationSpec
       .register[Person]
       .build
 
-    val registryWithEncode = baseBuilder
-      .encodeNone  // This creates a NEW builder, doesn't modify baseBuilder
+    val registryWithEncode = baseBuilder.encodeNone // This creates a NEW builder, doesn't modify baseBuilder
       .register[Person]
       .build
 
@@ -586,16 +537,14 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "support functional transformation with configure" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type works seamlessly with functional programming
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .configure { cfg =>
         // Can apply complex configuration logic
-        val withNoneHandling = cfg.copy(noneHandling = NoneHandling.Ignore)
-        val withDiscriminator = withNoneHandling.copy(discriminatorField = "_kind")
-        withDiscriminator
+        cfg.copy(noneHandling = NoneHandling.Ignore)
       }
       .register[Person]
       .build
@@ -613,13 +562,12 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "enable reusable builder patterns" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Create reusable base builders - opaque type makes this safe
     def standardBuilder: RegistryBuilder = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone
-      .discriminator("_type")
 
     // Use the base builder multiple times
     val registryForPeople = standardBuilder
@@ -645,11 +593,10 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "work with extension methods on CodecRegistry" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Extension methods enabled by opaque type design
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder                    // Extension method returns RegistryBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder // Extension method returns RegistryBuilder
       .ignoreNone
       .register[Address]
       .register[Person]
@@ -669,7 +616,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "demonstrate type-safe tuple registration with opaque type" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Opaque type provides type-safe tuple operations
     val registry: CodecRegistry = RegistryBuilder
@@ -679,7 +626,7 @@ class RegistryBuilderIntegrationSpec
 
     // The opaque type ensures compile-time type safety throughout
     val database = createDatabaseWithRegistry(registry)
-    
+
     val projectCollection: MongoCollection[Project] = database.getCollection("projects_opaque_tuple")
     val project = Project(new ObjectId(), "Opaque Type Demo", true, Set("scala3", "opaque", "types"))
     projectCollection.insertOne(project).toFuture().futureValue
@@ -692,7 +639,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "support complex builder composition" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Compose builders in functional style - enabled by opaque type safety
     def withStandardTypes(builder: RegistryBuilder): RegistryBuilder =
@@ -729,8 +676,7 @@ class RegistryBuilderIntegrationSpec
 
   it should "demonstrate withConfig preserves type safety" in {
     val customConfig = CodecConfig(
-      noneHandling = NoneHandling.Encode,
-      discriminatorField = "_entityType"
+      noneHandling = NoneHandling.Encode
     )
 
     // withConfig maintains type safety through opaque type
@@ -753,7 +699,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   "Scala 3 opaque types" should "work seamlessly with codec generation" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Register codec for case class that uses opaque types
     val registry = RegistryBuilder
@@ -802,7 +748,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "store and retrieve opaque types correctly in MongoDB" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -824,14 +770,14 @@ class RegistryBuilderIntegrationSpec
     // Query and verify
     val allUsers = collection.find().toFuture().futureValue
     allUsers should have size 3
-    allUsers.map(_.userId.value) should contain allOf("alice_001", "bob_002", "charlie_003")
-    allUsers.map(_.email.value) should contain allOf("alice@test.com", "bob@test.com", "charlie@test.com")
+    allUsers.map(_.userId.value) should contain allOf ("alice_001", "bob_002", "charlie_003")
+    allUsers.map(_.email.value) should contain allOf ("alice@test.com", "bob@test.com", "charlie@test.com")
 
     database.drop().toFuture().futureValue
   }
 
   it should "demonstrate opaque types provide zero runtime overhead" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -870,7 +816,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "work with opaque types in complex queries" in {
-    given config: CodecConfig = CodecConfig()
+
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -900,10 +846,12 @@ class RegistryBuilderIntegrationSpec
 
     // Range query
     val midAgeUsers = collection
-      .find(Filters.and(
-        Filters.gte("age", 25),
-        Filters.lte("age", 35)
-      ))
+      .find(
+        Filters.and(
+          Filters.gte("age", 25),
+          Filters.lte("age", 35)
+        )
+      )
       .toFuture()
       .futureValue
 
@@ -914,7 +862,7 @@ class RegistryBuilderIntegrationSpec
   }
 
   it should "combine opaque types with RegistryBuilder opaque type for double type safety" in {
-    given config: CodecConfig = CodecConfig()
+
 
     // Two levels of opaque types:
     // 1. RegistryBuilder is an opaque type (type-safe builder pattern)
@@ -942,6 +890,95 @@ class RegistryBuilderIntegrationSpec
     retrieved.userId.value shouldBe "safe_user"
     retrieved.email.value shouldBe "safe@example.com"
     retrieved.age.value shouldBe 45
+
+    database.drop().toFuture().futureValue
+  }
+
+  it should "expose state inspection and explicit codecs via withCodec/withCodecs" in {
+
+    import org.bson.{BsonReader, BsonWriter}
+    import org.bson.codecs.{Codec as BsonCodec, DecoderContext, EncoderContext}
+
+    // Custom types and explicit codecs (cannot be auto-derived without register)
+    final case class Location(_id: ObjectId, lat: Double, lon: Double)
+    final case class TagDoc(_id: ObjectId, labels: List[String])
+
+    final class LocationCodec extends BsonCodec[Location]:
+      override def getEncoderClass: Class[Location] = classOf[Location]
+      override def encode(writer: BsonWriter, value: Location, encoderContext: EncoderContext): Unit =
+        writer.writeStartDocument()
+        writer.writeName("_id"); org.bson.codecs.ObjectIdCodec().encode(writer, value._id, encoderContext)
+        writer.writeName("lat"); writer.writeDouble(value.lat)
+        writer.writeName("lon"); writer.writeDouble(value.lon)
+        writer.writeEndDocument()
+      override def decode(reader: BsonReader, decoderContext: DecoderContext): Location =
+        reader.readStartDocument()
+        reader.readName("_id"); val id = org.bson.codecs.ObjectIdCodec().decode(reader, decoderContext)
+        reader.readName("lat"); val lat = reader.readDouble()
+        reader.readName("lon"); val lon = reader.readDouble()
+        reader.readEndDocument()
+        Location(id, lat, lon)
+
+    final class TagDocCodec extends BsonCodec[TagDoc]:
+      override def getEncoderClass: Class[TagDoc] = classOf[TagDoc]
+      override def encode(writer: BsonWriter, value: TagDoc, encoderContext: EncoderContext): Unit =
+        writer.writeStartDocument()
+        writer.writeName("_id"); org.bson.codecs.ObjectIdCodec().encode(writer, value._id, encoderContext)
+        writer.writeName("labels")
+        writer.writeStartArray()
+        value.labels.foreach(writer.writeString)
+        writer.writeEndArray()
+        writer.writeEndDocument()
+      override def decode(reader: BsonReader, decoderContext: DecoderContext): TagDoc =
+        reader.readStartDocument()
+        reader.readName("_id"); val id = org.bson.codecs.ObjectIdCodec().decode(reader, decoderContext)
+        reader.readName("labels")
+        val buf = scala.collection.mutable.ListBuffer.empty[String]
+        reader.readStartArray()
+        while reader.readBsonType() != org.bson.BsonType.END_OF_DOCUMENT do
+          buf += reader.readString()
+        reader.readEndArray()
+        reader.readEndDocument()
+        TagDoc(id, buf.toList)
+
+    val base = MongoClient.DEFAULT_CODEC_REGISTRY
+
+    val b0 = base.newBuilder
+    b0.isEmpty `shouldBe` true
+    b0.codecCount `shouldBe` 0
+    b0.providerCount `shouldBe` 0
+    b0.isCached `shouldBe` false // cache is internal and invalidated on mutations
+
+    val locCodec = new LocationCodec
+    val tagCodec = new TagDocCodec
+
+    val b1 = b0.withCodecs(locCodec, tagCodec)
+    b1.isEmpty `shouldBe` false
+    b1.codecCount `shouldBe` 2
+    b1.providerCount `shouldBe` 0
+
+    val b2 = b1.register[Person]
+    b2.providerCount `shouldBe` 1
+
+    val b3 = b2.ignoreNone
+
+    // currentConfig reflects the latest changes
+    b3.currentConfig.noneHandling `shouldBe` NoneHandling.Ignore
+
+    // Codec availability checks (forces a registry build under the hood)
+    b3.tryGetCodec[Location].isDefined `shouldBe` true
+    b3.tryGetCodec[TagDoc].isDefined `shouldBe` true
+
+    // End-to-end check using the explicit Location codec
+    val registry = b3.build
+    val database = createDatabaseWithRegistry(registry)
+    val collection: MongoCollection[Location] = database.getCollection("locations_explicit_codec")
+
+    val loc = Location(new ObjectId(), 48.8566, 2.3522)
+    collection.insertOne(loc).toFuture().futureValue
+
+    val retrieved = collection.find(Filters.equal("_id", loc._id)).first().toFuture().futureValue
+    retrieved `shouldBe` loc
 
     database.drop().toFuture().futureValue
   }

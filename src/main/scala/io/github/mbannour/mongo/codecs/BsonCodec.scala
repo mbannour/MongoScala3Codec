@@ -1,9 +1,10 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.quoted.*
+import scala.reflect.ClassTag
+
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.{BsonReader, BsonWriter}
-import scala.reflect.ClassTag
-import scala.quoted.*
 
 /** Type class for BSON encoding and decoding.
   *

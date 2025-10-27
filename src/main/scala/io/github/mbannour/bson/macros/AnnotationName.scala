@@ -1,8 +1,8 @@
 package io.github.mbannour.bson.macros
 
-import org.mongodb.scala.bson.annotations.BsonProperty
-
 import scala.quoted.*
+
+import org.mongodb.scala.bson.annotations.BsonProperty
 
 object AnnotationName:
 
