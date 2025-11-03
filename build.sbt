@@ -61,7 +61,7 @@ lazy val root = project
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.scalacheck" %% "scalacheck" % "1.18.0" % Test,
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.0").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.1").cross(CrossVersion.for3Use2_13)
     ),
     Compile / scalacOptions ++= Seq(
       "-encoding",
@@ -92,7 +92,6 @@ lazy val root = project
     ),
 
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false,
     mimaPreviousArtifacts := Set(
