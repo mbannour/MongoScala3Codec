@@ -58,7 +58,7 @@ sbt compile
 
 ### Cross-Compile for Multiple Scala Versions
 
-The project supports Scala 3.3.1, 3.4.x, 3.5.x, 3.6.x, and 3.7.x:
+The project supports Scala 3.3.7, 3.4.x, 3.5.x, 3.6.x, and 3.7.x:
 
 ```bash
 # Compile for all Scala versions

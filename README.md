@@ -326,7 +326,7 @@ libraryDependencies ++= Seq(
 ```
 
 **Requirements:**
-- Scala 3.3.1 or higher
+- Scala 3.3.7 or higher
 - JDK 11 or higher
 
 ---
