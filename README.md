@@ -56,6 +56,7 @@ val found = people.find().first().toFuture()
 - **[5-Minute Quickstart](docs/QUICKSTART.md)** - Get started immediately
 - **[BSON Type Mapping](docs/BSON_TYPE_MAPPING.md)** - Complete type reference (35+ types)
 - **[Feature Overview](docs/FEATURES.md)** - Complete feature guide with examples
+- **[Enumeration Support](docs/ENUM_SUPPORT.md)** - Comprehensive guide for Scala 3 enums
 - **[MongoDB Interop](docs/MONGODB_INTEROP.md)** - Driver integration guide
 - **[How It Works](docs/HOW_IT_WORKS.md)** - Scala 3 derivation internals explained
 - **[Migration Guide](docs/MIGRATION.md)** - Migrate from other libraries

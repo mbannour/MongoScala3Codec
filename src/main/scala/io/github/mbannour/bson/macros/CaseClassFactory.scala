@@ -15,7 +15,18 @@ object CaseClassFactory:
     val mainTypeRepr = TypeRepr.of[T]
     val mainTypeSymbol = mainTypeRepr.typeSymbol
     if !mainTypeSymbol.flags.is(Flags.Case) then
-      report.errorAndAbort(s"${mainTypeSymbol.name} is not a case class, and cannot be instantiated this way.")
+      val typeName = mainTypeSymbol.name
+      val typeKind = if mainTypeSymbol.flags.is(Flags.Trait) then "trait"
+                     else if mainTypeSymbol.flags.is(Flags.Abstract) then "abstract class"
+                     else if mainTypeSymbol.isClassDef then "class"
+                     else "type"
+      report.errorAndAbort(
+        s"'$typeName' is a $typeKind, not a case class." +
+        "\n\nBSON codec generation only works with case classes." +
+        "\n\nSuggestion: Convert '$typeName' to a case class:" +
+        s"\n  case class $typeName(...)" +
+        "\n\nOr, if you're working with a sealed trait hierarchy, register the concrete case class implementations instead of the trait."
+      )
 
     val constructorParams = mainTypeSymbol.primaryConstructor.paramSymss.flatten
 
@@ -76,42 +87,27 @@ object CaseClassFactory:
               }
 
         case '[nestedT] if paramType.typeSymbol.flags.is(Flags.Enum) =>
-          val enumCompanionName: Expr[String] =
-            Expr(paramType.typeSymbol.companionModule.fullName)
+          // Check for @BsonEnum annotation to get custom field name
+          val bsonEnumSymbol = TypeRepr.of[BsonEnum].typeSymbol
+          val customFieldName: String = param.getAnnotation(bsonEnumSymbol) match
+            case Some(Apply(_, List(Literal(StringConstant(fieldName))))) => fieldName
+            case Some(Apply(_, List(NamedArg(_, Literal(StringConstant(fieldName))))))  => fieldName
+            case Some(_)                                                   => ""
+            case None                                                      => ""
+
+          val customFieldExpr = Expr(customFieldName)
+
           defaultValueOpt match
             case Some(defaultValue) =>
               '{
                 $fieldData.get($keyToUse) match
                   case Some(value: String @unchecked) =>
-                    try
-                      val enumClass = Class.forName($enumCompanionName)
-                      val method = enumClass.getMethod("valueOf", classOf[String])
-                      method.invoke(enumClass, value).asInstanceOf[nestedT]
+                    try EnumCodecGenerator.fromString[nestedT](value, $customFieldExpr)
                     catch
                       case ex: Exception =>
                         throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
                   case Some(intVal: Int @unchecked) =>
-                    try
-                      val enumClass = Class.forName($enumCompanionName)
-                      val values = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
-
-                      // ---------- 1) try ordinal ----------
-                      if intVal >= 0 && intVal < values.length then values(intVal).asInstanceOf[nestedT]
-                      else
-                        // ---------- 2) try custom `code` ----------
-                        val matched = values.find { v =>
-                          try v.getClass.getMethod("code").invoke(v) == intVal
-                          catch case _: NoSuchMethodException => false
-                        }
-
-                        matched
-                          .map(_.asInstanceOf[nestedT])
-                          .getOrElse {
-                            throw new RuntimeException(
-                              "No enum value with ordinal " + intVal + " or code " + intVal + " for field '" + $keyToUse + "'"
-                            )
-                          }
-                      end if
+                    try EnumCodecGenerator.fromInt[nestedT](intVal, $customFieldExpr)
                     catch
                       case ex: Exception =>
                         throw new RuntimeException(
@@ -129,35 +125,12 @@ object CaseClassFactory:
               '{
                 $fieldData.get($keyToUse) match
                   case Some(value: String @unchecked) =>
-                    try
-                      val enumClass = Class.forName($enumCompanionName)
-                      val method = enumClass.getMethod("valueOf", classOf[String])
-                      method.invoke(enumClass, value).asInstanceOf[nestedT]
+                    try EnumCodecGenerator.fromString[nestedT](value, $customFieldExpr)
                     catch
                       case ex: Exception =>
                         throw new RuntimeException("Error decoding enum field '" + $keyToUse + "': " + ex.getMessage, ex)
                   case Some(intVal: Int @unchecked) =>
-                    try
-                      val enumClass = Class.forName($enumCompanionName)
-                      val values = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
-
-                      // ---------- 1) try ordinal ----------
-                      if intVal >= 0 && intVal < values.length then values(intVal).asInstanceOf[nestedT]
-                      else
-                        // ---------- 2) try custom `code` ----------
-                        val matched = values.find { v =>
-                          try v.getClass.getMethod("code").invoke(v) == intVal
-                          catch case _: NoSuchMethodException => false
-                        }
-
-                        matched
-                          .map(_.asInstanceOf[nestedT])
-                          .getOrElse {
-                            throw new RuntimeException(
-                              "No enum value with ordinal " + intVal + " or code " + intVal + " for field '" + $keyToUse + "'"
-                            )
-                          }
-                      end if
+                    try EnumCodecGenerator.fromInt[nestedT](intVal, $customFieldExpr)
                     catch
                       case ex: Exception =>
                         throw new RuntimeException(

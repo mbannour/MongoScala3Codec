@@ -6,14 +6,14 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistries, CodecRegis
 import org.bson.types.ObjectId
 import org.mongodb.scala.MongoClient
 
-enum Priority:
+enum TaskPriority:
   case Low, Medium, High
 
-case class Task(_id: ObjectId, title: String, priority: Priority)
+case class Task(_id: ObjectId, title: String, priority: TaskPriority)
 
 object Task:
 
-  val priorityEnumProvider: CodecProvider = EnumValueCodecProvider.forStringEnum[Priority]
+  val priorityEnumProvider: CodecProvider = EnumValueCodecProvider.forStringEnum[TaskPriority]
 
   val defaultRegistry: CodecRegistry =
     RegistryBuilder

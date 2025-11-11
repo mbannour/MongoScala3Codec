@@ -62,7 +62,19 @@ object CaseClassCodecGenerator:
     // Ensure T is a case class (or a sealed hierarchy of case classes)
     val tpeSym = TypeRepr.of[T].typeSymbol
     if !tpeSym.flags.is(Flags.Case) then
-      report.errorAndAbort(s"${tpeSym.name} is not a case class and cannot be used with this codec generator.")
+      val typeName = tpeSym.name
+      val typeKind = if tpeSym.flags.is(Flags.Trait) then "trait"
+                     else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
+                     else if tpeSym.isClassDef then "regular class"
+                     else "type"
+      report.errorAndAbort(
+        s"Cannot generate BSON codec for '$typeName'" +
+        s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes." +
+        "\n\nSuggestion:" +
+        s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
+        "\n  • If this is a sealed trait, register each concrete case class implementation separately" +
+        "\n  • For regular classes, consider creating a case class wrapper"
+      )
 
     '{
       new Codec[T]:
@@ -80,11 +92,64 @@ object CaseClassCodecGenerator:
         private val fieldTypeArgsMapByClass: Map[String, Map[String, List[Class[?]]]] = CaseClassFieldMapper.createClassFieldTypeArgsMap[T]
         private lazy val caseClassesMapInv: Map[Class[?], String] = caseClassesMap.map(_.swap)
 
-        // Compose the registry using the provided baseRegistry and the codec for this type.
-        private val registry: CodecRegistry = CodecRegistries.fromRegistries(
+        // Compose the base registry using the provided baseRegistry and the codec for this type.
+        private val baseRegistryWithThis: CodecRegistry = CodecRegistries.fromRegistries(
           $baseRegistry,
           CodecRegistries.fromCodecs(this)
         )
+
+        /** Pre-computed codec cache for frequently used types.
+          * This cache is populated lazily to avoid circular initialization issues.
+          * This significantly improves performance for nested case classes and collections.
+          */
+        private lazy val codecCache: Map[Class[?], Codec[?]] = {
+          val cache = mutable.Map.empty[Class[?], Codec[?]]
+
+          // Pre-fetch codecs for all field types (but not the current type to avoid circular dependency)
+          fieldTypeArgsMapByClass.values.foreach { fieldTypeArgs =>
+            fieldTypeArgs.values.foreach { typeArgsList =>
+              typeArgsList.foreach { typeArg =>
+                // Skip the current type to avoid circular initialization
+                if (typeArg != encoderClass) {
+                  try {
+                    if (!cache.contains(typeArg)) {
+                      cache.put(typeArg, baseRegistryWithThis.get(typeArg))
+                    }
+                  } catch {
+                    case _: Exception => // Ignore types that don't have codecs yet
+                  }
+                }
+              }
+            }
+          }
+
+          // Pre-fetch codecs for all known case classes in the hierarchy (except current type)
+          caseClassesMap.values.foreach { clazz =>
+            if (clazz != encoderClass) {
+              try {
+                if (!cache.contains(clazz)) {
+                  cache.put(clazz, baseRegistryWithThis.get(clazz))
+                }
+              } catch {
+                case _: Exception => // Ignore classes that don't have codecs yet
+              }
+            }
+          }
+
+          cache.toMap
+        }
+
+        /** Cached registry that wraps the base registry with pre-fetched codecs.
+          * This registry is used for all codec lookups to avoid repeated registry.get calls.
+          * Marked as lazy to ensure codecCache is initialized first.
+          */
+        private lazy val registry: CodecRegistry = new CachedCodecRegistry(baseRegistryWithThis, codecCache)
+
+        /** Gets a codec from the cached registry.
+          * @param clazz The class to get a codec for
+          * @return The codec for the given class
+          */
+        private def getCodec[V](clazz: Class[V]): Codec[V] = registry.get(clazz)
 
         private def getInstance(fieldsData: Map[String, Any]): T =
           CaseClassFactory.getInstance[T](fieldsData)
@@ -112,8 +177,8 @@ object CaseClassCodecGenerator:
                 registry
               )
             case None =>
-              // Fallback: use the codec from the registry.
-              val codec = registry.get(clazz).asInstanceOf[Encoder[V]]
+              // Fallback: use the codec from the cache (or registry if not cached).
+              val codec = getCodec(clazz).asInstanceOf[Encoder[V]]
               encoderContext.encodeWithChildContext(codec, writer, value)
           end match
           writer.writeEndDocument()
@@ -200,7 +265,7 @@ object CaseClassCodecGenerator:
               reader.readInt32().toChar.asInstanceOf[V]
             case _ =>
               val effectiveClass = primitiveToBoxed.getOrElse(clazz, clazz).asInstanceOf[Class[V]]
-              val codec = registry.get(effectiveClass)
+              val codec = getCodec(effectiveClass)
               codec.decode(reader, decoderContext)
 
         /** Reads an array from the BSON reader and converts it to the proper collection type. */
@@ -235,7 +300,7 @@ object CaseClassCodecGenerator:
             typeArgs: List[Class[?]],
             fieldTypeArgs: Map[String, List[Class[?]]]
         ): V =
-          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then registry.get(clazz).decode(reader, decoderContext)
+          if classToCaseClassMap.getOrElse(clazz, false) || typeArgs.isEmpty then getCodec(clazz).decode(reader, decoderContext)
           else
             val docFields = mutable.Map.empty[String, Any]
             reader.readStartDocument()
