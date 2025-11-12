@@ -6,9 +6,8 @@ import org.bson.codecs.configuration.CodecRegistry
 
 /** A thread-safe CodecRegistry wrapper that caches codec lookups for better performance.
   *
-  * This registry delegates to an underlying registry but caches the results to avoid repeated lookups. This is
-  * particularly useful for nested case classes and sealed traits where the same codec may be looked up many times during
-  * encoding/decoding.
+  * This registry delegates to an underlying registry but caches the results to avoid repeated lookups. This is particularly useful for
+  * nested case classes and sealed traits where the same codec may be looked up many times during encoding/decoding.
   *
   * Performance improvements:
   *   - Uses ConcurrentHashMap for thread-safe, lock-free caching
@@ -26,18 +25,19 @@ private[codecs] class CachedCodecRegistry(
 ) extends CodecRegistry:
 
   // Thread-safe cache using ConcurrentHashMap for lock-free reads/writes
-  private val cache: ConcurrentHashMap[Class[?], Codec[?]] = {
+  private val cache: ConcurrentHashMap[Class[?], Codec[?]] =
     val chm = new ConcurrentHashMap[Class[?], Codec[?]]()
     initialCache.foreach { case (k, v) => chm.put(k, v) }
     chm
-  }
 
   override def get[T](clazz: Class[T]): Codec[T] =
     // computeIfAbsent is thread-safe and atomic
-    cache.computeIfAbsent(
-      clazz,
-      (k: Class[?]) => underlying.get(k)
-    ).asInstanceOf[Codec[T]]
+    cache
+      .computeIfAbsent(
+        clazz,
+        (k: Class[?]) => underlying.get(k)
+      )
+      .asInstanceOf[Codec[T]]
 
   override def get[T](clazz: Class[T], registry: CodecRegistry): Codec[T] =
     // For this overload, we don't cache since it uses a different registry

@@ -25,6 +25,7 @@ object SealedTraitHelper:
     val isTraitOrAbstract = sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)
 
     Expr(isSealed && isTraitOrAbstract)
+  end isSealedTraitImpl
 
   /** Gets all direct subtypes of a sealed trait at compile time.
     *
@@ -38,11 +39,11 @@ object SealedTraitHelper:
 
     val sym = tpe.typeSymbol
 
-    if !sym.flags.is(Flags.Sealed) then
-      report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
+    if !sym.flags.is(Flags.Sealed) then report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
 
     // Get all known children of this sealed type
     sym.children.filter(_.flags.is(Flags.Case)).toList
+  end getSealedChildren
 
   /** Creates a mapping from discriminator values to runtime classes for a sealed trait hierarchy.
     *
@@ -53,7 +54,9 @@ object SealedTraitHelper:
     * @return
     *   A map from discriminator string to runtime class
     */
-  inline def createDiscriminatorMap[T](discriminatorStrategy: io.github.mbannour.mongo.codecs.DiscriminatorStrategy): Map[String, Class[?]] =
+  inline def createDiscriminatorMap[T](
+      discriminatorStrategy: io.github.mbannour.mongo.codecs.DiscriminatorStrategy
+  ): Map[String, Class[?]] =
     ${ createDiscriminatorMapImpl[T]('discriminatorStrategy) }
 
   private def createDiscriminatorMapImpl[T: Type](
@@ -66,8 +69,7 @@ object SealedTraitHelper:
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    if !sym.flags.is(Flags.Sealed) then
-      report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
+    if !sym.flags.is(Flags.Sealed) then report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
 
     // Get all known children
     val children = sym.children.filter(_.flags.is(Flags.Case))
@@ -92,9 +94,11 @@ object SealedTraitHelper:
                 mapping.getOrElse(clazz, ${ Expr(simpleName) })
             (discriminator -> clazz)
           }
+      end match
     }
 
     '{ Map(${ Varargs(mappingEntries) }*) }
+  end createDiscriminatorMapImpl
 
   /** Creates a reverse mapping from runtime classes to discriminator values.
     *
@@ -105,7 +109,9 @@ object SealedTraitHelper:
     * @return
     *   A map from runtime class to discriminator string
     */
-  inline def createReverseDiscriminatorMap[T](discriminatorStrategy: io.github.mbannour.mongo.codecs.DiscriminatorStrategy): Map[Class[?], String] =
+  inline def createReverseDiscriminatorMap[T](
+      discriminatorStrategy: io.github.mbannour.mongo.codecs.DiscriminatorStrategy
+  ): Map[Class[?], String] =
     ${ createReverseDiscriminatorMapImpl[T]('discriminatorStrategy) }
 
   private def createReverseDiscriminatorMapImpl[T: Type](
@@ -118,8 +124,7 @@ object SealedTraitHelper:
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
 
-    if !sym.flags.is(Flags.Sealed) then
-      report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
+    if !sym.flags.is(Flags.Sealed) then report.errorAndAbort(s"Type ${sym.name} is not a sealed trait or sealed abstract class")
 
     // Get all known children
     val children = sym.children.filter(_.flags.is(Flags.Case))
@@ -144,9 +149,11 @@ object SealedTraitHelper:
                 mapping.getOrElse(clazz, ${ Expr(simpleName) })
             (clazz -> discriminator)
           }
+      end match
     }
 
     '{ Map(${ Varargs(mappingEntries) }*) }
+  end createReverseDiscriminatorMapImpl
 
   /** Checks if a field type is a sealed trait that requires discriminator encoding.
     *
@@ -160,6 +167,7 @@ object SealedTraitHelper:
     val isTraitOrAbstract = sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract)
 
     isSealed && isTraitOrAbstract
+  end isFieldSealedTrait
 
   /** Gets the discriminator value for a given concrete type based on the strategy.
     */

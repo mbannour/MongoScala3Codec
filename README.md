@@ -4,15 +4,71 @@
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.0%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 
-MongoScala3Codec is a macro-based library for BSON serialization and deserialization of Scala 3 case classes. It generates BSON codecs at compile time, ensuring:
+**MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead, best-in-class sealed trait support, and production-ready error handling.
 
-- **Strong Type Safety**: Compile-time validation of BSON serialization.
-- **High Performance**: Optimized code generation for efficient BSON handling.
-- **Minimal Boilerplate**: No need to write manual codec definitions.
-- **Sealed Trait Support**: Automatic codec generation for sealed trait hierarchies.
-- **Case Class Support**: Automatic codec generation for case classes, including concrete implementations from sealed trait hierarchies.
-- **Flexible Configuration**: Type-safe configuration for codec behavior.
-- **Pure Scala 3**: Built with opaque types and extension methods for idiomatic Scala 3 code.
+---
+
+## ⚡ Why MongoScala3Codec?
+
+### **The Core Problem: No Scala 3 Support**
+
+**This library was created to enable native MongoDB usage in Scala 3.** The official `mongo-scala-driver` **only supports Scala 2.11, 2.12, and 2.13** because it relies heavily on **Scala 2 macros** for automatic codec generation. Since Scala 3 completely redesigned the macro system, the official driver **requires a major rewrite** to support Scala 3.
+
+**Your options without MongoScala3Codec:**
+- ⬇️ **Downgrade to Scala 2.13** (lose Scala 3 features)
+- 🔧 **Use Java driver directly** (lose type safety, write manual codecs)
+- ❌ **Wait indefinitely** for official Scala 3 support
+
+### **The Problem with MongoDB + Scala**
+Beyond Scala 3 support, most MongoDB Scala libraries force you to choose between:
+- ❌ **Manual codec writing** (tedious, error-prone, 100+ lines per type)
+- ❌ **Runtime reflection** (slow, unsafe, compatibility issues)
+- ❌ **Limited sealed trait support** (no discriminator strategies, rigid `_t` field naming)
+
+### **MongoScala3Codec Solves Everything**
+
+✅ **Zero Boilerplate** - One line registers any case class
+✅ **Compile-Time Safe** - Catch errors before deployment, not in production
+✅ **BSON-Native** - Preserves ObjectId, Binary, Decimal128, Dates
+✅ **Sealed Traits** - Industry-leading polymorphic support with discriminators
+✅ **Production-Ready** - Comprehensive error messages, 280+ tests, stress-tested
+
+### **Unique Advantages**
+
+| Feature | MongoScala3Codec | mongo-scala-driver | ReactiveMongo | 
+|---------|------------------|---------------------|---------------|
+| **Scala 3 Support** | ✅ **Native** | ❌ Scala 2 only¹ | ❌ Scala 2 only² |
+| **Macro System** | ✅ Scala 3 macros | ❌ Scala 2 macros³ | ⚠️ Scala 2 macros |
+| **Compile-Time Codecs** | ✅ Zero overhead | ✅ Scala 2 only | ⚠️ Mixed⁴ |
+| **Sealed Trait Support** | ✅ **Best** | ✅ Basic⁵ | ✅ Basic |
+| **Discriminator Strategies** | ✅ 3 strategies⁶ | ❌ Fixed `_t` only | ❌ Limited |
+| **Type-Safe Field Paths** | ✅ **MongoPath**⁷ | ❌ | ❌ |
+| **None Handling Options** | ✅ Ignore/Encode | ✅ Ignore/Encode | ✅ |
+| **Production Error Messages** | ✅ **Detailed**⁸ | ⚠️ Basic | ⚠️ Ba*sic |
+
+**Footnotes:**
+1. mongo-scala-driver supports Scala 2.11, 2.12, 2.13 only - [Scaladex](https://index.scala-lang.org/mongodb/mongo-java-driver)
+2. ReactiveMongo v0.20.13 supports Scala 2.11, 2.12, 2.13 only - [Scaladex](https://index.scala-lang.org/reactivemongo/reactivemongo)
+3. mongo-scala-driver "heavily uses macros which were dropped in Scala 3" - [Stack Overflow](https://stackoverflow.com/q/69230300)
+4. ReactiveMongo uses both compile-time macros and runtime reflection components
+5. mongo-scala-driver supports sealed traits via `Macros.createCodecProvider` with fixed `_t` discriminator
+6. MongoScala3Codec: SimpleName, FullyQualifiedName, Custom discriminator strategies
+7. Compile-time safe field paths: `MongoPath.of[User](_.address.?.city)` respects `@BsonProperty`
+8. Enhanced macro errors with ❌/✅ examples, runtime errors with causes and suggestions
+
+**Bottom line:** MongoScala3Codec is the **only library** that enables native MongoDB usage in Scala 3 with compile-time safety, flexible sealed trait encoding, and BSON-native types.
+
+---
+
+## ⚡ Key Features
+
+- **Strong Type Safety**: Compile-time validation of all BSON serialization
+- **High Performance**: Optimized code generation with specialized primitive fast paths
+- **Minimal Boilerplate**: No manual codec writing - everything auto-generated
+- **Best-in-Class Sealed Traits**: Discriminator-based encoding with 3 strategies
+- **Type-Safe Field Paths**: `MongoPath.of[User](_.address.?.city)` - unique in Scala
+- **Flexible Configuration**: `ignoreNone` vs `encodeNone`, custom discriminators
+- **Pure Scala 3**: Opaque types, extension methods, modern macro system
 
 ---
 
@@ -53,22 +109,24 @@ val found = people.find().first().toFuture()
 
 ## 📚 Documentation
 
-- **[5-Minute Quickstart](docs/QUICKSTART.md)** - Get started immediately
-- **[Sealed Traits Guide](docs/SEALED_TRAITS.md)** - **NEW!** Complete guide for polymorphic sealed traits
-- **[BSON Type Mapping](docs/BSON_TYPE_MAPPING.md)** - Complete type reference (35+ types)
-- **[Feature Overview](docs/FEATURES.md)** - Complete feature guide with examples
-- **[Enumeration Support](docs/ENUM_SUPPORT.md)** - Comprehensive guide for Scala 3 enums
-- **[MongoDB Interop](docs/MONGODB_INTEROP.md)** - Driver integration guide
-- **[How It Works](docs/HOW_IT_WORKS.md)** - Scala 3 derivation internals explained
-- **[Migration Guide](docs/MIGRATION.md)** - Migrate from other libraries
-- **[FAQ & Troubleshooting](docs/FAQ.md)** - Common issues and solutions
+**👉 [Complete Documentation Index](docs/README.md)** - Navigation guide for all docs
+
+### Quick Links
+
+| Getting Started | Advanced | Reference |
+|----------------|----------|-----------|
+| [5-Min Quickstart](docs/QUICKSTART.md) | [Sealed Traits Guide](docs/SEALED_TRAITS.md) | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
+| [Feature Overview](docs/FEATURES.md) | [Enum Support](docs/ENUM_SUPPORT.md) | [MongoDB Interop](docs/MONGODB_INTEROP.md) |
+| [FAQ & Troubleshooting](docs/FAQ.md) | [How It Works](docs/HOW_IT_WORKS.md) | [Migration Guide](docs/MIGRATION.md) |
+
+**💡 New to the library?** Start with [QUICKSTART.md](docs/QUICKSTART.md) (5 minutes)
 
 ---
 
 ## Features
 
 - ✅ Automatic BSON codec generation for Scala 3 case classes
-- ✅ **NEW! Polymorphic sealed trait support** - discriminator-based encoding with `registerSealed[T]`
+- ✅ **Polymorphic sealed trait support** - discriminator-based encoding with `registerSealed[T]`
 - ✅ **Support for concrete case classes from sealed trait hierarchies** - each case class registered independently
 - ✅ **Support for default parameter values** - missing fields use defaults automatically
 - ✅ Support for options and nested case classes
@@ -396,29 +454,6 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## Changelog
-
-### 0.0.7-M2 (Current)
-- **Performance**: Optimized `RegistryBuilder` with efficient caching (O(N) total vs O(N²))
-- **New**: Convenience methods `just[T]`, `withTypes[T]`, `registerIf[T]`
-- **New**: State inspection methods (`currentConfig`, `codecCount`, `hasCodecFor`, etc.)
-- **New**: JMH benchmarks for performance testing
-- **Enhancement**: `MongoPath` for compile-time safe field paths
-- **Breaking**: Simplified `CodecConfig` by removing discriminator field
-- **Improvement**: Better builder composition with `++` operator
-
-### 0.0.6
-- Initial stable release
-- Case class codec generation
-- Sealed trait support
-- Optional field handling
-- Custom field names with `@BsonProperty`
-- Scala 3 enum support
-- Opaque type support
-- Testing utilities with `CodecTestKit`
 
 ---
 

@@ -72,8 +72,7 @@ object EnumCodecGenerator:
     val enumType = TypeRepr.of[E]
     val enumSymbol = enumType.typeSymbol
 
-    if !enumSymbol.flags.is(Flags.Enum) then
-      report.errorAndAbort(s"${enumSymbol.name} is not an enum")
+    if !enumSymbol.flags.is(Flags.Enum) then report.errorAndAbort(s"${enumSymbol.name} is not an enum")
 
     val customField = customFieldExpr.valueOrAbort
 
@@ -97,22 +96,27 @@ object EnumCodecGenerator:
         try
           val enumClass = Class.forName($companionName)
           val enumValues = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
-          enumValues.find { v =>
-            try
-              val method = v.getClass.getMethod(${ Expr(customField) })
-              method.invoke(v).toString == $value
-            catch
-              case _: NoSuchMethodException =>
-                throw new RuntimeException(
-                  s"Enum ${v.getClass.getSimpleName} does not have a method named '${${ Expr(customField) }}'"
-                )
-          }.map(_.asInstanceOf[E]).getOrElse {
-            throw new RuntimeException(s"No enum value found for ${${ Expr(customField) }}: ${$value}")
-          }
+          enumValues
+            .find { v =>
+              try
+                val method = v.getClass.getMethod(${ Expr(customField) })
+                method.invoke(v).toString == $value
+              catch
+                case _: NoSuchMethodException =>
+                  throw new RuntimeException(
+                    s"Enum ${v.getClass.getSimpleName} does not have a method named '${${ Expr(customField) }}'"
+                  )
+            }
+            .map(_.asInstanceOf[E])
+            .getOrElse {
+              throw new RuntimeException(s"No enum value found for ${${ Expr(customField) }}: ${$value}")
+            }
         catch
           case ex: Exception =>
             throw new RuntimeException(s"Error decoding enum: ${ex.getMessage}", ex)
       }
+    end if
+  end fromStringImpl
 
   private def fromIntImpl[E: Type](value: Expr[Int], customFieldExpr: Expr[String])(using Quotes): Expr[E] =
     import quotes.reflect.*
@@ -120,8 +124,7 @@ object EnumCodecGenerator:
     val enumType = TypeRepr.of[E]
     val enumSymbol = enumType.typeSymbol
 
-    if !enumSymbol.flags.is(Flags.Enum) then
-      report.errorAndAbort(s"${enumSymbol.name} is not an enum")
+    if !enumSymbol.flags.is(Flags.Enum) then report.errorAndAbort(s"${enumSymbol.name} is not an enum")
 
     val customField = customFieldExpr.valueOrAbort
 
@@ -140,16 +143,20 @@ object EnumCodecGenerator:
           if intVal >= 0 && intVal < enumValues.length then enumValues(intVal).asInstanceOf[E]
           else
             // Try custom "code" field as fallback for backward compatibility
-            enumValues.find { v =>
-              try
-                val method = v.getClass.getMethod("code")
-                method.invoke(v) == intVal
-              catch case _: NoSuchMethodException => false
-            }.map(_.asInstanceOf[E]).getOrElse {
-              throw new RuntimeException(
-                s"No enum value with ordinal $intVal or code $intVal"
-              )
-            }
+            enumValues
+              .find { v =>
+                try
+                  val method = v.getClass.getMethod("code")
+                  method.invoke(v) == intVal
+                catch case _: NoSuchMethodException => false
+              }
+              .map(_.asInstanceOf[E])
+              .getOrElse {
+                throw new RuntimeException(
+                  s"No enum value with ordinal $intVal or code $intVal"
+                )
+              }
+          end if
         catch
           case ex: Exception =>
             throw new RuntimeException(s"Error decoding enum from ordinal: ${ex.getMessage}", ex)
@@ -166,31 +173,37 @@ object EnumCodecGenerator:
           if intVal >= 0 && intVal < enumValues.length then enumValues(intVal).asInstanceOf[E]
           else
             // Try custom field
-            enumValues.find { v =>
-              try
-                val method = v.getClass.getMethod(${ Expr(customField) })
-                method.invoke(v) == intVal
-              catch case _: NoSuchMethodException => false
-            }.map(_.asInstanceOf[E]).getOrElse {
-              throw new RuntimeException(
-                s"No enum value with ordinal $intVal or ${${ Expr(customField) }} $intVal"
-              )
-            }
+            enumValues
+              .find { v =>
+                try
+                  val method = v.getClass.getMethod(${ Expr(customField) })
+                  method.invoke(v) == intVal
+                catch case _: NoSuchMethodException => false
+              }
+              .map(_.asInstanceOf[E])
+              .getOrElse {
+                throw new RuntimeException(
+                  s"No enum value with ordinal $intVal or ${${ Expr(customField) }} $intVal"
+                )
+              }
+          end if
         catch
           case ex: Exception =>
             throw new RuntimeException(s"Error decoding enum from int: ${ex.getMessage}", ex)
       }
+    end if
+  end fromIntImpl
 
   private def toStringImpl[E: Type](value: Expr[E], customFieldExpr: Expr[String])(using q: Quotes): Expr[String] =
     val customField = customFieldExpr.valueOrAbort
 
-    if customField.isEmpty then
-      '{ $value.toString }
+    if customField.isEmpty then '{ $value.toString }
     else
       '{
         val method = $value.getClass.getMethod(${ Expr(customField) })
         method.invoke($value).toString
       }
+  end toStringImpl
 
   private def toIntImpl[E: Type](value: Expr[E], customFieldExpr: Expr[String])(using q: Quotes): Expr[Int] =
     import q.reflect.*
@@ -198,8 +211,7 @@ object EnumCodecGenerator:
     val enumType = TypeRepr.of[E]
     val enumSymbol = enumType.typeSymbol
 
-    if !enumSymbol.flags.is(Flags.Enum) then
-      report.errorAndAbort(s"${enumSymbol.name} is not an enum")
+    if !enumSymbol.flags.is(Flags.Enum) then report.errorAndAbort(s"${enumSymbol.name} is not an enum")
 
     val customField = customFieldExpr.valueOrAbort
 
@@ -214,5 +226,7 @@ object EnumCodecGenerator:
         val method = $value.getClass.getMethod(${ Expr(customField) })
         method.invoke($value).asInstanceOf[Int]
       }
+    end if
+  end toIntImpl
 
 end EnumCodecGenerator

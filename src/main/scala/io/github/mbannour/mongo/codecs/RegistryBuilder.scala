@@ -185,16 +185,18 @@ object RegistryBuilder:
     // Verify this is a sealed trait or sealed abstract class
     if !sym.flags.is(Flags.Sealed) then
       val typeName = sym.name
-      val typeKind = if sym.flags.is(Flags.Trait) then "trait"
-                     else if sym.flags.is(Flags.Abstract) then "abstract class"
-                     else "type"
+      val typeKind =
+        if sym.flags.is(Flags.Trait) then "trait"
+        else if sym.flags.is(Flags.Abstract) then "abstract class"
+        else "type"
       report.errorAndAbort(
         s"Cannot register '$typeName' as a sealed trait" +
-        s"\n\n'$typeName' is a $typeKind, but only sealed traits or sealed abstract classes can be registered with registerSealed." +
-        "\n\nSuggestion:" +
-        s"\n  • If '$typeName' is a case class, use register[$typeName] instead" +
-        s"\n  • If '$typeName' should be sealed, declare it as: sealed trait $typeName or sealed abstract class $typeName"
+          s"\n\n'$typeName' is a $typeKind, but only sealed traits or sealed abstract classes can be registered with registerSealed." +
+          "\n\nSuggestion:" +
+          s"\n  • If '$typeName' is a case class, use register[$typeName] instead" +
+          s"\n  • If '$typeName' should be sealed, declare it as: sealed trait $typeName or sealed abstract class $typeName"
       )
+    end if
 
     // Get all case class children
     val children = sym.children.filter(_.flags.is(Flags.Case))
@@ -202,9 +204,9 @@ object RegistryBuilder:
     if children.isEmpty then
       report.errorAndAbort(
         s"Sealed trait '${sym.name}' has no case class subtypes" +
-        "\n\nCannot create codec for a sealed trait without concrete case class implementations." +
-        "\n\nSuggestion: Add at least one case class extending this sealed trait:" +
-        s"\n  case class ConcreteType(...) extends ${sym.name}"
+          "\n\nCannot create codec for a sealed trait without concrete case class implementations." +
+          "\n\nSuggestion: Add at least one case class extending this sealed trait:" +
+          s"\n  case class ConcreteType(...) extends ${sym.name}"
       )
 
     '{
@@ -366,12 +368,11 @@ object RegistryBuilder:
     /** Register a sealed trait and all its concrete subtypes.
       *
       * This method automatically:
-      *   1. Registers all concrete case class subtypes of the sealed trait
-      *   2. Creates and registers a discriminator-based codec for the sealed trait itself
-      *   3. Configures polymorphic encoding/decoding based on CodecConfig settings
+      *   1. Registers all concrete case class subtypes of the sealed trait 2. Creates and registers a discriminator-based codec for the
+      *      sealed trait itself 3. Configures polymorphic encoding/decoding based on CodecConfig settings
       *
-      * The sealed trait codec uses a discriminator field (configured via CodecConfig.discriminatorField) to identify the concrete type during
-      * encoding/decoding.
+      * The sealed trait codec uses a discriminator field (configured via CodecConfig.discriminatorField) to identify the concrete type
+      * during encoding/decoding.
       *
       * @tparam T
       *   The sealed trait type
@@ -401,8 +402,7 @@ object RegistryBuilder:
     /** Batch register multiple sealed traits using tuple syntax.
       *
       * This is more efficient than calling `registerSealed` multiple times separately. For each sealed trait in the tuple, this method:
-      *   1. Registers all concrete case class subtypes
-      *   2. Creates and registers a discriminator-based codec for the sealed trait
+      *   1. Registers all concrete case class subtypes 2. Creates and registers a discriminator-based codec for the sealed trait
       *
       * @tparam T
       *   A tuple of sealed trait types to register

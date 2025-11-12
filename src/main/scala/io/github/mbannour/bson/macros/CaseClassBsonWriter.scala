@@ -108,8 +108,8 @@ object CaseClassBsonWriter:
 
           // Check if this is a sealed trait at compile time
           val isSealed = nestedTypeRepr.typeSymbol.flags.is(Flags.Sealed) &&
-                        (nestedTypeRepr.typeSymbol.flags.is(Flags.Trait) ||
-                         nestedTypeRepr.typeSymbol.flags.is(Flags.Abstract))
+            (nestedTypeRepr.typeSymbol.flags.is(Flags.Trait) ||
+              nestedTypeRepr.typeSymbol.flags.is(Flags.Abstract))
 
           nestedTypeRepr.asType match
             case '[nt] =>
@@ -117,9 +117,10 @@ object CaseClassBsonWriter:
                 // For sealed traits, use the declared type's codec (which handles discriminators)
                 '{
                   val fieldValue = $fieldValueExpr.asInstanceOf[nt]
-                  val declaredClass = ${ Expr.summon[ClassTag[nt]] match
-                    case Some(ct) => '{ $ct.runtimeClass.asInstanceOf[Class[nt]] }
-                    case None => report.errorAndAbort(s"Cannot summon ClassTag for sealed trait")
+                  val declaredClass = ${
+                    Expr.summon[ClassTag[nt]] match
+                      case Some(ct) => '{ $ct.runtimeClass.asInstanceOf[Class[nt]] }
+                      case None     => report.errorAndAbort(s"Cannot summon ClassTag for sealed trait")
                   }
                   try
                     val codec = $registry.get(declaredClass)
@@ -186,8 +187,8 @@ object CaseClassBsonWriter:
       case t =>
         // Check if this is a sealed trait at compile time
         val isSealed = t.typeSymbol.flags.is(Flags.Sealed) &&
-                      (t.typeSymbol.flags.is(Flags.Trait) ||
-                       t.typeSymbol.flags.is(Flags.Abstract))
+          (t.typeSymbol.flags.is(Flags.Trait) ||
+            t.typeSymbol.flags.is(Flags.Abstract))
 
         t.asType match
           case '[nt] =>
@@ -213,6 +214,7 @@ object CaseClassBsonWriter:
                   case e: org.bson.codecs.configuration.CodecConfigurationException =>
                     throw new IllegalArgumentException(s"No codec found for type: " + clazz.getName, e)
               }
+        end match
     end match
   end writeOptionField
 end CaseClassBsonWriter

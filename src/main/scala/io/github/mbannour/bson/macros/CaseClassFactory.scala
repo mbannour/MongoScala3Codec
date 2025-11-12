@@ -16,17 +16,19 @@ object CaseClassFactory:
     val mainTypeSymbol = mainTypeRepr.typeSymbol
     if !mainTypeSymbol.flags.is(Flags.Case) then
       val typeName = mainTypeSymbol.name
-      val typeKind = if mainTypeSymbol.flags.is(Flags.Trait) then "trait"
-                     else if mainTypeSymbol.flags.is(Flags.Abstract) then "abstract class"
-                     else if mainTypeSymbol.isClassDef then "class"
-                     else "type"
+      val typeKind =
+        if mainTypeSymbol.flags.is(Flags.Trait) then "trait"
+        else if mainTypeSymbol.flags.is(Flags.Abstract) then "abstract class"
+        else if mainTypeSymbol.isClassDef then "class"
+        else "type"
       report.errorAndAbort(
         s"'$typeName' is a $typeKind, not a case class." +
-        "\n\nBSON codec generation only works with case classes." +
-        "\n\nSuggestion: Convert '$typeName' to a case class:" +
-        s"\n  case class $typeName(...)" +
-        "\n\nOr, if you're working with a sealed trait hierarchy, register the concrete case class implementations instead of the trait."
+          "\n\nBSON codec generation only works with case classes." +
+          "\n\nSuggestion: Convert '$typeName' to a case class:" +
+          s"\n  case class $typeName(...)" +
+          "\n\nOr, if you're working with a sealed trait hierarchy, register the concrete case class implementations instead of the trait."
       )
+    end if
 
     val constructorParams = mainTypeSymbol.primaryConstructor.paramSymss.flatten
 
@@ -90,10 +92,10 @@ object CaseClassFactory:
           // Check for @BsonEnum annotation to get custom field name
           val bsonEnumSymbol = TypeRepr.of[BsonEnum].typeSymbol
           val customFieldName: String = param.getAnnotation(bsonEnumSymbol) match
-            case Some(Apply(_, List(Literal(StringConstant(fieldName))))) => fieldName
-            case Some(Apply(_, List(NamedArg(_, Literal(StringConstant(fieldName))))))  => fieldName
-            case Some(_)                                                   => ""
-            case None                                                      => ""
+            case Some(Apply(_, List(Literal(StringConstant(fieldName)))))              => fieldName
+            case Some(Apply(_, List(NamedArg(_, Literal(StringConstant(fieldName)))))) => fieldName
+            case Some(_)                                                               => ""
+            case None                                                                  => ""
 
           val customFieldExpr = Expr(customFieldName)
 

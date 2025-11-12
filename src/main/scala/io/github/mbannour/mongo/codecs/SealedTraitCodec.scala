@@ -41,28 +41,40 @@ class SealedTraitCodec[T](
 ) extends Codec[T]:
 
   override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit =
-    if value == null then
-      throw new IllegalArgumentException("Cannot encode null sealed trait value")
+    if value == null then throw new IllegalArgumentException("Cannot encode null sealed trait value")
 
     val actualClass = value.getClass
     val discriminator = classToDiscriminator.getOrElse(
-      actualClass,
-      throw new IllegalArgumentException(
-        s"No discriminator mapping found for class ${actualClass.getName}. " +
-          s"Available mappings: ${classToDiscriminator.keys.map(_.getName).mkString(", ")}"
-      )
+      actualClass, {
+        val traitName = getEncoderClass.getSimpleName
+        val registeredTypes = classToDiscriminator.keys.map(_.getSimpleName).toSeq.sorted.mkString(", ")
+        throw new IllegalArgumentException(
+          s"No discriminator mapping found for class '${actualClass.getSimpleName}'" +
+            s"\n\nAttempted to encode an instance of '${actualClass.getSimpleName}' as sealed trait '$traitName'," +
+            s"\nbut this type is not registered as a subtype of the sealed trait." +
+            s"\n\nRegistered subtypes: $registeredTypes" +
+            s"\n\nPossible causes:" +
+            s"\n  • The class '${actualClass.getSimpleName}' is not a subtype of '$traitName'" +
+            s"\n  • The subtype was added but not registered" +
+            s"\n  • registerSealed[$traitName] was called before the subtype was defined" +
+            s"\n\nSuggestions:" +
+            s"\n  • Ensure ${actualClass.getSimpleName} extends $traitName" +
+            s"\n  • Re-register: registry.newBuilder.registerSealed[$traitName]" +
+            s"\n  • Check all subtypes are compiled before registration"
+        )
+      }
     )
 
     // Get the codec for the concrete type
-    val concreteCodec = try
-      registry.get(actualClass).asInstanceOf[Codec[T]]
-    catch
-      case e: Exception =>
-        throw new IllegalArgumentException(
-          s"No codec registered for concrete type ${actualClass.getName}. " +
-            s"Ensure all sealed trait subtypes are registered in the registry.",
-          e
-        )
+    val concreteCodec =
+      try registry.get(actualClass).asInstanceOf[Codec[T]]
+      catch
+        case e: Exception =>
+          throw new IllegalArgumentException(
+            s"No codec registered for concrete type ${actualClass.getName}. " +
+              s"Ensure all sealed trait subtypes are registered in the registry.",
+            e
+          )
 
     // Write as a document with discriminator + fields
     writer.writeStartDocument()
@@ -80,32 +92,34 @@ class SealedTraitCodec[T](
       val entry = iterator.next()
       val key = entry.getKey
       if key != discriminatorField then writer.writeName(key)
-        tempDocument.get(key).asInstanceOf[org.bson.BsonValue] match
-          case v: org.bson.BsonString     => writer.writeString(v.getValue)
-          case v: org.bson.BsonInt32      => writer.writeInt32(v.getValue)
-          case v: org.bson.BsonInt64      => writer.writeInt64(v.getValue)
-          case v: org.bson.BsonDouble     => writer.writeDouble(v.getValue)
-          case v: org.bson.BsonBoolean    => writer.writeBoolean(v.getValue)
-          case _: org.bson.BsonNull       => writer.writeNull()
-          case v: org.bson.BsonDocument   => new org.bson.codecs.BsonDocumentCodec().encode(writer, v, encoderContext)
-          case v: org.bson.BsonArray      => new org.bson.codecs.BsonArrayCodec().encode(writer, v, encoderContext)
-          case v: org.bson.BsonObjectId   => writer.writeObjectId(v.getValue)
-          case v: org.bson.BsonBinary     => writer.writeBinaryData(v)
-          case v: org.bson.BsonTimestamp  => writer.writeTimestamp(v)
-          case v: org.bson.BsonDateTime   => writer.writeDateTime(v.getValue)
-          case v: org.bson.BsonDecimal128 => writer.writeDecimal128(v.getValue)
-          case v: org.bson.BsonRegularExpression => writer.writeRegularExpression(v)
-          case v: org.bson.BsonSymbol     => writer.writeSymbol(v.getSymbol)
-          case _: org.bson.BsonUndefined  => writer.writeUndefined()
-          case v: org.bson.BsonJavaScript => writer.writeJavaScript(v.getCode)
-          case v: org.bson.BsonJavaScriptWithScope =>
-            writer.writeJavaScriptWithScope(v.getCode)
-            new org.bson.codecs.BsonDocumentCodec().encode(writer, v.getScope, encoderContext)
-          case _: org.bson.BsonMinKey  => writer.writeMinKey()
-          case _: org.bson.BsonMaxKey  => writer.writeMaxKey()
-          case v: org.bson.BsonDbPointer => writer.writeDBPointer(v)
-          case other =>
-            throw new IllegalArgumentException(s"Unsupported BSON type: ${other.getClass.getName}")
+      tempDocument.get(key).asInstanceOf[org.bson.BsonValue] match
+        case v: org.bson.BsonString            => writer.writeString(v.getValue)
+        case v: org.bson.BsonInt32             => writer.writeInt32(v.getValue)
+        case v: org.bson.BsonInt64             => writer.writeInt64(v.getValue)
+        case v: org.bson.BsonDouble            => writer.writeDouble(v.getValue)
+        case v: org.bson.BsonBoolean           => writer.writeBoolean(v.getValue)
+        case _: org.bson.BsonNull              => writer.writeNull()
+        case v: org.bson.BsonDocument          => new org.bson.codecs.BsonDocumentCodec().encode(writer, v, encoderContext)
+        case v: org.bson.BsonArray             => new org.bson.codecs.BsonArrayCodec().encode(writer, v, encoderContext)
+        case v: org.bson.BsonObjectId          => writer.writeObjectId(v.getValue)
+        case v: org.bson.BsonBinary            => writer.writeBinaryData(v)
+        case v: org.bson.BsonTimestamp         => writer.writeTimestamp(v)
+        case v: org.bson.BsonDateTime          => writer.writeDateTime(v.getValue)
+        case v: org.bson.BsonDecimal128        => writer.writeDecimal128(v.getValue)
+        case v: org.bson.BsonRegularExpression => writer.writeRegularExpression(v)
+        case v: org.bson.BsonSymbol            => writer.writeSymbol(v.getSymbol)
+        case _: org.bson.BsonUndefined         => writer.writeUndefined()
+        case v: org.bson.BsonJavaScript        => writer.writeJavaScript(v.getCode)
+        case v: org.bson.BsonJavaScriptWithScope =>
+          writer.writeJavaScriptWithScope(v.getCode)
+          new org.bson.codecs.BsonDocumentCodec().encode(writer, v.getScope, encoderContext)
+        case _: org.bson.BsonMinKey    => writer.writeMinKey()
+        case _: org.bson.BsonMaxKey    => writer.writeMaxKey()
+        case v: org.bson.BsonDbPointer => writer.writeDBPointer(v)
+        case other =>
+          throw new IllegalArgumentException(s"Unsupported BSON type: ${other.getClass.getName}")
+      end match
+    end while
 
     writer.writeEndDocument()
   end encode
@@ -119,8 +133,7 @@ class SealedTraitCodec[T](
 
     while reader.readBsonType() != BsonType.END_OF_DOCUMENT do
       val fieldName = reader.readName()
-      if fieldName == discriminatorField then
-        discriminator = Some(reader.readString())
+      if fieldName == discriminatorField then discriminator = Some(reader.readString())
       else
         // Store field for later processing
         fieldsData += (fieldName -> readBsonValue(reader, decoderContext))
@@ -132,26 +145,52 @@ class SealedTraitCodec[T](
     val concreteClass = discriminator match
       case Some(disc) =>
         discriminatorToClass.getOrElse(
-          disc,
-          throw new IllegalArgumentException(
-            s"Unknown discriminator value '$disc' for sealed trait ${getEncoderClass.getName}. " +
-              s"Valid discriminators: ${discriminatorToClass.keys.mkString(", ")}"
-          )
+          disc, {
+            val validDiscriminators = discriminatorToClass.keys.toSeq.sorted.mkString(", ")
+            val traitName = getEncoderClass.getSimpleName
+            throw new IllegalArgumentException(
+              s"Unknown discriminator value '$disc' for sealed trait '$traitName'" +
+                s"\n\nThe BSON document contains a discriminator value that doesn't match any registered subtype." +
+                s"\n\nFound discriminator: \"$disc\"" +
+                s"\nExpected one of: $validDiscriminators" +
+                s"\n\nPossible causes:" +
+                s"\n  • Data was written with a different discriminator strategy" +
+                s"\n  • A subtype was added/removed but old data still exists" +
+                s"\n  • The discriminator field name changed" +
+                s"\n\nSuggestions:" +
+                s"\n  • Verify all subtypes are registered: registerSealed[$traitName]" +
+                s"\n  • Check discriminator strategy matches data (SimpleName/FullyQualifiedName/Custom)" +
+                s"\n  • Use schema migration if structure changed"
+            )
+          }
         )
       case None =>
+        val traitName = getEncoderClass.getSimpleName
+        val validDiscriminators = discriminatorToClass.keys.toSeq.sorted.mkString(", ")
         throw new IllegalArgumentException(
-          s"Missing discriminator field '$discriminatorField' when decoding sealed trait ${getEncoderClass.getName}"
+          s"Missing discriminator field '$discriminatorField' when decoding sealed trait '$traitName'" +
+            s"\n\nThe BSON document is missing the discriminator field required to identify the concrete subtype." +
+            s"\n\nExpected field: \"$discriminatorField\"" +
+            s"\nExpected values: $validDiscriminators" +
+            s"\n\nPossible causes:" +
+            s"\n  • Data was written without using registerSealed[$traitName]" +
+            s"\n  • Data was manually created without discriminator" +
+            s"\n  • Discriminator field name was configured differently when writing" +
+            s"\n\nSuggestions:" +
+            s"\n  • Ensure data was written with: registerSealed[$traitName]" +
+            s"\n  • Check both read and write use same discriminator field name" +
+            s"\n  • Verify CodecConfig.discriminatorField matches across operations"
         )
 
     // Get the codec for the concrete type
-    val concreteCodec = try
-      registry.get(concreteClass).asInstanceOf[Codec[T]]
-    catch
-      case e: Exception =>
-        throw new IllegalArgumentException(
-          s"No codec registered for concrete type ${concreteClass.getName}",
-          e
-        )
+    val concreteCodec =
+      try registry.get(concreteClass).asInstanceOf[Codec[T]]
+      catch
+        case e: Exception =>
+          throw new IllegalArgumentException(
+            s"No codec registered for concrete type ${concreteClass.getName}",
+            e
+          )
 
     // Reconstruct the document without the discriminator and decode
     val reconstructedDoc = new org.bson.BsonDocument()
@@ -166,27 +205,27 @@ class SealedTraitCodec[T](
   /** Reads a BSON value from the reader and returns it as a Scala type. */
   private def readBsonValue(reader: BsonReader, decoderContext: DecoderContext): Any =
     reader.getCurrentBsonType match
-      case BsonType.STRING       => reader.readString()
-      case BsonType.INT32        => reader.readInt32()
-      case BsonType.INT64        => reader.readInt64()
-      case BsonType.DOUBLE       => reader.readDouble()
-      case BsonType.BOOLEAN      => reader.readBoolean()
-      case BsonType.NULL         => reader.readNull(); null
-      case BsonType.OBJECT_ID    => reader.readObjectId()
-      case BsonType.DATE_TIME    => reader.readDateTime()
-      case BsonType.BINARY       => reader.readBinaryData()
-      case BsonType.TIMESTAMP    => reader.readTimestamp()
-      case BsonType.DECIMAL128   => reader.readDecimal128()
+      case BsonType.STRING             => reader.readString()
+      case BsonType.INT32              => reader.readInt32()
+      case BsonType.INT64              => reader.readInt64()
+      case BsonType.DOUBLE             => reader.readDouble()
+      case BsonType.BOOLEAN            => reader.readBoolean()
+      case BsonType.NULL               => reader.readNull(); null
+      case BsonType.OBJECT_ID          => reader.readObjectId()
+      case BsonType.DATE_TIME          => reader.readDateTime()
+      case BsonType.BINARY             => reader.readBinaryData()
+      case BsonType.TIMESTAMP          => reader.readTimestamp()
+      case BsonType.DECIMAL128         => reader.readDecimal128()
       case BsonType.REGULAR_EXPRESSION => reader.readRegularExpression()
-      case BsonType.SYMBOL       => reader.readSymbol()
-      case BsonType.UNDEFINED    => reader.readUndefined(); ()
-      case BsonType.JAVASCRIPT   => reader.readJavaScript()
+      case BsonType.SYMBOL             => reader.readSymbol()
+      case BsonType.UNDEFINED          => reader.readUndefined(); ()
+      case BsonType.JAVASCRIPT         => reader.readJavaScript()
       case BsonType.JAVASCRIPT_WITH_SCOPE =>
         val code = reader.readJavaScriptWithScope()
         val scope = new org.bson.codecs.BsonDocumentCodec().decode(reader, decoderContext)
         (code, scope)
-      case BsonType.MIN_KEY => reader.readMinKey(); new org.bson.BsonMinKey()
-      case BsonType.MAX_KEY => reader.readMaxKey(); new org.bson.BsonMaxKey()
+      case BsonType.MIN_KEY    => reader.readMinKey(); new org.bson.BsonMinKey()
+      case BsonType.MAX_KEY    => reader.readMaxKey(); new org.bson.BsonMaxKey()
       case BsonType.DB_POINTER => reader.readDBPointer()
       case BsonType.DOCUMENT =>
         reader.readStartDocument()
@@ -199,8 +238,7 @@ class SealedTraitCodec[T](
       case BsonType.ARRAY =>
         reader.readStartArray()
         val arr = mutable.ListBuffer.empty[Any]
-        while reader.readBsonType() != BsonType.END_OF_DOCUMENT do
-          arr += readBsonValue(reader, decoderContext)
+        while reader.readBsonType() != BsonType.END_OF_DOCUMENT do arr += readBsonValue(reader, decoderContext)
         reader.readEndArray()
         arr.toList
       case other =>
@@ -209,16 +247,16 @@ class SealedTraitCodec[T](
   /** Converts a Scala value back to a BsonValue. */
   private def toBsonValue(value: Any): org.bson.BsonValue =
     value match
-      case s: String   => new org.bson.BsonString(s)
-      case i: Int      => new org.bson.BsonInt32(i)
-      case l: Long     => new org.bson.BsonInt64(l)
-      case d: Double   => new org.bson.BsonDouble(d)
-      case b: Boolean  => new org.bson.BsonBoolean(b)
-      case null        => new org.bson.BsonNull()
-      case oid: org.bson.types.ObjectId => new org.bson.BsonObjectId(oid)
-      case bin: org.bson.BsonBinary => bin
-      case ts: org.bson.BsonTimestamp => ts
-      case dec: org.bson.types.Decimal128 => new org.bson.BsonDecimal128(dec)
+      case s: String                          => new org.bson.BsonString(s)
+      case i: Int                             => new org.bson.BsonInt32(i)
+      case l: Long                            => new org.bson.BsonInt64(l)
+      case d: Double                          => new org.bson.BsonDouble(d)
+      case b: Boolean                         => new org.bson.BsonBoolean(b)
+      case null                               => new org.bson.BsonNull()
+      case oid: org.bson.types.ObjectId       => new org.bson.BsonObjectId(oid)
+      case bin: org.bson.BsonBinary           => bin
+      case ts: org.bson.BsonTimestamp         => ts
+      case dec: org.bson.types.Decimal128     => new org.bson.BsonDecimal128(dec)
       case re: org.bson.BsonRegularExpression => re
       case map: Map[?, ?] =>
         val doc = new org.bson.BsonDocument()
@@ -268,8 +306,7 @@ object SealedTraitCodec:
     val sym = tpe.typeSymbol
 
     // Verify this is a sealed trait
-    if !sym.flags.is(Flags.Sealed) then
-      report.errorAndAbort(s"Type ${sym.name} must be a sealed trait or sealed abstract class")
+    if !sym.flags.is(Flags.Sealed) then report.errorAndAbort(s"Type ${sym.name} must be a sealed trait or sealed abstract class")
 
     '{
       val discriminatorField = $config.discriminatorField

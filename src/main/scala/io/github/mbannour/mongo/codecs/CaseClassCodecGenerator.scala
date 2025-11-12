@@ -63,18 +63,42 @@ object CaseClassCodecGenerator:
     val tpeSym = TypeRepr.of[T].typeSymbol
     if !tpeSym.flags.is(Flags.Case) then
       val typeName = tpeSym.name
-      val typeKind = if tpeSym.flags.is(Flags.Trait) then "trait"
-                     else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
-                     else if tpeSym.isClassDef then "regular class"
-                     else "type"
-      report.errorAndAbort(
-        s"Cannot generate BSON codec for '$typeName'" +
-        s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes." +
-        "\n\nSuggestion:" +
-        s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
-        "\n  • If this is a sealed trait, register each concrete case class implementation separately" +
-        "\n  • For regular classes, consider creating a case class wrapper"
-      )
+      val isSealedTrait = tpeSym.flags.is(Flags.Sealed) && tpeSym.flags.is(Flags.Trait)
+      val typeKind =
+        if tpeSym.flags.is(Flags.Trait) then "trait"
+        else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
+        else if tpeSym.isClassDef then "regular class"
+        else "type"
+
+      val errorMessage =
+        if isSealedTrait then
+          s"Cannot generate BSON codec for sealed trait '$typeName'" +
+            s"\n\n'$typeName' is a sealed trait, not a case class. BSON codecs can only be generated for case classes." +
+            "\n\n" +
+            "❌ Wrong usage:" +
+            s"\n  registry.newBuilder.register[$typeName]  // This won't work!" +
+            "\n\n" +
+            "✅ Correct usage:" +
+            s"\n  registry.newBuilder.registerSealed[$typeName]  // Register sealed trait + all subtypes" +
+            "\n\n" +
+            "This will:" +
+            s"\n  • Automatically register all case class subtypes of $typeName" +
+            s"\n  • Create a discriminator-based codec for polymorphic fields" +
+            s"\n  • Enable ${typeName} to be used as a field type in other case classes" +
+            "\n\n" +
+            "Alternative (if you don't want discriminators):" +
+            "\n  • Register each concrete case class subtype individually with .register[ConcreteType]"
+        else
+          s"Cannot generate BSON codec for '$typeName'" +
+            s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes." +
+            "\n\n" +
+            "Suggestions:" +
+            s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
+            "\n  • For regular classes, create a case class wrapper" +
+            "\n  • For abstract classes, use sealed trait + case class subtypes instead"
+
+      report.errorAndAbort(errorMessage)
+    end if
 
     '{
       new Codec[T]:
@@ -100,9 +124,8 @@ object CaseClassCodecGenerator:
 
         /** Lazy on-demand codec cache using CachedCodecRegistry.
           *
-          * Performance improvement: Instead of eagerly pre-fetching all codecs at initialization
-          * (which can cause circular dependencies and slow startup), we use a CachedCodecRegistry
-          * that fetches codecs on-demand as they're needed. The CachedCodecRegistry uses a
+          * Performance improvement: Instead of eagerly pre-fetching all codecs at initialization (which can cause circular dependencies and
+          * slow startup), we use a CachedCodecRegistry that fetches codecs on-demand as they're needed. The CachedCodecRegistry uses a
           * thread-safe ConcurrentHashMap for lock-free caching.
           *
           * Benefits:
@@ -114,8 +137,10 @@ object CaseClassCodecGenerator:
         private lazy val registry: CodecRegistry = new CachedCodecRegistry(baseRegistryWithThis)
 
         /** Gets a codec from the cached registry.
-          * @param clazz The class to get a codec for
-          * @return The codec for the given class
+          * @param clazz
+          *   The class to get a codec for
+          * @return
+          *   The codec for the given class
           */
         private def getCodec[V](clazz: Class[V]): Codec[V] = registry.get(clazz)
 
@@ -183,9 +208,8 @@ object CaseClassCodecGenerator:
 
         /** Specialized primitive readers to avoid boxing overhead.
           *
-          * These methods read primitives directly from BSON without going through
-          * the codec lookup mechanism, avoiding unnecessary boxing/unboxing and
-          * improving performance for primitive-heavy data structures.
+          * These methods read primitives directly from BSON without going through the codec lookup mechanism, avoiding unnecessary
+          * boxing/unboxing and improving performance for primitive-heavy data structures.
           */
         @inline private def readInt(reader: BsonReader): Int = reader.readInt32()
         @inline private def readLong(reader: BsonReader): Long = reader.readInt64()
@@ -197,21 +221,21 @@ object CaseClassCodecGenerator:
         @inline private def readShort(reader: BsonReader): Short = reader.readInt32().toShort
         @inline private def readChar(reader: BsonReader): Char = reader.readInt32().toChar
 
-        @inline private def readFloat(reader: BsonReader): Float = {
+        @inline private def readFloat(reader: BsonReader): Float =
           // MongoDB stores Float as Double
           val doubleValue = reader.readDouble()
-          if (doubleValue.isNaN || doubleValue.isInfinite) doubleValue.toFloat
-          else if (doubleValue > Float.MaxValue || doubleValue < Float.MinValue)
+          if doubleValue.isNaN || doubleValue.isInfinite then doubleValue.toFloat
+          else if doubleValue > Float.MaxValue || doubleValue < Float.MinValue then
             throw new BsonInvalidOperationException(
               s"Double value $doubleValue exceeds Float range (${Float.MinValue} to ${Float.MaxValue})"
             )
           else doubleValue.toFloat
-        }
+        end readFloat
 
         /** Reads a value of type V from the BSON reader based on the current BSON type.
           *
-          * Optimized with specialized primitive fast paths to avoid boxing overhead and
-          * unnecessary codec lookups for common primitive types.
+          * Optimized with specialized primitive fast paths to avoid boxing overhead and unnecessary codec lookups for common primitive
+          * types.
           */
         private def readValue[V](
             reader: BsonReader,

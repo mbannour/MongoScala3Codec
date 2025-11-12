@@ -55,8 +55,8 @@ object CaseClassFieldMapper:
               s"\n\nFound map type: ${tpe.show}"
           report.errorAndAbort(
             s"Map keys must be String type, but found: $keyType" + contextMsg +
-            "\n\nSuggestion: Change the map type to Map[String, V] where V is your value type." +
-            "\nExample: Map[String, Int] instead of Map[Int, String]"
+              "\n\nSuggestion: Change the map type to Map[String, V] where V is your value type." +
+              "\nExample: Map[String, Int] instead of Map[Int, String]"
           )
         case AppliedType(_, _ :: tail) if isMap(dealiased) => tail
         case AppliedType(_, args)                          => args
@@ -72,9 +72,10 @@ object CaseClassFieldMapper:
             s"\n\nFound tuple type: $tupleType"
         report.errorAndAbort(
           s"Tuple types are not supported in BSON serialization" + contextMsg +
-          "\n\nSuggestion: Wrap the tuple data in a case class instead." +
-          "\nExample: Instead of (String, Int), create case class Data(field1: String, field2: Int)"
+            "\n\nSuggestion: Wrap the tuple data in a case class instead." +
+            "\nExample: Instead of (String, Int), create case class Data(field1: String, field2: Int)"
         )
+      end if
       allTypes.filterNot(isOption).map(t => primitiveTypesMap.getOrElse(t, t))
     end flattenTypeArgs
 

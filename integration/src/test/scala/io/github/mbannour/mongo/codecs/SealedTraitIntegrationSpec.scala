@@ -2,7 +2,7 @@ package io.github.mbannour.mongo.codecs
 
 import com.dimafeng.testcontainers.{ForAllTestContainer, MongoDBContainer}
 import io.github.mbannour.fields.MongoPath
-import io.github.mbannour.mongo.codecs.RegistryBuilder.* // Import extension methods
+import io.github.mbannour.mongo.codecs.RegistryBuilder.* 
 import org.bson.types.ObjectId
 import org.bson.codecs.configuration.CodecRegistry
 import org.mongodb.scala.*
@@ -13,15 +13,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Millis, Seconds, Span}
 
-/** Comprehensive integration tests for sealed trait support with real MongoDB.
-  *
-  * Tests the full end-to-end flow:
-  *   - Registration of sealed traits
-  *   - Insertion into MongoDB
-  *   - Retrieval from MongoDB
-  *   - Query and filtering
-  *   - Update operations
-  */
+
 class SealedTraitIntegrationSpec
     extends AnyFlatSpec
     with ForAllTestContainer
@@ -41,9 +33,7 @@ class SealedTraitIntegrationSpec
     MongoClient(mongoUri)
       .getDatabase("sealed_trait_test_db")
       .withCodecRegistry(registry)
-
-  // ========== Test Models ==========
-
+  
   sealed trait PaymentStatus
   case class Pending() extends PaymentStatus
   case class Processing(transactionId: String) extends PaymentStatus
@@ -81,9 +71,7 @@ class SealedTraitIntegrationSpec
       orderId: String,
       events: List[OrderEvent]
   )
-
-  // ========== Basic Tests ==========
-
+  
   "Sealed trait codec" should "insert and retrieve simple sealed trait documents" in {
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY
       .newBuilder
@@ -164,8 +152,7 @@ class SealedTraitIntegrationSpec
     )
 
     collection.insertMany(payments).toFuture().futureValue
-
-    // Query for Completed status documents by checking the discriminator field
+    
     val completedPayments = collection
       .find(Filters.equal("status._type", "Completed"))
       .toFuture()
@@ -280,8 +267,7 @@ class SealedTraitIntegrationSpec
       .futureValue
 
     retrieved1 shouldBe shipment1
-
-    // Test with None
+    
     val shipment2 = Shipment(
       _id = new ObjectId(),
       trackingNumber = "OPT-002",
@@ -303,8 +289,7 @@ class SealedTraitIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  // ========== Collections of Sealed Traits ==========
-
+  
   it should "handle collections of sealed traits" in {
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY
       .newBuilder
@@ -376,8 +361,7 @@ class SealedTraitIntegrationSpec
 
     retrieved shouldBe history
     retrieved.events should have size 7
-
-    // Verify each event type
+    
     retrieved.events.count(_.isInstanceOf[OrderCreated]) shouldBe 2
     retrieved.events.count(_.isInstanceOf[OrderPaid]) shouldBe 2
     retrieved.events.count(_.isInstanceOf[OrderCancelled]) shouldBe 1
@@ -387,8 +371,7 @@ class SealedTraitIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  // ========== Bulk Operations ==========
-
+  
   it should "handle bulk inserts with sealed traits" in {
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY
       .newBuilder
@@ -424,8 +407,7 @@ class SealedTraitIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  // ========== Custom Discriminator Configuration ==========
-
+  
   it should "work with custom discriminator field" in {
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY
       .newBuilder
@@ -453,9 +435,8 @@ class SealedTraitIntegrationSpec
       .futureValue
 
     retrieved shouldBe payment
-
-    // Verify the discriminator field in raw BSON
-    import org.bson.Document
+    
+   
     val docCollection = database.getCollection[Document]("custom_discriminator")
     val doc = docCollection
       .find(Filters.equal("_id", payment._id))
@@ -469,20 +450,16 @@ class SealedTraitIntegrationSpec
     database.drop().toFuture().futureValue
   }
 
-  // ========== Batch Registration with registerSealedAll ==========
-
+  
   it should "register multiple sealed traits with registerSealedAll" in {
     val registry = MongoClient.DEFAULT_CODEC_REGISTRY
       .newBuilder
       .registerSealedAll[(PaymentStatus, ShippingAddress, OrderEvent)]
-      .register[Payment]
-      .register[Shipment]
-      .register[OrderHistory]
+      .registerAll[(Payment, Shipment, OrderHistory)]
       .build
 
     val database = createDatabaseWithRegistry(registry)
-
-    // Test PaymentStatus
+    
     val paymentCollection: MongoCollection[Payment] = database.getCollection("batch_payments")
     val payment = Payment(
       _id = new ObjectId(),
@@ -497,8 +474,7 @@ class SealedTraitIntegrationSpec
       .toFuture()
       .futureValue
     retrievedPayment shouldBe payment
-
-    // Test ShippingAddress
+    
     val shipmentCollection: MongoCollection[Shipment] = database.getCollection("batch_shipments")
     val shipment = Shipment(
       _id = new ObjectId(),
@@ -513,8 +489,7 @@ class SealedTraitIntegrationSpec
       .toFuture()
       .futureValue
     retrievedShipment shouldBe shipment
-
-    // Test OrderEvent
+    
     val historyCollection: MongoCollection[OrderHistory] = database.getCollection("batch_histories")
     val history = OrderHistory(
       _id = new ObjectId(),
@@ -565,9 +540,7 @@ class SealedTraitIntegrationSpec
       .futureValue
 
     retrieved shouldBe shipment
-
-    // Verify custom discriminator field
-    import org.bson.Document
+    
     val docCollection = database.getCollection[Document]("batch_config_test")
     val doc = docCollection
       .find(Filters.equal("_id", shipment._id))
