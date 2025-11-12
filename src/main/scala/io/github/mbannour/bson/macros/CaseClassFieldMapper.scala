@@ -43,17 +43,40 @@ object CaseClassFieldMapper:
       *   - Filters out Option types.
       *   - Converts primitive types to their boxed versions.
       */
-    def flattenTypeArgs(tpe: TypeRepr): List[TypeRepr] =
+    @annotation.nowarn("msg=unused local definition")
+    def flattenTypeArgs(tpe: TypeRepr, fieldContext: Option[(String, String)] = None): List[TypeRepr] =
       val dealiased = tpe.dealias
       val typeArgs = dealiased match
         case AppliedType(_, args) if isMap(dealiased) && !(args.head =:= TypeRepr.of[String]) =>
-          report.errorAndAbort("Maps must contain string types for keys")
+          val keyType = args.head.show
+          val contextMsg = fieldContext match
+            case Some((className, fieldName)) =>
+              s"\n\nField '$fieldName' in case class '$className' has type: ${tpe.show}"
+            case None =>
+              s"\n\nFound map type: ${tpe.show}"
+          report.errorAndAbort(
+            s"Map keys must be String type, but found: $keyType" + contextMsg +
+              "\n\nSuggestion: Change the map type to Map[String, V] where V is your value type." +
+              "\nExample: Map[String, Int] instead of Map[Int, String]"
+          )
         case AppliedType(_, _ :: tail) if isMap(dealiased) => tail
         case AppliedType(_, args)                          => args
         case _                                             => List.empty
 
-      val allTypes = dealiased :: typeArgs.flatMap(flattenTypeArgs)
-      if allTypes.exists(isTuple) then report.errorAndAbort("Tuples currently aren't supported in case classes")
+      val allTypes = dealiased :: typeArgs.flatMap(t => flattenTypeArgs(t, fieldContext))
+      if allTypes.exists(isTuple) then
+        val tupleType = allTypes.find(isTuple).get.show
+        val contextMsg = fieldContext match
+          case Some((className, fieldName)) =>
+            s"\n\nField '$fieldName' in case class '$className' uses tuple type: $tupleType"
+          case None =>
+            s"\n\nFound tuple type: $tupleType"
+        report.errorAndAbort(
+          s"Tuple types are not supported in BSON serialization" + contextMsg +
+            "\n\nSuggestion: Wrap the tuple data in a case class instead." +
+            "\nExample: Instead of (String, Int), create case class Data(field1: String, field2: Int)"
+        )
+      end if
       allTypes.filterNot(isOption).map(t => primitiveTypesMap.getOrElse(t, t))
     end flattenTypeArgs
 
@@ -83,8 +106,9 @@ object CaseClassFieldMapper:
       if visited.contains(tpe) then Nil
       else
         val fields = getFieldNamesAndTypes(tpe)
-        val fieldTypeMapExpr = createFieldTypeArgsMap(fields)
-        val classNameExpr = Expr(tpe.typeSymbol.name)
+        val className = tpe.typeSymbol.name
+        val fieldTypeMapExpr = createFieldTypeArgsMap(fields, className)
+        val classNameExpr = Expr(className)
         val nestedClassMaps = fields.flatMap { case (_, fieldType) =>
           if isCaseClass(fieldType) then getFieldNamesAndTypesRecursive(fieldType, visited + tpe)
           else Nil
@@ -115,19 +139,19 @@ object CaseClassFieldMapper:
       *
       * @param fields
       *   the list of (fieldName, fieldType) pairs.
-      * @param visited
-      *   the set of types already processed.
+      * @param className
+      *   the name of the class containing these fields.
       * @return
       *   an Expr of Map[String, List[Class[?]]].
       */
-    def createFieldTypeArgsMap(fields: List[(String, TypeRepr)]): Expr[Map[String, List[Class[?]]]] =
+    def createFieldTypeArgsMap(fields: List[(String, TypeRepr)], className: String): Expr[Map[String, List[Class[?]]]] =
       val entries: List[Expr[(String, List[Class[?]])]] = fields.map { case (name, fieldType) =>
         // Determine the effective field name via annotation (if provided), or use the default.
         val annotatedNameExpr = AnnotationName.findAnnotationValue[T](Expr(name)) match
           case '{ Some($annotName: String) } => annotName
           case '{ None }                     => Expr(name)
         // Get the flattened type arguments for the field.
-        val classListExprs: List[Expr[Class[?]]] = flattenTypeArgs(fieldType).map { t =>
+        val classListExprs: List[Expr[Class[?]]] = flattenTypeArgs(fieldType, Some((className, name))).map { t =>
           t.asType match
             case '[tType] =>
               Expr.summon[ClassTag[tType]] match

@@ -1,16 +1,21 @@
 package io.github.mbannour.mongo.codecs
 
 import scala.reflect.{ClassTag, Enum as ScalaEnum}
+import scala.quoted.*
 
 import org.bson.*
 import org.bson.codecs.*
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
+
+import _root_.io.github.mbannour.bson.macros.EnumCodecGenerator
 
 /** `EnumValueCodecProvider` is a helper object to generate a MongoDB [[org.bson.codecs.configuration.CodecProvider]] for Scala 3 enums that
   * can be uniquely represented by a single primitive value such as an `Int`, `String`, or `Boolean`.
   *
   * This allows seamless BSON serialization/deserialization of Scala enums by mapping them to their primitive representation when writing to
   * and reading from MongoDB.
+  *
+  * This implementation uses compile-time macros to avoid reflection, making it more robust and performant.
   */
 object EnumValueCodecProvider:
 
@@ -19,33 +24,36 @@ object EnumValueCodecProvider:
     *
     * Example usage: EnumValueCodecProvider.forStringEnum[Priority]
     */
-  def forStringEnum[E <: ScalaEnum: ClassTag]: CodecProvider =
-    given Codec[String] = new org.bson.codecs.StringCodec()
-    apply[E, String](
-      _.toString,
-      str =>
-        val enumClass = summon[ClassTag[E]].runtimeClass.asInstanceOf[Class[E]]
-        val method = enumClass.getMethod("valueOf", classOf[String])
-        method.invoke(enumClass, str).asInstanceOf[E]
-    )
-  end forStringEnum
+  inline def forStringEnum[E <: ScalaEnum: ClassTag]: CodecProvider =
+    ${ forStringEnumImpl[E]('{ summon[ClassTag[E]] }) }
 
   /** Creates a [[org.bson.codecs.configuration.CodecProvider]] for a Scala 3 enum type `E` that is represented as its ordinal (using its
     * index).
     *
     * Example usage: EnumValueCodecProvider.forOrdinalEnum[Priority]
     */
-  def forOrdinalEnum[E <: ScalaEnum: ClassTag]: CodecProvider =
-    given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
-    apply[E, Int](
-      _.ordinal,
-      ord =>
-        val enumClass = summon[ClassTag[E]].runtimeClass.asInstanceOf[Class[E]]
-        val values = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
-        if ord < 0 || ord >= values.length then throw new RuntimeException(s"No enum value with ordinal: $ord")
-        values(ord).asInstanceOf[E]
-    )
-  end forOrdinalEnum
+  inline def forOrdinalEnum[E <: ScalaEnum: ClassTag]: CodecProvider =
+    ${ forOrdinalEnumImpl[E]('{ summon[ClassTag[E]] }) }
+
+  private def forStringEnumImpl[E <: ScalaEnum: Type](ct: Expr[ClassTag[E]])(using Quotes): Expr[CodecProvider] =
+    '{
+      given ctGiven: ClassTag[E] = $ct
+      given Codec[String] = new org.bson.codecs.StringCodec()
+      apply[E, String](
+        enumValue => EnumCodecGenerator.toString[E](enumValue, ""),
+        str => EnumCodecGenerator.fromString[E](str, "")
+      )
+    }
+
+  private def forOrdinalEnumImpl[E <: ScalaEnum: Type](ct: Expr[ClassTag[E]])(using Quotes): Expr[CodecProvider] =
+    '{
+      given ctGiven: ClassTag[E] = $ct
+      given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
+      apply[E, Int](
+        enumValue => EnumCodecGenerator.toInt[E](enumValue, ""),
+        ord => EnumCodecGenerator.fromInt[E](ord, "")
+      )
+    }
 
   /** Creates a [[org.bson.codecs.configuration.CodecProvider]] for a Scala 3 enum type `E` that can be encoded as a primitive type `V`
     * (e.g., `Int`, `String`).

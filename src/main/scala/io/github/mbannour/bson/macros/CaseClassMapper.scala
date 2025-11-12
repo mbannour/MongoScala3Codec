@@ -47,7 +47,24 @@ object CaseClassMapper:
 
     if caseClassSymbols.isEmpty && isSealed(mainSymbol) then
       val kind = if mainSymbol.flags.is(Flags.Trait) then "trait" else "class"
-      report.errorAndAbort(s"No known subclasses of the sealed $kind '${mainSymbol.name}'.")
+      val typeName = mainSymbol.name
+      val allSubclasses = subclasses(mainSymbol)
+      val subclassInfo = if allSubclasses.nonEmpty then
+        val names = allSubclasses.map(_.name).mkString(", ")
+        s"\n\nFound subclasses: $names (but none are case classes)"
+      else "\n\nNo subclasses found at all."
+
+      report.errorAndAbort(
+        s"Cannot generate codec for sealed $kind '$typeName'" +
+          subclassInfo +
+          "\n\nSuggestion:" +
+          s"\n  • Ensure all subclasses of '$typeName' are case classes" +
+          s"\n  • Example:\n" +
+          s"      sealed trait $typeName\n" +
+          s"      case class SubType1(...) extends $typeName\n" +
+          s"      case class SubType2(...) extends $typeName"
+      )
+    end if
 
     /** Simplifies a fully-qualified class name by extracting the simple name and removing compiler-generated artifacts.
       */

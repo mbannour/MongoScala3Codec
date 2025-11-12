@@ -2,6 +2,15 @@
 
 Get started with MongoScala3Codec in just a few minutes. This guide will have you persisting and retrieving Scala 3 case classes to MongoDB with automatic codec generation.
 
+## Why Use This Library?
+
+**MongoScala3Codec enables native MongoDB usage in Scala 3.** The official `mongo-scala-driver` only supports Scala 2 (2.11, 2.12, 2.13) because it uses Scala 2 macros. This library provides:
+- ✅ **Scala 3 native** - Uses modern Scala 3 macros
+- ✅ **Zero boilerplate** - One line registers any case class
+- ✅ **Compile-time safe** - Catch errors at compile time, not production
+- ✅ **BSON native** - Full support for ObjectId, Binary, Decimal128, etc.
+- ✅ **Best sealed trait support** - 3 discriminator strategies
+
 ## Prerequisites
 
 - Scala 3.3+ project
@@ -209,8 +218,8 @@ case class BlogPost(
 ## Next Steps
 
 - 📖 Read the [Feature Overview](FEATURES.md) to learn about all capabilities
+- 🎯 Explore [Sealed Traits Guide](SEALED_TRAITS.md) for polymorphic type support
 - 🔧 Check out [How It Works](HOW_IT_WORKS.md) to understand the internals
-- 🚀 Explore [Advanced Usage](ADVANCED.md) for complex scenarios
 - ❓ Visit the [FAQ](FAQ.md) for common questions and troubleshooting
 
 ## Common Issues

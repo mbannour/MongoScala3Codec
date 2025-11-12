@@ -65,7 +65,6 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   import OpaqueTypes.*
 
-  // Case class using opaque types for stronger type safety
   case class UserProfile(
       _id: ObjectId,
       userId: UserId,
@@ -76,8 +75,6 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
   "RegistryBuilder.register[T]" should "register and work with MongoDB for simple case class" in {
     assert(container.container.isRunning, "The MongoDB container is not running!")
-
-//    given config: CodecConfig = CodecConfig()
 
     val registry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)

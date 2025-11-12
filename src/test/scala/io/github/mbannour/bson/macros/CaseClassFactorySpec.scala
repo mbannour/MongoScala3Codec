@@ -16,6 +16,7 @@ enum Status(val code: Int):
   case NotFound extends Status(404)
 
 case class StatusCase(status: Status)
+case class StatusCaseWithAnnotation(@BsonEnum(nameField = "code") status: Status)
 
 enum Level:
   case Low, High
@@ -150,5 +151,19 @@ class CaseClassFactorySpec extends AnyFlatSpec with Matchers:
       CaseClassFactory.getInstance[EnumCase](fieldData)
     }
     ex.getMessage should include("No enum value with ordinal")
+  }
+
+  it should "use @BsonEnum annotation to decode from custom field" in {
+    val fieldData = Map("status" -> 404)
+    val result = CaseClassFactory.getInstance[StatusCaseWithAnnotation](fieldData)
+    result.status.code should ===(404)
+    result.status should ===(Status.NotFound)
+  }
+
+  it should "decode enum with @BsonEnum annotation from string representation of custom field" in {
+    val fieldData = Map("status" -> "200")
+    val result = CaseClassFactory.getInstance[StatusCaseWithAnnotation](fieldData)
+    result.status.code should ===(200)
+    result.status should ===(Status.Ok)
   }
 end CaseClassFactorySpec

@@ -57,8 +57,20 @@ object BsonCodec:
     import quotes.reflect.*
 
     val tpeSym = TypeRepr.of[T].typeSymbol
+    val typeName = tpeSym.name
     if !tpeSym.flags.is(Flags.Case) then
-      report.errorAndAbort(s"${tpeSym.name} is not a case class. BsonCodec.derived only works with case classes.")
+      val typeKind =
+        if tpeSym.flags.is(Flags.Trait) then "trait"
+        else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
+        else "class"
+      report.errorAndAbort(
+        s"BsonCodec.derived cannot be used with '$typeName'" +
+          s"\n\n'$typeName' is a $typeKind, but BsonCodec.derived only works with case classes." +
+          "\n\nSuggestion:" +
+          s"\n  • Convert to a case class: case class $typeName(...)" +
+          "\n  • Or use RegistryBuilder to register codecs instead of BsonCodec.derived"
+      )
+    end if
 
     '{
       val codec = CaseClassCodecGenerator.generateCodec[T](

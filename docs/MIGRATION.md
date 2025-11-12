@@ -269,9 +269,7 @@ val registry = CodecRegistries.fromCodecs(
 // After
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[User]
-  .register[Address]
-  .register[Company]
+  .registerAll[(User, Address, Company)]
   .build
 ```
 
@@ -393,33 +391,6 @@ val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .withCodec(timestampCodec)
   .register[Event]
-  .build
-```
-
----
-
-### Issue 4: Sealed Trait Fields Not Supported
-
-**Problem:**
-```scala
-sealed trait Animal
-case class Dog(name: String) extends Animal
-case class Cat(name: String) extends Animal
-
-case class Person(pet: Animal)  // ❌ Polymorphic field - NOT SUPPORTED
-```
-
-**Important:** MongoScala3Codec does NOT support polymorphic sealed trait/class fields. You cannot use a sealed trait as a field type.
-
-**Solution:** Register concrete case class types only:
-```scala
-// ✅ SUPPORTED - Use concrete types in fields
-case class DogOwner(pet: Dog)
-case class CatOwner(pet: Cat)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
   .build
 ```
 

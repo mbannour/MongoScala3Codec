@@ -185,13 +185,13 @@ class CodecProviderIntegrationSpec extends AnyFlatSpec with ForAllTestContainer 
     val task = Task(
       _id = new ObjectId(),
       title = "Complete report",
-      priority = Priority.High
+      priority = TaskPriority.High
     )
 
     collection.insertOne(task).toFuture().futureValue
     val retrievedTask =
       collection
-        .find(Filters.and(Filters.equal(MongoPath.of[Task](_._id), task._id), Filters.equal(MongoPath.of[Task](_.priority), Priority.High)))
+        .find(Filters.and(Filters.equal(MongoPath.of[Task](_._id), task._id), Filters.equal(MongoPath.of[Task](_.priority), TaskPriority.High)))
         .first()
         .toFuture()
         .futureValue

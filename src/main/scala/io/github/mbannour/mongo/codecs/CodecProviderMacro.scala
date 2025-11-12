@@ -118,22 +118,38 @@ object CodecProviderMacro:
     val mainTypeSymbol = mainType.typeSymbol
 
     // Validate that T is a case class
+    val typeName = mainTypeSymbol.name
     if !mainTypeSymbol.flags.is(Flags.Case) then
       report.errorAndAbort(
-        s"${mainTypeSymbol.name} is not a case class and cannot be used as a Codec. " +
-          s"Make sure your class is a case class (e.g., 'case class ${mainTypeSymbol.name}(...)')."
+        s"Cannot create codec provider for '$typeName'" +
+          "\n\n'$typeName' is not a case class." +
+          "\n\nSuggestion: Declare it as a case class:" +
+          s"\n  case class $typeName(...)"
       )
 
     // Warn if the type is abstract or a trait
     if mainTypeSymbol.flags.is(Flags.Trait) then
       report.errorAndAbort(
-        s"${mainTypeSymbol.name} is a trait. Only concrete case classes are supported. " +
-          s"Consider using a sealed trait with case class children."
+        s"Cannot create codec provider for '$typeName'" +
+          "\n\n'$typeName' is a trait. Only concrete case classes can have codec providers." +
+          "\n\nSuggestion: For sealed trait hierarchies, register each concrete case class implementation:" +
+          s"\n  sealed trait $typeName" +
+          s"\n  case class SubType1(...) extends $typeName" +
+          s"\n  case class SubType2(...) extends $typeName" +
+          "\n\n  // Then register each:" +
+          "\n  val registry = RegistryBuilder" +
+          "\n    .from(...)" +
+          "\n    .register[SubType1]" +
+          "\n    .register[SubType2]" +
+          "\n    .build"
       )
+    end if
 
     if mainTypeSymbol.flags.is(Flags.Abstract) then
       report.errorAndAbort(
-        s"${mainTypeSymbol.name} is an abstract class. Only concrete case classes are supported."
+        s"Cannot create codec provider for '$typeName'" +
+          "\n\n'$typeName' is an abstract class. Only concrete case classes are supported." +
+          "\n\nSuggestion: Make it a concrete case class or create codec providers for its concrete subclasses."
       )
 
     // Note: we intentionally use the runtime `registry` passed to `get` for nested lookups,

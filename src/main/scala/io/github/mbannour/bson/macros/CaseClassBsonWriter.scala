@@ -105,20 +105,44 @@ object CaseClassBsonWriter:
               convertedTypeRepr
             case _ =>
               report.errorAndAbort("nestedType is not a scala.quoted.Type")
+
+          // Check if this is a sealed trait at compile time
+          val isSealed = nestedTypeRepr.typeSymbol.flags.is(Flags.Sealed) &&
+            (nestedTypeRepr.typeSymbol.flags.is(Flags.Trait) ||
+              nestedTypeRepr.typeSymbol.flags.is(Flags.Abstract))
+
           nestedTypeRepr.asType match
             case '[nt] =>
-              '{
-                val fieldValue = $fieldValueExpr.asInstanceOf[nt]
-                // For sealed traits, use the actual runtime class
-                val actualClass = fieldValue.getClass.asInstanceOf[Class[nt]]
-                try
-                  val codec = $registry.get(actualClass)
-                  $writer.writeName(${ fieldName })
-                  codec.encode($writer, fieldValue, $encoderContext)
-                catch
-                  case e: org.bson.codecs.configuration.CodecConfigurationException =>
-                    throw new IllegalArgumentException(s"No codec found for type: " + actualClass.getName, e)
-              }
+              if isSealed then
+                // For sealed traits, use the declared type's codec (which handles discriminators)
+                '{
+                  val fieldValue = $fieldValueExpr.asInstanceOf[nt]
+                  val declaredClass = ${
+                    Expr.summon[ClassTag[nt]] match
+                      case Some(ct) => '{ $ct.runtimeClass.asInstanceOf[Class[nt]] }
+                      case None     => report.errorAndAbort(s"Cannot summon ClassTag for sealed trait")
+                  }
+                  try
+                    val codec = $registry.get(declaredClass)
+                    $writer.writeName(${ fieldName })
+                    codec.encode($writer, fieldValue, $encoderContext)
+                  catch
+                    case e: org.bson.codecs.configuration.CodecConfigurationException =>
+                      throw new IllegalArgumentException(s"No codec found for sealed trait: " + declaredClass.getName, e)
+                }
+              else
+                // For non-sealed types, use the runtime class (allows for polymorphism via subclassing)
+                '{
+                  val fieldValue = $fieldValueExpr.asInstanceOf[nt]
+                  val actualClass = fieldValue.getClass.asInstanceOf[Class[nt]]
+                  try
+                    val codec = $registry.get(actualClass)
+                    $writer.writeName(${ fieldName })
+                    codec.encode($writer, fieldValue, $encoderContext)
+                  catch
+                    case e: org.bson.codecs.configuration.CodecConfigurationException =>
+                      throw new IllegalArgumentException(s"No codec found for type: " + actualClass.getName, e)
+                }
           end match
       end match
     }
@@ -161,17 +185,36 @@ object CaseClassBsonWriter:
       case t if t =:= TypeRepr.of[Char] =>
         '{ $writer.writeInt32($value.asInstanceOf[Char].toInt) }
       case t =>
+        // Check if this is a sealed trait at compile time
+        val isSealed = t.typeSymbol.flags.is(Flags.Sealed) &&
+          (t.typeSymbol.flags.is(Flags.Trait) ||
+            t.typeSymbol.flags.is(Flags.Abstract))
+
         t.asType match
           case '[nt] =>
-            '{
-              val clazz = ${ getClassForType[nt] }
-              try
-                val codec = $registry.get(clazz)
-                codec.encode($writer, $value.asInstanceOf[nt], $encoderContext)
-              catch
-                case e: org.bson.codecs.configuration.CodecConfigurationException =>
-                  throw new IllegalArgumentException(s"No codec found for type: " + clazz.getName, e)
-            }
+            if isSealed then
+              // For sealed traits, use the declared type's codec
+              '{
+                val clazz = ${ getClassForType[nt] }
+                try
+                  val codec = $registry.get(clazz)
+                  codec.encode($writer, $value.asInstanceOf[nt], $encoderContext)
+                catch
+                  case e: org.bson.codecs.configuration.CodecConfigurationException =>
+                    throw new IllegalArgumentException(s"No codec found for sealed trait: " + clazz.getName, e)
+              }
+            else
+              // For non-sealed types, use the declared class
+              '{
+                val clazz = ${ getClassForType[nt] }
+                try
+                  val codec = $registry.get(clazz)
+                  codec.encode($writer, $value.asInstanceOf[nt], $encoderContext)
+                catch
+                  case e: org.bson.codecs.configuration.CodecConfigurationException =>
+                    throw new IllegalArgumentException(s"No codec found for type: " + clazz.getName, e)
+              }
+        end match
     end match
   end writeOptionField
 end CaseClassBsonWriter
