@@ -19,7 +19,7 @@ import org.bson.codecs.configuration.CodecRegistry
   * @param initialCache
   *   Optional pre-populated cache of codecs (for backward compatibility)
   */
-private[codecs] class CachedCodecRegistry(
+private[mbannour] class CachedCodecRegistry(
     underlying: CodecRegistry,
     initialCache: Map[Class[?], Codec[?]] = Map.empty
 ) extends CodecRegistry:
