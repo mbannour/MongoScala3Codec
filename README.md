@@ -54,6 +54,7 @@ val found = people.find().first().toFuture()
 ## 📚 Documentation
 
 - **[5-Minute Quickstart](docs/QUICKSTART.md)** - Get started immediately
+- **[Sealed Traits Guide](docs/SEALED_TRAITS.md)** - **NEW!** Complete guide for polymorphic sealed traits
 - **[BSON Type Mapping](docs/BSON_TYPE_MAPPING.md)** - Complete type reference (35+ types)
 - **[Feature Overview](docs/FEATURES.md)** - Complete feature guide with examples
 - **[Enumeration Support](docs/ENUM_SUPPORT.md)** - Comprehensive guide for Scala 3 enums
@@ -67,11 +68,12 @@ val found = people.find().first().toFuture()
 ## Features
 
 - ✅ Automatic BSON codec generation for Scala 3 case classes
+- ✅ **NEW! Polymorphic sealed trait support** - discriminator-based encoding with `registerSealed[T]`
 - ✅ **Support for concrete case classes from sealed trait hierarchies** - each case class registered independently
 - ✅ **Support for default parameter values** - missing fields use defaults automatically
 - ✅ Support for options and nested case classes
-- ✅ **Sealed trait hierarchies** with concrete case class implementations
-- ❌ **Polymorphic sealed trait/class fields NOT supported** - see limitations below
+- ✅ **Sealed trait fields** with full polymorphism (case classes, case objects, collections)
+- ✅ **Three discriminator strategies** - SimpleName, FullyQualifiedName, Custom
 - ✅ Custom field name annotations (e.g., `@BsonProperty`)
 - ✅ Compile-time safe MongoDB field path extraction via `MongoPath`
 - ✅ Scala 3 enum support via `EnumValueCodec`
@@ -174,6 +176,41 @@ val extra = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
 
 val reg = (common ++ extra).build
 ```
+
+### F) Sealed Traits
+
+Register sealed traits for polymorphic field support:
+
+```scala
+sealed trait PaymentStatus
+case class Pending() extends PaymentStatus
+case class Processing(transactionId: String) extends PaymentStatus
+case class Completed(amount: Double) extends PaymentStatus
+
+case class Payment(orderId: String, status: PaymentStatus)
+
+// Single sealed trait
+val reg = MongoClient.DEFAULT_CODEC_REGISTRY
+  .newBuilder
+  .registerSealed[PaymentStatus]
+  .register[Payment]
+  .build
+
+// Multiple sealed traits (batch)
+sealed trait Priority
+case class Low() extends Priority
+case class High() extends Priority
+
+val reg2 = MongoClient.DEFAULT_CODEC_REGISTRY
+  .newBuilder
+  .registerSealedAll[(PaymentStatus, Priority)]  // Batch registration
+  .register[Payment]
+  .build
+```
+
+**Tip:** Use `registerSealedAll[(A, B, C)]` when registering multiple sealed traits for cleaner syntax.
+
+See **[Sealed Traits Guide](docs/SEALED_TRAITS.md)** for complete documentation.
 
 ---
 

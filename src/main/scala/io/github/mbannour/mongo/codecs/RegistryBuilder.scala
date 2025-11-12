@@ -20,6 +20,7 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   - Add individual codecs with `withCodec` or many at once with `withCodecs`
   *   - Automatically derive codecs for **case classes** with `register[T]`
   *   - Batch registration with `registerAll[(Type1, Type2, ...)]`
+  *   - Register **sealed traits** with `registerSealed[T]` or `registerSealedAll[(Trait1, Trait2, ...)]`
   *   - Extension methods for fluent, idiomatic Scala 3 API
   *
   * ===Common Patterns===
@@ -43,6 +44,11 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   // Merge builders
   *   val commonTypes = baseBuilder.register[Address].register[Person]
   *   val fullBuilder = commonTypes ++ specificTypesBuilder
+  *
+  *   // Register sealed traits
+  *   val registry = baseRegistry.newBuilder
+  *     .registerSealedAll[(Status, Priority, Event)]
+  *     .build
   * }}}
   *
   * ===Example Usage===
@@ -155,6 +161,85 @@ object RegistryBuilder:
 
     val added = accumulateProvidersLoop[T](Nil, state, tempRegistry)
     state.copy(providers = state.providers ++ added.reverse)
+
+  /** Helper for registerSealedAll - processes tuple of sealed trait types at compile time */
+  private inline def accumulateSealedLoop[T <: Tuple](builder: RegistryBuilder): RegistryBuilder =
+    inline erasedValue[T] match
+      case _: EmptyTuple => builder
+      case _: (h *: t) =>
+        val b1 = builder.registerSealed[h](using summonInline[ClassTag[h]])
+        accumulateSealedLoop[t](b1)
+
+  import scala.quoted.*
+
+  /** Macro implementation for registerSealed - registers a sealed trait and all its subtypes */
+  private def registerSealedImpl[T: Type](
+      builder: Expr[RegistryBuilder],
+      classTag: Expr[ClassTag[T]]
+  )(using Quotes): Expr[RegistryBuilder] =
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[T]
+    val sym = tpe.typeSymbol
+
+    // Verify this is a sealed trait or sealed abstract class
+    if !sym.flags.is(Flags.Sealed) then
+      val typeName = sym.name
+      val typeKind = if sym.flags.is(Flags.Trait) then "trait"
+                     else if sym.flags.is(Flags.Abstract) then "abstract class"
+                     else "type"
+      report.errorAndAbort(
+        s"Cannot register '$typeName' as a sealed trait" +
+        s"\n\n'$typeName' is a $typeKind, but only sealed traits or sealed abstract classes can be registered with registerSealed." +
+        "\n\nSuggestion:" +
+        s"\n  • If '$typeName' is a case class, use register[$typeName] instead" +
+        s"\n  • If '$typeName' should be sealed, declare it as: sealed trait $typeName or sealed abstract class $typeName"
+      )
+
+    // Get all case class children
+    val children = sym.children.filter(_.flags.is(Flags.Case))
+
+    if children.isEmpty then
+      report.errorAndAbort(
+        s"Sealed trait '${sym.name}' has no case class subtypes" +
+        "\n\nCannot create codec for a sealed trait without concrete case class implementations." +
+        "\n\nSuggestion: Add at least one case class extending this sealed trait:" +
+        s"\n  case class ConcreteType(...) extends ${sym.name}"
+      )
+
+    '{
+      // First, register all concrete subtypes
+      var b = $builder
+      val (tempRegistry, b1) = getOrBuildRegistry(b)
+
+      ${
+        // Generate registration calls for each subtype
+        val registrations = children.map { child =>
+          child.typeRef.asType match
+            case '[ct] =>
+              Expr.summon[ClassTag[ct]] match
+                case Some(childClassTag) =>
+                  '{
+                    val provider = CodecProviderMacro.createCodecProvider[ct](using
+                      $childClassTag,
+                      b1.config,
+                      tempRegistry
+                    )
+                    b = b.copy(providers = b.providers :+ provider)
+                  }
+                case None =>
+                  report.errorAndAbort(s"Cannot summon ClassTag for ${child.fullName}")
+        }
+
+        Expr.block(registrations.toList, '{ () })
+      }
+
+      // Now register the sealed trait codec itself
+      val (sealedRegistry, b2) = getOrBuildRegistry(b)
+      val sealedCodec = SealedTraitCodec[T](b2.config, sealedRegistry)(using $classTag)
+      b2.withCodec(sealedCodec)
+    }
+  end registerSealedImpl
 
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
@@ -277,6 +362,68 @@ object RegistryBuilder:
       */
     inline def registerIf[T: ClassTag](condition: Boolean): RegistryBuilder =
       if condition then register[T] else builder
+
+    /** Register a sealed trait and all its concrete subtypes.
+      *
+      * This method automatically:
+      *   1. Registers all concrete case class subtypes of the sealed trait
+      *   2. Creates and registers a discriminator-based codec for the sealed trait itself
+      *   3. Configures polymorphic encoding/decoding based on CodecConfig settings
+      *
+      * The sealed trait codec uses a discriminator field (configured via CodecConfig.discriminatorField) to identify the concrete type during
+      * encoding/decoding.
+      *
+      * @tparam T
+      *   The sealed trait type
+      * @example
+      *   {{{
+      *   sealed trait Status
+      *   case class Pending() extends Status
+      *   case class Completed(amount: Double) extends Status
+      *
+      *   val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+      *     .newBuilder
+      *     .registerSealed[Status]
+      *     .build
+      *   }}}
+      *
+      * BSON structure example:
+      * {{{
+      * {
+      *   "_type": "Completed",
+      *   "amount": 100.0
+      * }
+      * }}}
+      */
+    inline def registerSealed[T](using ct: ClassTag[T]): RegistryBuilder =
+      ${ registerSealedImpl[T]('builder, 'ct) }
+
+    /** Batch register multiple sealed traits using tuple syntax.
+      *
+      * This is more efficient than calling `registerSealed` multiple times separately. For each sealed trait in the tuple, this method:
+      *   1. Registers all concrete case class subtypes
+      *   2. Creates and registers a discriminator-based codec for the sealed trait
+      *
+      * @tparam T
+      *   A tuple of sealed trait types to register
+      * @example
+      *   {{{
+      *   sealed trait Status
+      *   case class Pending() extends Status
+      *   case class Completed(amount: Double) extends Status
+      *
+      *   sealed trait Priority
+      *   case class Low() extends Priority
+      *   case class High() extends Priority
+      *
+      *   val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+      *     .newBuilder
+      *     .registerSealedAll[(Status, Priority)]
+      *     .build
+      *   }}}
+      */
+    inline def registerSealedAll[T <: Tuple]: RegistryBuilder =
+      accumulateSealedLoop[T](builder)
 
     /** Build the final [[org.bson.codecs.configuration.CodecRegistry]].
       *
