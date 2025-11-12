@@ -98,52 +98,20 @@ object CaseClassCodecGenerator:
           CodecRegistries.fromCodecs(this)
         )
 
-        /** Pre-computed codec cache for frequently used types.
-          * This cache is populated lazily to avoid circular initialization issues.
-          * This significantly improves performance for nested case classes and collections.
+        /** Lazy on-demand codec cache using CachedCodecRegistry.
+          *
+          * Performance improvement: Instead of eagerly pre-fetching all codecs at initialization
+          * (which can cause circular dependencies and slow startup), we use a CachedCodecRegistry
+          * that fetches codecs on-demand as they're needed. The CachedCodecRegistry uses a
+          * thread-safe ConcurrentHashMap for lock-free caching.
+          *
+          * Benefits:
+          *   - Avoids circular dependency issues during initialization
+          *   - Faster codec creation (no upfront codec fetching)
+          *   - Thread-safe for concurrent encoding/decoding
+          *   - Memory efficient (only caches codecs that are actually used)
           */
-        private lazy val codecCache: Map[Class[?], Codec[?]] = {
-          val cache = mutable.Map.empty[Class[?], Codec[?]]
-
-          // Pre-fetch codecs for all field types (but not the current type to avoid circular dependency)
-          fieldTypeArgsMapByClass.values.foreach { fieldTypeArgs =>
-            fieldTypeArgs.values.foreach { typeArgsList =>
-              typeArgsList.foreach { typeArg =>
-                // Skip the current type to avoid circular initialization
-                if (typeArg != encoderClass) {
-                  try {
-                    if (!cache.contains(typeArg)) {
-                      cache.put(typeArg, baseRegistryWithThis.get(typeArg))
-                    }
-                  } catch {
-                    case _: Exception => // Ignore types that don't have codecs yet
-                  }
-                }
-              }
-            }
-          }
-
-          // Pre-fetch codecs for all known case classes in the hierarchy (except current type)
-          caseClassesMap.values.foreach { clazz =>
-            if (clazz != encoderClass) {
-              try {
-                if (!cache.contains(clazz)) {
-                  cache.put(clazz, baseRegistryWithThis.get(clazz))
-                }
-              } catch {
-                case _: Exception => // Ignore classes that don't have codecs yet
-              }
-            }
-          }
-
-          cache.toMap
-        }
-
-        /** Cached registry that wraps the base registry with pre-fetched codecs.
-          * This registry is used for all codec lookups to avoid repeated registry.get calls.
-          * Marked as lazy to ensure codecCache is initialized first.
-          */
-        private lazy val registry: CodecRegistry = new CachedCodecRegistry(baseRegistryWithThis, codecCache)
+        private lazy val registry: CodecRegistry = new CachedCodecRegistry(baseRegistryWithThis)
 
         /** Gets a codec from the cached registry.
           * @param clazz The class to get a codec for
@@ -213,7 +181,38 @@ object CaseClassCodecGenerator:
           classOf[scala.Char] -> classOf[java.lang.Character]
         )
 
-        /** Reads a value of type V from the BSON reader based on the current BSON type. */
+        /** Specialized primitive readers to avoid boxing overhead.
+          *
+          * These methods read primitives directly from BSON without going through
+          * the codec lookup mechanism, avoiding unnecessary boxing/unboxing and
+          * improving performance for primitive-heavy data structures.
+          */
+        @inline private def readInt(reader: BsonReader): Int = reader.readInt32()
+        @inline private def readLong(reader: BsonReader): Long = reader.readInt64()
+        @inline private def readDouble(reader: BsonReader): Double = reader.readDouble()
+        @inline private def readBoolean(reader: BsonReader): Boolean = reader.readBoolean()
+        @inline private def readString(reader: BsonReader): String = reader.readString()
+
+        @inline private def readByte(reader: BsonReader): Byte = reader.readInt32().toByte
+        @inline private def readShort(reader: BsonReader): Short = reader.readInt32().toShort
+        @inline private def readChar(reader: BsonReader): Char = reader.readInt32().toChar
+
+        @inline private def readFloat(reader: BsonReader): Float = {
+          // MongoDB stores Float as Double
+          val doubleValue = reader.readDouble()
+          if (doubleValue.isNaN || doubleValue.isInfinite) doubleValue.toFloat
+          else if (doubleValue > Float.MaxValue || doubleValue < Float.MinValue)
+            throw new BsonInvalidOperationException(
+              s"Double value $doubleValue exceeds Float range (${Float.MinValue} to ${Float.MaxValue})"
+            )
+          else doubleValue.toFloat
+        }
+
+        /** Reads a value of type V from the BSON reader based on the current BSON type.
+          *
+          * Optimized with specialized primitive fast paths to avoid boxing overhead and
+          * unnecessary codec lookups for common primitive types.
+          */
         private def readValue[V](
             reader: BsonReader,
             decoderContext: DecoderContext,
@@ -228,41 +227,37 @@ object CaseClassCodecGenerator:
               readArray(reader, decoderContext, clazz, typeArgs, fieldTypeArgs)
             case BsonType.NULL =>
               reader.readNull()
-              // Return null as-is, don't convert to primitive default values
-              // This allows CaseClassFactory to properly handle Option[T] fields that contain null
               null.asInstanceOf[V]
+
+            // Specialized fast paths for primitives (avoid boxing and codec lookup)
+            case BsonType.INT32 if clazz == classOf[Int] || clazz == classOf[java.lang.Integer] =>
+              readInt(reader).asInstanceOf[V]
+            case BsonType.INT64 if clazz == classOf[Long] || clazz == classOf[java.lang.Long] =>
+              readLong(reader).asInstanceOf[V]
+            case BsonType.DOUBLE if clazz == classOf[Double] || clazz == classOf[java.lang.Double] =>
+              readDouble(reader).asInstanceOf[V]
+            case BsonType.BOOLEAN if clazz == classOf[Boolean] || clazz == classOf[java.lang.Boolean] =>
+              readBoolean(reader).asInstanceOf[V]
+            case BsonType.STRING if clazz == classOf[String] =>
+              readString(reader).asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Byte] || clazz == classOf[java.lang.Byte] =>
+              readByte(reader).asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Short] || clazz == classOf[java.lang.Short] =>
+              readShort(reader).asInstanceOf[V]
+            case BsonType.INT32 if clazz == classOf[Char] || clazz == classOf[java.lang.Character] =>
+              readChar(reader).asInstanceOf[V]
+            case BsonType.DOUBLE if clazz == classOf[Float] || clazz == classOf[java.lang.Float] =>
+              readFloat(reader).asInstanceOf[V]
+
+            // UUID handling
             case BsonType.STRING if clazz == classOf[UUID] =>
-              val stringValue = reader.readString()
+              val stringValue = readString(reader)
               try UUID.fromString(stringValue).asInstanceOf[V]
               catch
                 case _: IllegalArgumentException =>
                   throw new IllegalArgumentException(s"Invalid UUID string format: $stringValue")
-            case BsonType.DOUBLE if clazz == classOf[Float] =>
-              // Note: MongoDB stores Float as BSON Double (64-bit)
-              // Converting back to Float may result in precision loss or overflow
-              val doubleValue = reader.readDouble()
-              if doubleValue.isNaN || doubleValue.isInfinite then doubleValue.toFloat.asInstanceOf[V]
-              else if doubleValue > Float.MaxValue then
-                throw new BsonInvalidOperationException(
-                  s"Double value $doubleValue exceeds Float.MaxValue (${Float.MaxValue}). " +
-                    s"Cannot safely convert to Float without overflow."
-                )
-              else if doubleValue < Float.MinValue then
-                throw new BsonInvalidOperationException(
-                  s"Double value $doubleValue is below Float.MinValue (${Float.MinValue}). " +
-                    s"Cannot safely convert to Float without overflow."
-                )
-              else
-                // Safe conversion within Float range
-                // Note: Precision loss may still occur for values requiring more than 24 bits of mantissa
-                doubleValue.toFloat.asInstanceOf[V]
-              end if
-            case BsonType.INT32 if clazz == classOf[Byte] || clazz == classOf[java.lang.Byte] =>
-              reader.readInt32().toByte.asInstanceOf[V]
-            case BsonType.INT32 if clazz == classOf[Short] || clazz == classOf[java.lang.Short] =>
-              reader.readInt32().toShort.asInstanceOf[V]
-            case BsonType.INT32 if clazz == classOf[Char] || clazz == classOf[java.lang.Character] =>
-              reader.readInt32().toChar.asInstanceOf[V]
+
+            // Fallback to codec lookup for complex types
             case _ =>
               val effectiveClass = primitiveToBoxed.getOrElse(clazz, clazz).asInstanceOf[Class[V]]
               val codec = getCodec(effectiveClass)
