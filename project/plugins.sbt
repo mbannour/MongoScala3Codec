@@ -6,4 +6,4 @@ addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
 addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.2.2")
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.1.4")
 // JMH benchmarking plugin - using latest version for better Scala 3 support
-addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.7")
+addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.4.8")
