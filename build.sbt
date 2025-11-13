@@ -32,7 +32,6 @@ ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / publishMavenStyle := true
 ThisBuild / publishTo := sonatypePublishToBundle.value
 
-// Reduce sbt lint noise for keys intentionally set but not used by any task
 Global / excludeLintKeys += publishMavenStyle
 
 lazy val root = project
@@ -77,26 +76,21 @@ lazy val root = project
       "-Xcheck-macros",
       "-Yretain-trees",
       "-Wunused:all",
-      // Allow unused default parameter warning (false positive for fieldContext in CaseClassFieldMapper)
       "-Wconf:msg=unused local definition:s"
     ),
-    // Make warnings fatal only in Compile on CI
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
 
-    // Tests: keep useful warnings, but do NOT fail on “unused”
     Test / scalacOptions ++= Seq(
       "-Wconf:cat=unused:s" // silence unused in tests
     ),
-    // Defensive: strip any fatal flags injected by CI/env in Test
+
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
 
-    // Silence or demote Scaladoc warnings to avoid noisy false positives like repeated -classpath in Scala 3
     Compile / doc / scalacOptions ++= Seq(
       "-nowarn",
       "-Wconf:any:s"
     ),
 
-    // Use a flat classloader for tests to avoid NoClassDefFoundError with reflection/macros
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
 
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
@@ -104,7 +98,7 @@ lazy val root = project
     mimaPreviousArtifacts := Set(
       organization.value %% moduleName.value % "0.0.6"
     ),
-    // Optional: don’t fail if there’s no previous artifact yet (e.g. first release)
+
     mimaFailOnNoPrevious := false
   )
 
@@ -137,7 +131,6 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     name := "MongoScala3Codec-benchmarks",
-    // Limit cross here too to reduce matrix and avoid dep gaps
     crossScalaVersions := Seq(scala3Version),
     publish / skip := true,
     Test / skip := true,
