@@ -43,7 +43,6 @@ object CaseClassFieldMapper:
       *   - Filters out Option types.
       *   - Converts primitive types to their boxed versions.
       */
-    @annotation.nowarn("msg=unused local definition")
     def flattenTypeArgs(tpe: TypeRepr, fieldContext: Option[(String, String)] = None): List[TypeRepr] =
       val dealiased = tpe.dealias
       val typeArgs = dealiased match

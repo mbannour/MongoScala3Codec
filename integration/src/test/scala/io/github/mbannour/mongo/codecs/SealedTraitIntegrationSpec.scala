@@ -435,8 +435,8 @@ class SealedTraitIntegrationSpec
       .futureValue
 
     retrieved shouldBe payment
-    
-   
+
+
     val docCollection = database.getCollection[Document]("custom_discriminator")
     val doc = docCollection
       .find(Filters.equal("_id", payment._id))
@@ -444,7 +444,7 @@ class SealedTraitIntegrationSpec
       .toFuture()
       .futureValue
 
-    val statusDoc = doc.get("status", classOf[Document])
+    val statusDoc = doc.get("status", classOf[org.bson.Document])
     statusDoc.getString("_class") shouldBe "Processing"
 
     database.drop().toFuture().futureValue
@@ -540,7 +540,7 @@ class SealedTraitIntegrationSpec
       .futureValue
 
     retrieved shouldBe shipment
-    
+
     val docCollection = database.getCollection[Document]("batch_config_test")
     val doc = docCollection
       .find(Filters.equal("_id", shipment._id))
@@ -548,7 +548,7 @@ class SealedTraitIntegrationSpec
       .toFuture()
       .futureValue
 
-    val destDoc = doc.get("destination", classOf[Document])
+    val destDoc = doc.get("destination", classOf[org.bson.Document])
     destDoc.getString("_class") shouldBe "DomesticAddress"
 
     database.drop().toFuture().futureValue

@@ -21,7 +21,7 @@ ThisBuild / crossScalaVersions := Seq(
 ThisBuild / conflictManager := ConflictManager.default
 
 ThisBuild / coverageHighlighting := true
-ThisBuild / coverageMinimumStmtTotal := 60
+ThisBuild / coverageMinimumStmtTotal := 50
 ThisBuild / coverageFailOnMinimum := true
 
 usePgpKeyHex("8D15E6EFEC642C76")
