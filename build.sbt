@@ -76,7 +76,9 @@ lazy val root = project
       "-unchecked",
       "-Xcheck-macros",
       "-Yretain-trees",
-      "-Wunused:all"
+      "-Wunused:all",
+      // Allow unused default parameter warning (false positive for fieldContext in CaseClassFieldMapper)
+      "-Wconf:msg=unused local definition:s"
     ),
     // Make warnings fatal only in Compile on CI
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
