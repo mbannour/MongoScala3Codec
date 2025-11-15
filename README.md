@@ -344,6 +344,8 @@ println(bson.toJson())  // email omitted due to Ignore
 
 ## Troubleshooting & Limitations
 
+⚠️ **Sealed classes are not supported** - Use Scala 3 Enumerations instead. Sealed traits and sealed classes cannot be automatically derived. For ADT-like structures, use Scala 3 `enum` types with `EnumValueCodecProvider`.
+
 ⚠️ **Polymorphic sealed traits as fields** (e.g., `status: PaymentStatus`) are not supported yet. Use concrete types in fields, or wrappers that you register explicitly.
 
 ⚠️ **Case objects in sealed hierarchies** are not fully supported. Prefer parameterless case classes.

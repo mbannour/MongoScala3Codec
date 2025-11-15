@@ -10,8 +10,8 @@ object EmployeeId:
 
   def apply(): EmployeeId = new ObjectId
 
-  extension (id: EmployeeId)
-    def value: ObjectId = id
+  extension (id: EmployeeId) def value: ObjectId = id
 
   val employeeIdBsonCodec: BSONCodec[EmployeeId] =
     typedObjectIdBSONCodec(EmployeeId.apply, _.value)
+end EmployeeId

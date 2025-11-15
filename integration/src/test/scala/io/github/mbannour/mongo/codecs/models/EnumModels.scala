@@ -134,16 +134,22 @@ object EnumModels:
 
   val priorityProvider: CodecProvider = EnumValueCodecProvider[Priority, String](
     _.value,
-    str => Priority.values.find(_.value == str).getOrElse(
-      throw new IllegalArgumentException(s"Invalid priority value: $str")
-    )
+    str =>
+      Priority.values
+        .find(_.value == str)
+        .getOrElse(
+          throw new IllegalArgumentException(s"Invalid priority value: $str")
+        )
   )
 
   val categoryProvider: CodecProvider = EnumValueCodecProvider[Category, String](
     _.id,
-    str => Category.values.find(_.id == str).getOrElse(
-      throw new IllegalArgumentException(s"Invalid category id: $str")
-    )
+    str =>
+      Category.values
+        .find(_.id == str)
+        .getOrElse(
+          throw new IllegalArgumentException(s"Invalid category id: $str")
+        )
   )
 
   // Ordinal-based codec providers

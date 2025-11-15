@@ -145,46 +145,60 @@ val registry = RegistryBuilder
 
 ---
 
-### Error: "Enum not supported"
+### Error: "Sealed class not supported"
 
 **Problem:**
+```scala
+sealed class Status
+case class Active() extends Status
+case class Inactive() extends Status
+
+case class User(status: Status)
+// Compilation error
+```
+
+**Cause:** Sealed classes and sealed traits are not supported for automatic codec generation.
+
+**Solution:** Use Scala 3 enumerations instead:
+```scala
+enum Status:
+  case Active, Inactive
+
+case class User(status: Status)
+
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+
+val statusProvider = EnumValueCodecProvider.forStringEnum[Status]
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withProviders(statusProvider)
+  .register[User]
+  .build
+```
+
+For enums with parameters:
 ```scala
 enum Status(val code: Int):
   case Active extends Status(1)
   case Inactive extends Status(0)
 
 case class User(status: Status)
-// Compilation error
-```
 
-**Cause:** Enums with parameters are not supported for automatic codec generation.
+import org.bson.codecs.{Codec, IntegerCodec}
 
-**Solution:** Use case classes for types with parameters:
-```scala
-case class Active(code: Int)
-case class Inactive(code: Int)
+given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
 
-case class User(status: Active)  // Use concrete case class type
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Active]
-  .register[Inactive]
-  .register[User]
-  .build
-```
-
-
-For simple enums (no parameters), use `EnumValueCodecProvider`:
-```scala
-enum SimpleStatus:
-  case Active, Inactive
-
-import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+val statusProvider = EnumValueCodecProvider[Status, Int](
+  toValue = _.code,
+  fromValue = code => Status.values.find(_.code == code).getOrElse(
+    throw new IllegalArgumentException(s"Invalid status code: $code")
+  )
+)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[SimpleStatus]())
+  .withProviders(statusProvider)
   .register[User]
   .build
 ```

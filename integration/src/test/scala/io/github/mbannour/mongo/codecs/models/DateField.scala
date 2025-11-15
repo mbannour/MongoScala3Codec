@@ -10,8 +10,7 @@ opaque type DateField = ZonedDateTime
 object DateField:
   def apply(time: ZonedDateTime): DateField = time
 
-  extension (df: DateField)
-    def time: ZonedDateTime = df
+  extension (df: DateField) def time: ZonedDateTime = df
 
   given dateFieldCodec: Codec[DateField] with
     override def encode(writer: BsonWriter, value: DateField, encoderContext: EncoderContext): Unit =
