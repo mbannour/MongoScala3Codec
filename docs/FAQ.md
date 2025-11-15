@@ -405,7 +405,7 @@ val registry = RegistryBuilder
   .build
 ```
 
-**Note:** As of version 0.0.7-M2, discriminator field customization has been simplified and is managed internally by the library.
+**Note:** As of version 0.0.7, discriminator field customization has been simplified and is managed internally by the library.
 
 ### Q: How do I configure different settings for different types?
 

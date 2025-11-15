@@ -1,10 +1,10 @@
 # MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.7--M3-brightgreen)
+![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.7-brightgreen)
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.0%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 
-**MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead, best-in-class sealed trait support, and production-ready error handling.
+**MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead, class sealed trait support, and production-ready error handling.
 
 ---
 
@@ -16,16 +16,9 @@
 
 **Your options without MongoScala3Codec:**
 - ⬇️ **Downgrade to Scala 2.13** (lose Scala 3 features)
-- 🔧 **Use Java driver directly** (lose type safety, write manual codecs)
 - ❌ **Wait indefinitely** for official Scala 3 support
 
-### **The Problem with MongoDB + Scala**
-Beyond Scala 3 support, most MongoDB Scala libraries force you to choose between:
-- ❌ **Manual codec writing** (tedious, error-prone, 100+ lines per type)
-- ❌ **Runtime reflection** (slow, unsafe, compatibility issues)
-- ❌ **Limited sealed trait support** (no discriminator strategies, rigid `_t` field naming)
-
-### **MongoScala3Codec Solves Everything**
+### **MongoScala3Codec Solves**
 
 ✅ **Zero Boilerplate** - One line registers any case class
 ✅ **Compile-Time Safe** - Catch errors before deployment, not in production
@@ -103,7 +96,7 @@ val found = people.find().first().toFuture()
 
 **That's it!** No manual codec writing, no reflection, no runtime overhead. 
 
-👉 **See [5-Minute Quickstart](docs/QUICKSTART.md)** for more examples and explanations.
+👉 **See [Quickstart](docs/QUICKSTART.md)** for more examples and explanations.
 
 ---
 
@@ -115,11 +108,11 @@ val found = people.find().first().toFuture()
 
 | Getting Started | Advanced | Reference |
 |----------------|----------|-----------|
-| [5-Min Quickstart](docs/QUICKSTART.md) | [Sealed Traits Guide](docs/SEALED_TRAITS.md) | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
+| [Quickstart](docs/QUICKSTART.md) | [Sealed Traits Guide](docs/SEALED_TRAITS.md) | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
 | [Feature Overview](docs/FEATURES.md) | [Enum Support](docs/ENUM_SUPPORT.md) | [MongoDB Interop](docs/MONGODB_INTEROP.md) |
 | [FAQ & Troubleshooting](docs/FAQ.md) | [How It Works](docs/HOW_IT_WORKS.md) | [Migration Guide](docs/MIGRATION.md) |
 
-**💡 New to the library?** Start with [QUICKSTART.md](docs/QUICKSTART.md) (5 minutes)
+**💡 New to the library?** Start with [QUICKSTART.md](docs/QUICKSTART.md) 
 
 ---
 
@@ -409,14 +402,14 @@ println(bson.toJson())  // email omitted due to Ignore
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M3"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7"
 ```
 
 For use with MongoDB Scala Driver:
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M3",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.7",
   ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
 )
 ```
@@ -429,7 +422,7 @@ libraryDependencies ++= Seq(
 
 ## Getting Started
 
-See the **[5-Minute Quickstart](docs/QUICKSTART.md)** for a hands-on tutorial, or jump straight to the [Feature Overview](docs/FEATURES.md) for comprehensive examples.
+See the **[Quickstart](docs/QUICKSTART.md)** for a hands-on tutorial, or jump straight to the [Feature Overview](docs/FEATURES.md) for comprehensive examples.
 
 ---
 

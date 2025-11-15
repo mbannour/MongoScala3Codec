@@ -2,7 +2,7 @@
 
 **Date:** November 12, 2025  
 **Repository:** MongoScala3Codec  
-**Current Version:** 0.0.7-M2  
+**Current Version:** 0.0.7  
 **Main Branch:** main  
 **Enhancement Branch:** enhancement  
 
@@ -124,7 +124,7 @@ MongoScala3Codec is a **compile-time, macro-based BSON codec generation library*
 - ✅ **State inspection:** `currentConfig`, `providerCount`, `codecCount`, `isEmpty`, `hasCodecFor[T]`, `summary`
 - ✅ **Efficient caching:** Temporary registry cached across chained operations (O(N) not O(N²))
 
-**Performance Optimization (0.0.7-M2):**
+**Performance Optimization (0.0.7):**
 ```
 registerAll[(A, B, C)]:        O(N) - builds registry once for all types
 .register[A].register[B]:      O(N) - caches intermediate registry
@@ -240,7 +240,7 @@ Previous version:              O(N²) - rebuilt registry on each call
 - **Measurement:** Comparable to hand-written codecs
 - **Overhead vs manual:** ~20% slower for sealed traits (acceptable trade-off)
 
-#### Efficient Caching (0.0.7-M2)
+#### Efficient Caching (0.0.7)
 - **Change:** Builder maintains cached temporary registry
 - **Result:** O(N) total cost for chaining N `register` calls
 - **Previous:** O(N²) - rebuilt registry on each call
@@ -432,7 +432,7 @@ Previous version:              O(N²) - rebuilt registry on each call
 | MONGODB_INTEROP.md | 150+ | Driver integration guide |
 | MIGRATION.md | Migration from other libraries |
 | FAQ.md | Troubleshooting & FAQs |
-| REGISTRY_BUILDER_ENHANCEMENTS.md | Builder 0.0.7-M2 features |
+| REGISTRY_BUILDER_ENHANCEMENTS.md | Builder 0.0.7 features |
 | BENCHMARKS.md | JMH benchmark documentation |
 | CONTRIBUTING.md | 300+ | Contribution guidelines |
 
@@ -685,11 +685,11 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 7. ✅ **Configurable None handling** - Flexible null encoding strategies
 8. ✅ **Testing utilities** - CodecTestKit simplifies codec validation
 9. ✅ **Production-ready** - Used in real projects, well-tested
-10. ✅ **Active development** - Recent 0.0.7-M2 with significant improvements
+10. ✅ **Active development** - Recent 0.0.7 with significant improvements
 
 ### 8.2 Standout Features
 1. **Discriminator Strategies** - 3 built-in strategies (SimpleName, FullyQualifiedName, Custom)
-2. **RegistryBuilder Optimization** - O(N) chaining, efficient caching (0.0.7-M2)
+2. **RegistryBuilder Optimization** - O(N) chaining, efficient caching (0.0.7)
 3. **MongoPath Type Safety** - Only Scala/MongoDB library with compile-time field path validation
 4. **Batch Registration API** - Clean syntax: `registerAll[(A, B, C)]`
 5. **Sealed Trait Collections** - Supports `List[SealedTrait]`, `Map[String, SealedTrait]`, etc.
@@ -834,7 +834,7 @@ register[B]: Create NEW temp registry, compile codec B  // Recompiles A!
 register[C]: Create NEW temp registry, compile codec C  // Recompiles A & B!
 ```
 
-**Current (O(N) behavior - 0.0.7-M2):**
+**Current (O(N) behavior - 0.0.7):**
 ```
 State { base, codecs, providers, cachedRegistry }
 

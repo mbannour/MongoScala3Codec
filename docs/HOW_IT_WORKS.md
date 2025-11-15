@@ -157,7 +157,7 @@ stringCodec.encode(writer, user.name, context)
 
 ## Sealed Trait Handling
 
-✅ **FULLY SUPPORTED:** MongoScala3Codec provides **best-in-class polymorphic sealed trait support** via discriminator-based serialization (as of v0.0.7-M2). You can use sealed traits as field types with automatic type discrimination.
+✅ **FULLY SUPPORTED:** MongoScala3Codec provides **best-in-class polymorphic sealed trait support** via discriminator-based serialization (as of v0.0.7). You can use sealed traits as field types with automatic type discrimination.
 
 ### Type Discrimination Strategy
 

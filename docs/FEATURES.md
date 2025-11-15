@@ -5,7 +5,7 @@ MongoScala3Codec provides comprehensive BSON codec generation for Scala 3 applic
 ## Table of Contents
 
 - [Automatic Codec Generation](#automatic-codec-generation)
-- [RegistryBuilder Enhancements (New in 0.0.7-M2)](#registrybuilder-enhancements-new-in-007-m2)
+- [RegistryBuilder Enhancements (New in 0.0.7)](#registrybuilder-enhancements-new-in-007)
 - [Case Classes](#case-classes)
 - [Optional Fields](#optional-fields)
 - [Collections](#collections)
@@ -45,9 +45,9 @@ val registry = RegistryBuilder
 
 ---
 
-## RegistryBuilder Enhancements (New in 0.0.7-M2)
+## RegistryBuilder Enhancements (New in 0.0.7)
 
-Version 0.0.7-M2 introduces significant enhancements to `RegistryBuilder` with improved performance, convenience methods, and state inspection capabilities.
+Version 0.0.7 introduces significant enhancements to `RegistryBuilder` with improved performance, convenience methods, and state inspection capabilities.
 
 ### Convenience Methods
 
@@ -246,7 +246,7 @@ collection.insertOne(product).toFuture()
 }
 ```
 
-**Note:** As of version 0.0.7-M2, discriminator field customization has been simplified. The library uses a standard discriminator approach for sealed trait hierarchies.
+**Note:** As of version 0.0.7, discriminator field customization has been simplified. The library uses a standard discriminator approach for sealed trait hierarchies.
 
 ## Optional Fields
 
@@ -259,7 +259,7 @@ case class User(_id: ObjectId, name: String, email: Option[String])
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .ignoreNone  // Cleaner API in 0.0.7-M2+
+  .ignoreNone  // Cleaner API in 0.0.7+
   .register[User]
   .build
 
@@ -272,7 +272,7 @@ val user = User(new ObjectId(), "Alice", None)
 ```scala
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .encodeNone  // Cleaner API in 0.0.7-M2+
+  .encodeNone  // Cleaner API in 0.0.7+
   .register[User]
   .build
 

@@ -425,4 +425,390 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
     personBson.getDocument("address").getString("city").getValue shouldBe "Springfield"
     personBson.getDocument("contact").getString("email").getValue shouldBe "test@example.com"
   }
+
+  "CodecTestKit.assertBsonContains" should "verify partial BSON structure" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "TestUser", 25)
+
+    // Only check specific fields, ignore others
+    val expectedFields = Map(
+      "name" -> new BsonString("TestUser"),
+      "age" -> new BsonInt32(25)
+    )
+
+    noException should be thrownBy {
+      CodecTestKit.assertBsonContains(user, expectedFields)
+    }
+  }
+
+  "CodecTestKit.bsonEquivalent" should "ignore field order" in {
+    val doc1 = new BsonDocument()
+      .append("a", new BsonInt32(1))
+      .append("b", new BsonString("hello"))
+      .append("c", new BsonInt32(3))
+
+    val doc2 = new BsonDocument()
+      .append("c", new BsonInt32(3))
+      .append("a", new BsonInt32(1))
+      .append("b", new BsonString("hello"))
+
+    CodecTestKit.bsonEquivalent(doc1, doc2) shouldBe true
+  }
+
+  it should "detect missing fields" in {
+    val doc1 = new BsonDocument()
+      .append("a", new BsonInt32(1))
+      .append("b", new BsonString("hello"))
+
+    val doc2 = new BsonDocument()
+      .append("a", new BsonInt32(1))
+
+    CodecTestKit.bsonEquivalent(doc1, doc2) shouldBe false
+  }
+
+  it should "detect different values" in {
+    val doc1 = new BsonDocument()
+      .append("a", new BsonInt32(1))
+
+    val doc2 = new BsonDocument()
+      .append("a", new BsonInt32(2))
+
+    CodecTestKit.bsonEquivalent(doc1, doc2) shouldBe false
+  }
+
+  "CodecTestKit.checkCodecSymmetry" should "return Right for valid codec" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "ValidUser", 30)
+    val result = CodecTestKit.checkCodecSymmetry(user)
+
+    result shouldBe Right(())
+  }
+
+  "CodecTestKit.codecSymmetryProperty" should "return true for valid codec" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "PropUser", 40)
+    CodecTestKit.codecSymmetryProperty(user) shouldBe true
+  }
+
+  "CodecTestKit.prettyPrint" should "format BSON documents readably" in {
+    val doc = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+
+    val pretty = CodecTestKit.prettyPrint(doc)
+
+    pretty should include("name")
+    pretty should include("Alice")
+    pretty should include("age")
+    pretty should include("30")
+  }
+
+  "CodecTestKit.diff" should "identify missing fields" in {
+    val expected = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+
+    val actual = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+
+    val diffStr = CodecTestKit.diff(expected, actual)
+
+    diffStr should include("Missing fields")
+    diffStr should include("age")
+  }
+
+  it should "identify extra fields" in {
+    val expected = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+
+    val actual = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+
+    val diffStr = CodecTestKit.diff(expected, actual)
+
+    diffStr should include("Extra fields")
+    diffStr should include("age")
+  }
+
+  it should "identify mismatched values" in {
+    val expected = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+
+    val actual = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(25))
+
+    val diffStr = CodecTestKit.diff(expected, actual)
+
+    diffStr should include("Mismatched fields")
+    diffStr should include("age")
+  }
+
+  it should "return no differences for identical documents" in {
+    val doc1 = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+
+    val doc2 = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+
+    val diffStr = CodecTestKit.diff(doc1, doc2)
+
+    diffStr shouldBe "No differences"
+  }
+
+  "CodecTestKit.roundTripWithContext" should "use custom encoder context" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "ContextUser", 35)
+    val encoderContext = EncoderContext.builder().isEncodingCollectibleDocument(true).build()
+    val decoderContext = DecoderContext.builder().build()
+
+    val result = CodecTestKit.roundTripWithContext(user, encoderContext, decoderContext)
+
+    result shouldBe user
+  }
+
+  "CodecTestKit.assertCodecSymmetryWithContext" should "support custom contexts" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "ContextUser2", 40)
+    val encoderContext = EncoderContext.builder().build()
+    val decoderContext = DecoderContext.builder().build()
+
+    noException should be thrownBy {
+      CodecTestKit.assertCodecSymmetryWithContext(user, encoderContext, decoderContext)
+    }
+  }
+
+  // ===== ENHANCED COMPARISON HELPERS TESTS =====
+
+  "CodecTestKit.extractField" should "extract specific field values" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "ExtractTest", 35)
+    val nameValue = CodecTestKit.extractField(user, "name")
+    val ageValue = CodecTestKit.extractField(user, "age")
+
+    nameValue shouldBe a[BsonString]
+    nameValue.asString().getValue shouldBe "ExtractTest"
+
+    ageValue shouldBe a[BsonInt32]
+    ageValue.asInt32().getValue shouldBe 35
+  }
+
+  it should "return null for non-existent fields" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .register[User]
+      .build
+
+    given codec: Codec[User] = registry.get(classOf[User])
+
+    val user = User(new ObjectId(), "Test", 30)
+    val missing = CodecTestKit.extractField(user, "nonexistent")
+
+    missing shouldBe null
+  }
+
+  "CodecTestKit.bsonArraysEqual" should "compare arrays in order" in {
+    import org.bson.BsonArray
+
+    val arr1 = new BsonArray()
+    arr1.add(new BsonString("a"))
+    arr1.add(new BsonString("b"))
+    arr1.add(new BsonString("c"))
+
+    val arr2 = new BsonArray()
+    arr2.add(new BsonString("a"))
+    arr2.add(new BsonString("b"))
+    arr2.add(new BsonString("c"))
+
+    CodecTestKit.bsonArraysEqual(arr1, arr2) shouldBe true
+  }
+
+  it should "detect different order" in {
+    import org.bson.BsonArray
+
+    val arr1 = new BsonArray()
+    arr1.add(new BsonString("a"))
+    arr1.add(new BsonString("b"))
+
+    val arr2 = new BsonArray()
+    arr2.add(new BsonString("b"))
+    arr2.add(new BsonString("a"))
+
+    CodecTestKit.bsonArraysEqual(arr1, arr2) shouldBe false
+  }
+
+  "CodecTestKit.bsonArraysEquivalent" should "ignore element order" in {
+    import org.bson.BsonArray
+
+    val arr1 = new BsonArray()
+    arr1.add(new BsonString("a"))
+    arr1.add(new BsonString("b"))
+    arr1.add(new BsonString("c"))
+
+    val arr2 = new BsonArray()
+    arr2.add(new BsonString("c"))
+    arr2.add(new BsonString("a"))
+    arr2.add(new BsonString("b"))
+
+    CodecTestKit.bsonArraysEquivalent(arr1, arr2) shouldBe true
+  }
+
+  it should "detect different elements" in {
+    import org.bson.BsonArray
+
+    val arr1 = new BsonArray()
+    arr1.add(new BsonString("a"))
+    arr1.add(new BsonString("b"))
+
+    val arr2 = new BsonArray()
+    arr2.add(new BsonString("a"))
+    arr2.add(new BsonString("c"))
+
+    CodecTestKit.bsonArraysEquivalent(arr1, arr2) shouldBe false
+  }
+
+  "CodecTestKit.bsonDeepContains" should "verify nested field paths" in {
+    val nested = new BsonDocument()
+      .append("street", new BsonString("Main St"))
+      .append("city", new BsonString("Springfield"))
+
+    val doc = new BsonDocument()
+      .append("name", new BsonString("John"))
+      .append("address", nested)
+
+    val expected = Map(
+      "address.city" -> new BsonString("Springfield")
+    )
+
+    CodecTestKit.bsonDeepContains(doc, expected) shouldBe true
+  }
+
+  it should "detect mismatched nested values" in {
+    val nested = new BsonDocument()
+      .append("city", new BsonString("Springfield"))
+
+    val doc = new BsonDocument()
+      .append("address", nested)
+
+    val expected = Map(
+      "address.city" -> new BsonString("Boston")
+    )
+
+    CodecTestKit.bsonDeepContains(doc, expected) shouldBe false
+  }
+
+  "CodecTestKit.deepDiff" should "report nested differences" in {
+    val expected = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+      .append("address", new BsonDocument()
+        .append("city", new BsonString("Boston")))
+
+    val actual = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(25))
+      .append("address", new BsonDocument()
+        .append("city", new BsonString("New York")))
+
+    val differences = CodecTestKit.deepDiff(expected, actual)
+
+    differences should not be empty
+    differences.exists(_.contains("age")) shouldBe true
+    differences.exists(_.contains("address.city")) shouldBe true
+  }
+
+  it should "handle array differences" in {
+    import org.bson.BsonArray
+
+    val arr1 = new BsonArray()
+    arr1.add(new BsonString("a"))
+    arr1.add(new BsonString("b"))
+
+    val arr2 = new BsonArray()
+    arr2.add(new BsonString("a"))
+
+    val expected = new BsonDocument().append("items", arr1)
+    val actual = new BsonDocument().append("items", arr2)
+
+    val differences = CodecTestKit.deepDiff(expected, actual)
+
+    differences should not be empty
+    differences.exists(_.contains("items")) shouldBe true
+  }
+
+  it should "return empty list for identical documents" in {
+    val doc = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+      .append("age", new BsonInt32(30))
+
+    val differences = CodecTestKit.deepDiff(doc, doc)
+
+    differences shouldBe empty
+  }
+
+  "CodecTestKit.bsonValuesEqual" should "handle nested documents" in {
+    val doc1 = new BsonDocument()
+      .append("inner", new BsonDocument()
+        .append("value", new BsonInt32(42)))
+
+    val doc2 = new BsonDocument()
+      .append("inner", new BsonDocument()
+        .append("value", new BsonInt32(42)))
+
+    CodecTestKit.bsonValuesEqual(doc1, doc2) shouldBe true
+  }
+
+  it should "handle arrays recursively" in {
+    import org.bson.BsonArray
+
+    val inner1 = new BsonDocument().append("x", new BsonInt32(1))
+    val inner2 = new BsonDocument().append("x", new BsonInt32(1))
+
+    val arr1 = new BsonArray()
+    arr1.add(inner1)
+
+    val arr2 = new BsonArray()
+    arr2.add(inner2)
+
+    CodecTestKit.bsonValuesEqual(arr1, arr2) shouldBe true
+  }
+
 end CodecTestKitSpec

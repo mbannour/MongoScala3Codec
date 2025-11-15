@@ -22,7 +22,7 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M2"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7"
 libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
 ```
 
@@ -69,7 +69,7 @@ val codecRegistry: CodecRegistry = RegistryBuilder
 given CodecRegistry = codecRegistry
 ```
 
-**New in 0.0.7-M2:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
+**New in 0.0.7:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
 
 
 ## Step 4: Connect to MongoDB (30 seconds)
