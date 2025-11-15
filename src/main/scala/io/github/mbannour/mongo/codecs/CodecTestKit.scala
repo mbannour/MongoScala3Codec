@@ -86,8 +86,7 @@ object CodecTestKit:
 
   /** Extract a specific field from the encoded BSON document.
     *
-    * This is useful when you need to verify individual field encodings
-    * rather than the entire document structure.
+    * This is useful when you need to verify individual field encodings rather than the entire document structure.
     *
     * @param value
     *   The value to encode
@@ -97,12 +96,9 @@ object CodecTestKit:
     *   The codec to use for encoding
     * @return
     *   The BsonValue for the specified field, or null if not present
-    * @example {{{
-    * case class User(name: String, age: Int)
-    * val user = User("Alice", 30)
-    * val nameValue: BsonValue = CodecTestKit.extractField(user, "name")
-    * // nameValue is BsonString("Alice")
-    * }}}
+    * @example
+    *   {{{ case class User(name: String, age: Int) val user = User("Alice", 30) val nameValue: BsonValue = CodecTestKit.extractField(user,
+    *   "name") // nameValue is BsonString("Alice") }}}
     */
   def extractField[T](value: T, fieldName: String)(using codec: Codec[T]): BsonValue =
     toBsonDocument(value).get(fieldName)
@@ -156,6 +152,7 @@ object CodecTestKit:
          |BSON:        ${prettyPrint(bsonDoc)}
          |""".stripMargin
     )
+  end assertCodecSymmetry
 
   /** Assert codec symmetry with custom contexts.
     *
@@ -183,6 +180,7 @@ object CodecTestKit:
          |Round-trip:  $result
          |""".stripMargin
     )
+  end assertCodecSymmetryWithContext
 
   /** Test codec symmetry and return Either for property-based testing.
     *
@@ -229,11 +227,11 @@ object CodecTestKit:
          |Diff:     ${diff(expectedBson, actual)}
          |""".stripMargin
     )
+  end assertBsonStructure
 
   /** Test that encoding produces a BSON structure that contains all expected fields.
     *
-    * This is more flexible than assertBsonStructure as it ignores field order
-    * and allows additional fields in the actual document.
+    * This is more flexible than assertBsonStructure as it ignores field order and allows additional fields in the actual document.
     *
     * @param value
     *   The value to encode
@@ -256,6 +254,7 @@ object CodecTestKit:
          |Actual BSON: ${prettyPrint(actual)}
          |""".stripMargin
     )
+  end assertBsonContains
 
   /** Test that two BSON documents are structurally equivalent (same fields and values, ignoring order).
     *
@@ -291,14 +290,13 @@ object CodecTestKit:
     */
   def bsonValuesEqual(v1: BsonValue, v2: BsonValue): Boolean =
     (v1, v2) match
-      case (d1: BsonDocument, d2: BsonDocument) => bsonEquivalent(d1, d2)
+      case (d1: BsonDocument, d2: BsonDocument)             => bsonEquivalent(d1, d2)
       case (a1: org.bson.BsonArray, a2: org.bson.BsonArray) => bsonArraysEqual(a1, a2)
-      case _                                     => v1 == v2
+      case _                                                => v1 == v2
 
   /** Test if two BSON arrays are equal (ordered comparison).
     *
-    * Arrays must have the same length and elements in the same order.
-    * Elements are compared recursively (handling nested documents/arrays).
+    * Arrays must have the same length and elements in the same order. Elements are compared recursively (handling nested documents/arrays).
     *
     * @param arr1
     *   First array
@@ -316,8 +314,8 @@ object CodecTestKit:
 
   /** Test if two BSON arrays are equivalent ignoring element order.
     *
-    * This is useful when array order is not significant (e.g., sets encoded as arrays).
-    * Each element in arr1 must have a matching element in arr2 and vice versa.
+    * This is useful when array order is not significant (e.g., sets encoded as arrays). Each element in arr1 must have a matching element
+    * in arr2 and vice versa.
     *
     * Note: This is O(n²) - use sparingly for large arrays.
     *
@@ -339,6 +337,7 @@ object CodecTestKit:
     } && list2.forall { elem2 =>
       list1.exists(elem1 => bsonValuesEqual(elem1, elem2))
     }
+  end bsonArraysEquivalent
 
   /** Test that a BSON document deeply contains expected values.
     *
@@ -384,6 +383,7 @@ object CodecTestKit:
             case _ => null
 
     navigate(doc, parts)
+  end getNestedField
 
   /** Create a minimal CodecRegistry for testing with only the given codecs.
     *
@@ -413,9 +413,13 @@ object CodecTestKit:
       case doc: BsonDocument =>
         if doc.isEmpty then "{}"
         else
-          val fields = doc.keySet().asScala.map { key =>
-            s"$indentStr  $key: ${prettyPrintValue(doc.get(key), indent + 1)}"
-          }.mkString(",\n")
+          val fields = doc
+            .keySet()
+            .asScala
+            .map { key =>
+              s"$indentStr  $key: ${prettyPrintValue(doc.get(key), indent + 1)}"
+            }
+            .mkString(",\n")
           s"{\n$fields\n$indentStr}"
       case arr: org.bson.BsonArray =>
         if arr.isEmpty then "[]"
@@ -423,6 +427,8 @@ object CodecTestKit:
           val elements = arr.asScala.map(v => prettyPrintValue(v, indent + 1)).mkString(", ")
           s"[$elements]"
       case _ => value.toString
+    end match
+  end prettyPrintValue
 
   /** Generate a diff between expected and actual BSON documents.
     *
@@ -454,21 +460,23 @@ object CodecTestKit:
       if missing.nonEmpty then Some(s"Missing fields: ${missing.mkString(", ")}") else None,
       if extra.nonEmpty then Some(s"Extra fields: ${extra.mkString(", ")}") else None,
       if mismatched.nonEmpty then
-        Some(s"Mismatched fields:\n${mismatched.map { key =>
-          val exp = expected.get(key)
-          val act = actual.get(key)
-          s"  $key:\n    expected: ${prettyPrintValue(exp, 2)}\n    actual:   ${prettyPrintValue(act, 2)}"
-        }.mkString("\n")}")
+        Some(s"Mismatched fields:\n${mismatched
+            .map { key =>
+              val exp = expected.get(key)
+              val act = actual.get(key)
+              s"  $key:\n    expected: ${prettyPrintValue(exp, 2)}\n    actual:   ${prettyPrintValue(act, 2)}"
+            }
+            .mkString("\n")}")
       else None
     ).flatten
 
     if parts.isEmpty then "No differences"
     else parts.mkString("\n")
+  end diff
 
   /** Generate a deep diff showing all differences in nested structures.
     *
-    * This recursively compares documents, arrays, and values,
-    * reporting differences at all levels with full paths.
+    * This recursively compares documents, arrays, and values, reporting differences at all levels with full paths.
     *
     * @param expected
     *   Expected document
@@ -491,29 +499,26 @@ object CodecTestKit:
           val eVal = e.get(key)
           val aVal = a.get(key)
 
-          if eVal == null && aVal != null then
-            List(s"$newPath: missing in expected (found: ${aVal.getBsonType})")
-          else if eVal != null && aVal == null then
-            List(s"$newPath: missing in actual")
-          else if eVal != null && aVal != null then
-            deepDiffValues(eVal, aVal, newPath)
-          else
-            List.empty
+          if eVal == null && aVal != null then List(s"$newPath: missing in expected (found: ${aVal.getBsonType})")
+          else if eVal != null && aVal == null then List(s"$newPath: missing in actual")
+          else if eVal != null && aVal != null then deepDiffValues(eVal, aVal, newPath)
+          else List.empty
         }.toList
 
       case (e: org.bson.BsonArray, a: org.bson.BsonArray) =>
-        if e.size() != a.size() then
-          List(s"$path: array size mismatch (expected: ${e.size()}, actual: ${a.size()})")
+        if e.size() != a.size() then List(s"$path: array size mismatch (expected: ${e.size()}, actual: ${a.size()})")
         else
-          e.asScala.zip(a.asScala).zipWithIndex.flatMap { case ((eElem, aElem), idx) =>
-            deepDiffValues(eElem, aElem, s"$path[$idx]")
-          }.toList
+          e.asScala
+            .zip(a.asScala)
+            .zipWithIndex
+            .flatMap { case ((eElem, aElem), idx) =>
+              deepDiffValues(eElem, aElem, s"$path[$idx]")
+            }
+            .toList
 
       case _ =>
-        if expected != actual then
-          List(s"$path: ${expected.getBsonType} mismatch (expected: $expected, actual: $actual)")
-        else
-          List.empty
+        if expected != actual then List(s"$path: ${expected.getBsonType} mismatch (expected: $expected, actual: $actual)")
+        else List.empty
 
   // ===== Property-Based Testing Helpers =====
 
@@ -521,12 +526,9 @@ object CodecTestKit:
     *
     * Creates a property that tests codec symmetry for generated values.
     *
-    * @example {{{
-    * import org.scalacheck.Prop.forAll
-    * property("codec symmetry") = forAll { (value: MyType) =>
-    *   CodecTestKit.codecSymmetryProperty(value)
-    * }
-    * }}}
+    * @example
+    *   {{{ import org.scalacheck.Prop.forAll property("codec symmetry") = forAll { (value: MyType) =>
+    *   CodecTestKit.codecSymmetryProperty(value) } }}}
     *
     * @param value
     *   The value to test

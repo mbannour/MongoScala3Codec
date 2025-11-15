@@ -739,14 +739,20 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
     val expected = new BsonDocument()
       .append("name", new BsonString("Alice"))
       .append("age", new BsonInt32(30))
-      .append("address", new BsonDocument()
-        .append("city", new BsonString("Boston")))
+      .append(
+        "address",
+        new BsonDocument()
+          .append("city", new BsonString("Boston"))
+      )
 
     val actual = new BsonDocument()
       .append("name", new BsonString("Alice"))
       .append("age", new BsonInt32(25))
-      .append("address", new BsonDocument()
-        .append("city", new BsonString("New York")))
+      .append(
+        "address",
+        new BsonDocument()
+          .append("city", new BsonString("New York"))
+      )
 
     val differences = CodecTestKit.deepDiff(expected, actual)
 
@@ -786,12 +792,18 @@ class CodecTestKitSpec extends AnyFlatSpec with Matchers:
 
   "CodecTestKit.bsonValuesEqual" should "handle nested documents" in {
     val doc1 = new BsonDocument()
-      .append("inner", new BsonDocument()
-        .append("value", new BsonInt32(42)))
+      .append(
+        "inner",
+        new BsonDocument()
+          .append("value", new BsonInt32(42))
+      )
 
     val doc2 = new BsonDocument()
-      .append("inner", new BsonDocument()
-        .append("value", new BsonInt32(42)))
+      .append(
+        "inner",
+        new BsonDocument()
+          .append("value", new BsonInt32(42))
+      )
 
     CodecTestKit.bsonValuesEqual(doc1, doc2) shouldBe true
   }

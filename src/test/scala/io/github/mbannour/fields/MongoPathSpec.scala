@@ -4,6 +4,7 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import io.github.mbannour.fields.MongoPath.syntax.?
+import io.github.mbannour.fields.MongoPath.syntax.each
 
 /** Comprehensive test suite for MongoPath.
   *
@@ -317,6 +318,420 @@ class MongoPathSpec extends AnyFunSuite with Matchers:
     MongoPath.of[User](_.profile) shouldBe "profile"
     MongoPath.of[User](_.profile.?.fullName) shouldBe "profile.full_name"
     MongoPath.of[User](_.profile.?.bio) shouldBe "profile.bio"
+  }
+
+  // Seq/List array field navigation tests
+  test("MongoPath.of should handle Seq field navigation with .each") {
+    case class Skill(name: String, level: String)
+    case class Employee(skills: Seq[Skill])
+
+    val path = MongoPath.of[Employee](_.skills.each.name)
+    path shouldBe "skills.name"
+  }
+
+  test("MongoPath.of should handle List field navigation with .each") {
+    case class Tag(value: String, category: String)
+    case class Article(tags: List[Tag])
+
+    val path = MongoPath.of[Article](_.tags.each.value)
+    path shouldBe "tags.value"
+  }
+
+  test("MongoPath.of should handle nested Seq field with @BsonProperty") {
+    case class Skill(@BsonProperty("skill_name") name: String, level: String)
+    case class Employee(skills: Seq[Skill])
+
+    val path = MongoPath.of[Employee](_.skills.each.name)
+    path shouldBe "skills.skill_name"
+  }
+
+  test("MongoPath.of should handle multiple levels with Seq navigation") {
+    case class Project(name: String, budget: Double)
+    case class Department(projects: Seq[Project])
+    case class Company(departments: List[Department])
+
+    MongoPath.of[Company](_.departments.each.projects.each.name) shouldBe "departments.projects.name"
+  }
+
+  test("MongoPath.of should handle Seq with nested objects and annotations") {
+    case class Address(@BsonProperty("zip") zipCode: Int, city: String)
+    case class Contact(addresses: Seq[Address])
+
+    MongoPath.of[Contact](_.addresses.each.zipCode) shouldBe "addresses.zip"
+    MongoPath.of[Contact](_.addresses.each.city) shouldBe "addresses.city"
+  }
+
+  // Note: Chaining .? and .each (Option[Seq]) is an edge case
+  // For MongoDB queries, if skills is Option[Seq[Skill]], you can still use just .each or access skills directly
+  // since MongoDB handles optional fields automatically in queries
+  test("MongoPath.of should handle Option[Seq] field directly") {
+    case class Skill(name: String, level: String)
+    case class Employee(skills: Option[Seq[Skill]])
+
+    val path = MongoPath.of[Employee](_.skills)
+    path shouldBe "skills"
+  }
+
+  test("MongoPath.of should handle Seq[Option] with .each and .?") {
+    case class Tag(value: Option[String])
+    case class Article(tags: Seq[Tag])
+
+    val path = MongoPath.of[Article](_.tags.each.value)
+    path shouldBe "tags.value"
+  }
+
+  test("MongoPath.of should handle real-world Employee example") {
+    case class Skill(
+        name: String,
+        level: String,
+        yearsOfExperience: Int
+    )
+    case class Project(
+        @BsonProperty("project_name") name: String,
+        role: String,
+        @BsonProperty("start_date") startDate: String
+    )
+    case class Employee(
+        id: String,
+        name: String,
+        skills: Seq[Skill],
+        projects: Seq[Project]
+    )
+
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skills.name"
+    MongoPath.of[Employee](_.skills.each.level) shouldBe "skills.level"
+    MongoPath.of[Employee](_.skills.each.yearsOfExperience) shouldBe "skills.yearsOfExperience"
+    MongoPath.of[Employee](_.projects.each.name) shouldBe "projects.project_name"
+    MongoPath.of[Employee](_.projects.each.role) shouldBe "projects.role"
+    MongoPath.of[Employee](_.projects.each.startDate) shouldBe "projects.start_date"
+  }
+
+  test("MongoPath.of should handle deeply nested Seq fields") {
+    case class Certification(name: String, year: Int)
+    case class Skill(name: String, certifications: Seq[Certification])
+    case class Employee(skills: Seq[Skill])
+
+    val path = MongoPath.of[Employee](_.skills.each.certifications.each.name)
+    path shouldBe "skills.certifications.name"
+  }
+
+  test("MongoPath.of should handle mixed nested objects and Seq") {
+    case class Skill(name: String)
+    case class Department(name: String)
+    case class Employee(
+        department: Department,
+        skills: Seq[Skill]
+    )
+
+    MongoPath.of[Employee](_.department.name) shouldBe "department.name"
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skills.name"
+  }
+
+  // Seq/List of primitives tests
+  test("MongoPath.of should handle Seq[String] field") {
+    case class Document(tags: Seq[String])
+    val path = MongoPath.of[Document](_.tags)
+    path shouldBe "tags"
+  }
+
+  test("MongoPath.of should handle Seq[Int] field") {
+    case class Numbers(values: Seq[Int])
+    val path = MongoPath.of[Numbers](_.values)
+    path shouldBe "values"
+  }
+
+  test("MongoPath.of should handle Seq[Double] field") {
+    case class Metrics(scores: Seq[Double])
+    val path = MongoPath.of[Metrics](_.scores)
+    path shouldBe "scores"
+  }
+
+  test("MongoPath.of should handle List[String] field") {
+    case class Document(keywords: List[String])
+    val path = MongoPath.of[Document](_.keywords)
+    path shouldBe "keywords"
+  }
+
+  test("MongoPath.of should handle Option[Seq[String]] field") {
+    case class Document(tags: Option[Seq[String]])
+    val path = MongoPath.of[Document](_.tags)
+    path shouldBe "tags"
+  }
+
+  test("MongoPath.of should handle Option[List[Int]] field") {
+    case class Numbers(values: Option[List[Int]])
+    val path = MongoPath.of[Numbers](_.values)
+    path shouldBe "values"
+  }
+
+  // BsonProperty on Seq fields themselves
+  test("MongoPath.of should respect @BsonProperty on Seq field") {
+    case class Skill(name: String)
+    case class Employee(@BsonProperty("skill_set") skills: Seq[Skill])
+
+    MongoPath.of[Employee](_.skills) shouldBe "skill_set"
+  }
+
+  test("MongoPath.of should respect @BsonProperty on Seq field and navigate with .each") {
+    case class Skill(name: String, level: String)
+    case class Employee(@BsonProperty("skill_set") skills: Seq[Skill])
+
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skill_set.name"
+  }
+
+  test("MongoPath.of should handle @BsonProperty on both Seq field and nested field") {
+    case class Skill(@BsonProperty("skill_name") name: String, level: String)
+    case class Employee(@BsonProperty("skill_set") skills: Seq[Skill])
+
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skill_set.skill_name"
+    MongoPath.of[Employee](_.skills.each.level) shouldBe "skill_set.level"
+  }
+
+  // Vector support
+  test("MongoPath.of should handle Vector[T] field") {
+    case class Skill(name: String)
+    case class Employee(skills: Vector[Skill])
+
+    val path = MongoPath.of[Employee](_.skills)
+    path shouldBe "skills"
+  }
+
+  test("MongoPath.of should handle Vector[T] field navigation with .each") {
+    case class Skill(name: String, level: String)
+    case class Employee(skills: Vector[Skill])
+
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skills.name"
+    MongoPath.of[Employee](_.skills.each.level) shouldBe "skills.level"
+  }
+
+  test("MongoPath.of should handle IndexedSeq[T] field") {
+    case class Tag(value: String)
+    case class Document(tags: IndexedSeq[Tag])
+
+    val path = MongoPath.of[Document](_.tags)
+    path shouldBe "tags"
+  }
+
+  test("MongoPath.of should handle IndexedSeq[T] field navigation with .each") {
+    case class Tag(value: String, category: String)
+    case class Document(tags: IndexedSeq[Tag])
+
+    MongoPath.of[Document](_.tags.each.value) shouldBe "tags.value"
+    MongoPath.of[Document](_.tags.each.category) shouldBe "tags.category"
+  }
+
+  test("MongoPath.of should handle Iterable[T] field") {
+    case class Item(name: String)
+    case class Collection(items: Iterable[Item])
+
+    val path = MongoPath.of[Collection](_.items)
+    path shouldBe "items"
+  }
+
+  test("MongoPath.of should handle Iterable[T] field navigation with .each") {
+    case class Item(name: String, price: Double)
+    case class Collection(items: Iterable[Item])
+
+    MongoPath.of[Collection](_.items.each.name) shouldBe "items.name"
+    MongoPath.of[Collection](_.items.each.price) shouldBe "items.price"
+  }
+
+  // Complex real-world Employee model
+  test("MongoPath.of should handle complete Employee model") {
+    case class Skill(name: String, level: String, yearsOfExperience: Int)
+    case class Project(name: String, role: String)
+    case class Address(street: String, city: String, zipCode: String)
+    case class Contact(email: String, phone: String)
+    case class Employee(
+        id: String,
+        name: String,
+        position: String,
+        salary: Double,
+        department: Option[String],
+        age: Int,
+        hireDate: String,
+        isActive: Boolean,
+        address: Address,
+        contact: Option[Contact],
+        skills: Seq[Skill],
+        projects: Seq[Project],
+        certifications: Option[Seq[String]],
+        previousSalaries: Seq[Double],
+        performanceRating: Option[Double]
+    )
+
+    // Simple fields
+    MongoPath.of[Employee](_.id) shouldBe "id"
+    MongoPath.of[Employee](_.name) shouldBe "name"
+    MongoPath.of[Employee](_.position) shouldBe "position"
+    MongoPath.of[Employee](_.salary) shouldBe "salary"
+    MongoPath.of[Employee](_.age) shouldBe "age"
+    MongoPath.of[Employee](_.hireDate) shouldBe "hireDate"
+    MongoPath.of[Employee](_.isActive) shouldBe "isActive"
+
+    // Optional fields
+    MongoPath.of[Employee](_.department) shouldBe "department"
+    MongoPath.of[Employee](_.performanceRating) shouldBe "performanceRating"
+
+    // Nested object
+    MongoPath.of[Employee](_.address.street) shouldBe "address.street"
+    MongoPath.of[Employee](_.address.city) shouldBe "address.city"
+    MongoPath.of[Employee](_.address.zipCode) shouldBe "address.zipCode"
+
+    // Optional nested object
+    MongoPath.of[Employee](_.contact.?.email) shouldBe "contact.email"
+    MongoPath.of[Employee](_.contact.?.phone) shouldBe "contact.phone"
+
+    // Seq of objects with .each
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skills.name"
+    MongoPath.of[Employee](_.skills.each.level) shouldBe "skills.level"
+    MongoPath.of[Employee](_.skills.each.yearsOfExperience) shouldBe "skills.yearsOfExperience"
+
+    MongoPath.of[Employee](_.projects.each.name) shouldBe "projects.name"
+    MongoPath.of[Employee](_.projects.each.role) shouldBe "projects.role"
+
+    // Seq of primitives (no .each needed)
+    MongoPath.of[Employee](_.previousSalaries) shouldBe "previousSalaries"
+
+    // Option[Seq] of primitives
+    MongoPath.of[Employee](_.certifications) shouldBe "certifications"
+  }
+
+  // Edge case: deeply nested with Option and Seq combinations
+  test("MongoPath.of should handle deep nesting with Option and Seq") {
+    case class Tag(name: String)
+    case class Category(@BsonProperty("tag_list") tags: Seq[Tag])
+    case class Section(categories: Option[Seq[Category]])
+    case class Document(sections: Seq[Section])
+
+    MongoPath.of[Document](_.sections.each.categories) shouldBe "sections.categories"
+  }
+
+  test("MongoPath.of should handle Seq inside Option inside Seq") {
+    case class Item(value: String)
+    case class Group(items: Option[Seq[Item]])
+    case class Container(groups: Seq[Group])
+
+    MongoPath.of[Container](_.groups.each.items) shouldBe "groups.items"
+  }
+
+  // @BsonProperty with special MongoDB field names
+  test("MongoPath.of should handle @BsonProperty with MongoDB _id convention") {
+    case class Record(@BsonProperty("_id") id: String, data: String)
+    case class Collection(records: Seq[Record])
+
+    MongoPath.of[Collection](_.records.each.id) shouldBe "records._id"
+  }
+
+  // Multiple Seq fields in same class
+  test("MongoPath.of should handle multiple Seq fields") {
+    case class Skill(name: String)
+    case class Project(name: String)
+    case class Certification(name: String)
+    case class Employee(
+        skills: Seq[Skill],
+        projects: Seq[Project],
+        certifications: Seq[Certification]
+    )
+
+    MongoPath.of[Employee](_.skills.each.name) shouldBe "skills.name"
+    MongoPath.of[Employee](_.projects.each.name) shouldBe "projects.name"
+    MongoPath.of[Employee](_.certifications.each.name) shouldBe "certifications.name"
+  }
+
+  // Seq field at different nesting levels
+  test("MongoPath.of should handle Seq at different nesting levels") {
+    case class Tag(value: String)
+    case class Inner(tags: Seq[Tag])
+    case class Middle(inner: Inner, moreTags: Seq[Tag])
+    case class Outer(middle: Middle, evenMoreTags: Seq[Tag])
+
+    MongoPath.of[Outer](_.middle.inner.tags.each.value) shouldBe "middle.inner.tags.value"
+    MongoPath.of[Outer](_.middle.moreTags.each.value) shouldBe "middle.moreTags.value"
+    MongoPath.of[Outer](_.evenMoreTags.each.value) shouldBe "evenMoreTags.value"
+  }
+
+  // BigDecimal and BigInt tests
+  test("MongoPath.of should handle BigDecimal fields") {
+    case class Financial(amount: BigDecimal, rate: BigDecimal)
+    MongoPath.of[Financial](_.amount) shouldBe "amount"
+    MongoPath.of[Financial](_.rate) shouldBe "rate"
+  }
+
+  test("MongoPath.of should handle BigInt fields") {
+    case class LargeNumbers(value: BigInt, count: BigInt)
+    MongoPath.of[LargeNumbers](_.value) shouldBe "value"
+    MongoPath.of[LargeNumbers](_.count) shouldBe "count"
+  }
+
+  test("MongoPath.of should handle Option[BigDecimal] fields") {
+    case class FinancialRecord(amount: Option[BigDecimal])
+    MongoPath.of[FinancialRecord](_.amount) shouldBe "amount"
+  }
+
+  test("MongoPath.of should handle Seq[BigDecimal] fields") {
+    case class PriceHistory(prices: Seq[BigDecimal])
+    MongoPath.of[PriceHistory](_.prices) shouldBe "prices"
+  }
+
+  // Long and other numeric types
+  test("MongoPath.of should handle Long fields") {
+    case class Timestamps(created: Long, updated: Long)
+    MongoPath.of[Timestamps](_.created) shouldBe "created"
+    MongoPath.of[Timestamps](_.updated) shouldBe "updated"
+  }
+
+  test("MongoPath.of should handle Float fields") {
+    case class Measurements(temperature: Float, humidity: Float)
+    MongoPath.of[Measurements](_.temperature) shouldBe "temperature"
+    MongoPath.of[Measurements](_.humidity) shouldBe "humidity"
+  }
+
+  test("MongoPath.of should handle Byte fields") {
+    case class ByteData(flag: Byte, status: Byte)
+    MongoPath.of[ByteData](_.flag) shouldBe "flag"
+    MongoPath.of[ByteData](_.status) shouldBe "status"
+  }
+
+  test("MongoPath.of should handle Short fields") {
+    case class ShortData(code: Short, value: Short)
+    MongoPath.of[ShortData](_.code) shouldBe "code"
+    MongoPath.of[ShortData](_.value) shouldBe "value"
+  }
+
+  test("MongoPath.of should handle Char fields") {
+    case class CharData(grade: Char, category: Char)
+    MongoPath.of[CharData](_.grade) shouldBe "grade"
+    MongoPath.of[CharData](_.category) shouldBe "category"
+  }
+
+  // Comprehensive type coverage test
+  test("MongoPath.of should handle all common Scala types") {
+    case class AllTypes(
+        stringField: String,
+        intField: Int,
+        longField: Long,
+        doubleField: Double,
+        floatField: Float,
+        booleanField: Boolean,
+        byteField: Byte,
+        shortField: Short,
+        charField: Char,
+        bigDecimalField: BigDecimal,
+        bigIntField: BigInt
+    )
+
+    MongoPath.of[AllTypes](_.stringField) shouldBe "stringField"
+    MongoPath.of[AllTypes](_.intField) shouldBe "intField"
+    MongoPath.of[AllTypes](_.longField) shouldBe "longField"
+    MongoPath.of[AllTypes](_.doubleField) shouldBe "doubleField"
+    MongoPath.of[AllTypes](_.floatField) shouldBe "floatField"
+    MongoPath.of[AllTypes](_.booleanField) shouldBe "booleanField"
+    MongoPath.of[AllTypes](_.byteField) shouldBe "byteField"
+    MongoPath.of[AllTypes](_.shortField) shouldBe "shortField"
+    MongoPath.of[AllTypes](_.charField) shouldBe "charField"
+    MongoPath.of[AllTypes](_.bigDecimalField) shouldBe "bigDecimalField"
+    MongoPath.of[AllTypes](_.bigIntField) shouldBe "bigIntField"
   }
 
 end MongoPathSpec

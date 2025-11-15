@@ -30,7 +30,6 @@ class CachedCodecRegistry(
     chm
 
   override def get[T](clazz: Class[T]): Codec[T] =
-  
     cache
       .computeIfAbsent(
         clazz,
