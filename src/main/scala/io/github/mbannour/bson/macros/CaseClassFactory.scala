@@ -25,8 +25,7 @@ object CaseClassFactory:
         s"'$typeName' is a $typeKind, not a case class." +
           "\n\nBSON codec generation only works with case classes." +
           "\n\nSuggestion: Convert '$typeName' to a case class:" +
-          s"\n  case class $typeName(...)" +
-          "\n\nOr, if you're working with a sealed trait hierarchy, register the concrete case class implementations instead of the trait."
+          s"\n  case class $typeName(...)"
       )
     end if
 

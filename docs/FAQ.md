@@ -159,14 +159,12 @@ case class User(status: Status)
 
 **Cause:** Enums with parameters are not supported for automatic codec generation.
 
-**Solution:** For simple cases, use sealed traits with concrete case class fields:
+**Solution:** Use case classes for types with parameters:
 ```scala
-sealed trait Status
-case class Active(code: Int) extends Status
-case class Inactive(code: Int) extends Status
+case class Active(code: Int)
+case class Inactive(code: Int)
 
-// Register each concrete case class
-case class User(status: Active)  // Use concrete type, not sealed trait
+case class User(status: Active)  // Use concrete case class type
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
@@ -176,7 +174,6 @@ val registry = RegistryBuilder
   .build
 ```
 
-**Important:** Polymorphic sealed trait fields (e.g., `status: Status`) are **NOT supported**. Always use the concrete case class type in your fields.
 
 For simple enums (no parameters), use `EnumValueCodecProvider`:
 ```scala
@@ -344,68 +341,8 @@ collection.updateMany(
 
 ---
 
-### Issue: Sealed trait discriminator conflicts
-
-**Problem:**
-```scala
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-
-// MongoDB document has: {"_t": "SomethingElse", "radius": 5.0}
-// Throws exception when decoding
-```
-
-**Cause:** Attempting to use polymorphic sealed trait fields, which are not supported.
-
-**Solution:** Use concrete case class types in your fields:
-```scala
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-case class Rectangle(width: Double, height: Double) extends Shape
-
-// ❌ NOT SUPPORTED
-// case class Drawing(shape: Shape)  // Polymorphic field
-
-// ✅ SUPPORTED - Use concrete types
-case class CircleDrawing(shape: Circle)
-case class RectangleDrawing(shape: Rectangle)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Circle]
-  .register[Rectangle]
-  .register[CircleDrawing]
-  .register[RectangleDrawing]
-  .build
-```
-
----
-
 ## Configuration Questions
 
-### Q: Can I use sealed trait hierarchies?
-
-**A:** You can register concrete case classes that extend sealed traits, but you cannot use the sealed trait type itself as a field type.
-
-```scala
-sealed trait Animal
-case class Dog(name: String, breed: String) extends Animal
-case class Cat(name: String, indoor: Boolean) extends Animal
-
-// ❌ NOT SUPPORTED - Polymorphic field
-// case class Person(pet: Animal)
-
-// ✅ SUPPORTED - Concrete type fields
-case class DogOwner(pet: Dog)
-case class CatOwner(pet: Cat)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
-  .build
-```
-
-**Note:** As of version 0.0.7, discriminator field customization has been simplified and is managed internally by the library.
 
 ### Q: How do I configure different settings for different types?
 
