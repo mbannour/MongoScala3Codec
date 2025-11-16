@@ -16,7 +16,7 @@
 **MongoScala3Codec provides:**
 - ✅ Native Scala 3 macro-based codec generation
 - ✅ Full BSON type support with compile-time safety
-- ✅ Advanced sealed trait handling with 3 discriminator strategies
+- ✅ Scala 3 enum support with string/ordinal/custom field encoding
 - ✅ Type-safe field paths (MongoPath) - unique in the ecosystem
 - ✅ Production-grade error messages and 290+ tests
 
@@ -49,7 +49,6 @@
 
 | Document | For When You Need... |
 |----------|---------------------|
-| **[SEALED_TRAITS.md](SEALED_TRAITS.md)** | Polymorphic sealed traits & discriminators |
 | **[ENUM_SUPPORT.md](ENUM_SUPPORT.md)** | Scala 3 enums (string/ordinal/custom) |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Macro internals & optimization techniques |
 
@@ -97,10 +96,9 @@
 5. ✅ [BENCHMARKS.md](BENCHMARKS.md) - Performance validation
 
 ### Path 3: **Advanced Features** (For Power Users)
-1. ✅ [SEALED_TRAITS.md](SEALED_TRAITS.md) - Polymorphic types
-2. ✅ [ENUM_SUPPORT.md](ENUM_SUPPORT.md) - Enum handling
-3. ✅ [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - Internals
-4. ✅ [CONTRIBUTING.md](../CONTRIBUTING.md) - Extend the library
+1. ✅ [ENUM_SUPPORT.md](ENUM_SUPPORT.md) - Enum handling
+2. ✅ [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - Internals
+3. ✅ [CONTRIBUTING.md](../CONTRIBUTING.md) - Extend the library
 
 ---
 
@@ -113,7 +111,6 @@
 | Install library | [README.md](../README.md) | Installation |
 | First example | [QUICKSTART.md](QUICKSTART.md) | Complete |
 | Register types | [FEATURES.md](FEATURES.md) | Registering Codecs |
-| Sealed traits | [SEALED_TRAITS.md](SEALED_TRAITS.md) | Quick Start |
 | Handle enums | [ENUM_SUPPORT.md](ENUM_SUPPORT.md) | Quick Start |
 | None handling | [FEATURES.md](FEATURES.md) | Optional Fields |
 | Custom fields | [FEATURES.md](FEATURES.md) | @BsonProperty |

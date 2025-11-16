@@ -9,7 +9,7 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 - ✅ **Zero boilerplate** - One line registers any case class
 - ✅ **Compile-time safe** - Catch errors at compile time, not production
 - ✅ **BSON native** - Full support for ObjectId, Binary, Decimal128, etc.
-- ✅ **Best sealed trait support** - 3 discriminator strategies
+- ✅ **Scala 3 enum support** - String/ordinal/custom field encoding
 
 ## Prerequisites
 
@@ -22,8 +22,8 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7-M2"
-libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7"
+libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 ```
 
 ## Step 2: Define Your Domain Models (1 minute)
@@ -69,7 +69,7 @@ val codecRegistry: CodecRegistry = RegistryBuilder
 given CodecRegistry = codecRegistry
 ```
 
-**New in 0.0.7-M2:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
+**New in 0.0.7:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
 
 
 ## Step 4: Connect to MongoDB (30 seconds)
@@ -213,12 +213,12 @@ case class BlogPost(
 2. ✅ Automatically generated BSON codecs at compile-time
 3. ✅ Persisted complex nested structures to MongoDB
 4. ✅ Queried data with type safety
-5. ✅ Handled ADTs (sealed traits) with automatic discriminators
+5. ✅ Used Scala 3 case classes with full BSON support
 
 ## Next Steps
 
 - 📖 Read the [Feature Overview](FEATURES.md) to learn about all capabilities
-- 🎯 Explore [Sealed Traits Guide](SEALED_TRAITS.md) for polymorphic type support
+- 🎯 Explore [Enum Support Guide](ENUM_SUPPORT.md) for Scala 3 enum handling
 - 🔧 Check out [How It Works](HOW_IT_WORKS.md) to understand the internals
 - ❓ Visit the [FAQ](FAQ.md) for common questions and troubleshooting
 
@@ -248,7 +248,7 @@ given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
 **Solution:** Ensure you're using the correct cross-version:
 
 ```scala
-"org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1" cross CrossVersion.for3Use2_13
+"org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 ```
 
 ---

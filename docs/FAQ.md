@@ -145,49 +145,60 @@ val registry = RegistryBuilder
 
 ---
 
-### Error: "Enum not supported"
+### Error: "Sealed class not supported"
 
 **Problem:**
+```scala
+sealed class Status
+case class Active() extends Status
+case class Inactive() extends Status
+
+case class User(status: Status)
+// Compilation error
+```
+
+**Cause:** Sealed classes and sealed traits are not supported for automatic codec generation.
+
+**Solution:** Use Scala 3 enumerations instead:
+```scala
+enum Status:
+  case Active, Inactive
+
+case class User(status: Status)
+
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+
+val statusProvider = EnumValueCodecProvider.forStringEnum[Status]
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withProviders(statusProvider)
+  .register[User]
+  .build
+```
+
+For enums with parameters:
 ```scala
 enum Status(val code: Int):
   case Active extends Status(1)
   case Inactive extends Status(0)
 
 case class User(status: Status)
-// Compilation error
-```
 
-**Cause:** Enums with parameters are not supported for automatic codec generation.
+import org.bson.codecs.{Codec, IntegerCodec}
 
-**Solution:** For simple cases, use sealed traits with concrete case class fields:
-```scala
-sealed trait Status
-case class Active(code: Int) extends Status
-case class Inactive(code: Int) extends Status
+given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
 
-// Register each concrete case class
-case class User(status: Active)  // Use concrete type, not sealed trait
+val statusProvider = EnumValueCodecProvider[Status, Int](
+  toValue = _.code,
+  fromValue = code => Status.values.find(_.code == code).getOrElse(
+    throw new IllegalArgumentException(s"Invalid status code: $code")
+  )
+)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Active]
-  .register[Inactive]
-  .register[User]
-  .build
-```
-
-**Important:** Polymorphic sealed trait fields (e.g., `status: Status`) are **NOT supported**. Always use the concrete case class type in your fields.
-
-For simple enums (no parameters), use `EnumValueCodecProvider`:
-```scala
-enum SimpleStatus:
-  case Active, Inactive
-
-import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[SimpleStatus]())
+  .withProviders(statusProvider)
   .register[User]
   .build
 ```
@@ -344,68 +355,8 @@ collection.updateMany(
 
 ---
 
-### Issue: Sealed trait discriminator conflicts
-
-**Problem:**
-```scala
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-
-// MongoDB document has: {"_t": "SomethingElse", "radius": 5.0}
-// Throws exception when decoding
-```
-
-**Cause:** Attempting to use polymorphic sealed trait fields, which are not supported.
-
-**Solution:** Use concrete case class types in your fields:
-```scala
-sealed trait Shape
-case class Circle(radius: Double) extends Shape
-case class Rectangle(width: Double, height: Double) extends Shape
-
-// ❌ NOT SUPPORTED
-// case class Drawing(shape: Shape)  // Polymorphic field
-
-// ✅ SUPPORTED - Use concrete types
-case class CircleDrawing(shape: Circle)
-case class RectangleDrawing(shape: Rectangle)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Circle]
-  .register[Rectangle]
-  .register[CircleDrawing]
-  .register[RectangleDrawing]
-  .build
-```
-
----
-
 ## Configuration Questions
 
-### Q: Can I use sealed trait hierarchies?
-
-**A:** You can register concrete case classes that extend sealed traits, but you cannot use the sealed trait type itself as a field type.
-
-```scala
-sealed trait Animal
-case class Dog(name: String, breed: String) extends Animal
-case class Cat(name: String, indoor: Boolean) extends Animal
-
-// ❌ NOT SUPPORTED - Polymorphic field
-// case class Person(pet: Animal)
-
-// ✅ SUPPORTED - Concrete type fields
-case class DogOwner(pet: Dog)
-case class CatOwner(pet: Cat)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .registerAll[(Dog, Cat, DogOwner, CatOwner)]
-  .build
-```
-
-**Note:** As of version 0.0.7-M2, discriminator field customization has been simplified and is managed internally by the library.
 
 ### Q: How do I configure different settings for different types?
 

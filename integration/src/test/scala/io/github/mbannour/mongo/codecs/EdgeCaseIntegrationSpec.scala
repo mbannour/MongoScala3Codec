@@ -21,12 +21,7 @@ import org.scalatest.time.{Millis, Seconds, Span}
   *   - Concurrent operations
   *   - Boundary values
   */
-class EdgeCaseIntegrationSpec
-    extends AnyFlatSpec
-    with ForAllTestContainer
-    with Matchers
-    with ScalaFutures
-    with BeforeAndAfterAll:
+class EdgeCaseIntegrationSpec extends AnyFlatSpec with ForAllTestContainer with Matchers with ScalaFutures with BeforeAndAfterAll:
 
   implicit val defaultPatience: PatienceConfig =
     PatienceConfig(timeout = Span(60, Seconds), interval = Span(500, Millis))
@@ -85,8 +80,7 @@ class EdgeCaseIntegrationSpec
   // ========== Unicode and Special Characters ==========
 
   "Codec" should "handle Unicode characters correctly" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[SimpleDoc]
       .build
 
@@ -118,8 +112,7 @@ class EdgeCaseIntegrationSpec
   }
 
   it should "handle special characters in strings" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[SimpleDoc]
       .build
 
@@ -152,8 +145,7 @@ class EdgeCaseIntegrationSpec
   // ========== Deep Nesting Tests ==========
 
   it should "handle deep nesting (6 levels)" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .registerAll[(Level5, Level4, Level3, Level2, Level1, DeepNesting)]
       .build
 
@@ -197,8 +189,7 @@ class EdgeCaseIntegrationSpec
   // ========== Large Document Tests ==========
 
   it should "handle documents with many fields" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[LargeDoc]
       .build
 
@@ -249,8 +240,7 @@ class EdgeCaseIntegrationSpec
   // ========== Large Collection Tests ==========
 
   it should "handle collections with thousands of items" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[CollectionDoc]
       .build
 
@@ -298,8 +288,7 @@ class EdgeCaseIntegrationSpec
         negativeZero: Double
     )
 
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[NumericBoundaries]
       .build
 
@@ -347,8 +336,7 @@ class EdgeCaseIntegrationSpec
         emptyMap: Map[String, String]
     )
 
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[EmptyValues]
       .build
 
@@ -381,8 +369,7 @@ class EdgeCaseIntegrationSpec
   // ========== Concurrent Access Tests ==========
 
   it should "handle concurrent inserts correctly" in {
-    val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-      .newBuilder
+    val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
       .register[SimpleDoc]
       .build
 

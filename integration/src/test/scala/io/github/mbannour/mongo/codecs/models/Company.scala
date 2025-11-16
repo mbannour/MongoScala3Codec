@@ -7,7 +7,7 @@ import org.mongodb.scala.MongoClient
 case class Company(name: String, employees: Option[Seq[Person]])
 
 object Company:
-  
+
   val defaultRegistry: CodecRegistry = RegistryBuilder
     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
     .withCodecs(EmployeeId.employeeIdBsonCodec, DateField.dateFieldCodec)

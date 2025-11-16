@@ -11,29 +11,59 @@ import scala.annotation.tailrec
   *   - Accepts a selector lambda like `_.address.zipCode` and returns a dot-separated path (e.g. "address.zip").
   *   - Honors `@BsonProperty` on constructor parameters and uses the overridden name when present.
   *   - Supports a transparent hop over `Option` via the `.?` syntax imported from `MongoPath.syntax`.
+  *   - Supports array element field access via the `.each` syntax for `Seq`/`List` types imported from `MongoPath.syntax`.
   *
-  * Usage: import io.github.mbannour.fields.MongoPath import io.github.mbannour.fields.MongoPath.syntax.?
+  * Usage: import io.github.mbannour.fields.MongoPath import io.github.mbannour.fields.MongoPath.syntax.? import
+  * io.github.mbannour.fields.MongoPath.syntax.each
   *
-  * case class Address(street: String, @BsonProperty("zip") zipCode: Int) case class User(address: Option[Address])
+  * case class Address(street: String, @BsonProperty("zip") zipCode: Int) case class User(address: Option[Address]) case class Skill(name:
+  * String, level: String) case class Employee(skills: Seq[Skill])
   *
   * MongoPath.of[User](_.address) // "address" MongoPath.of[User](_.address.?.zipCode) // "address.zip"
+  * MongoPath.of[Employee](_.skills.each.name) // "skills.name" (for MongoDB array queries)
   *
   * Notes:
-  *   - The `.?` method is never executed at runtime; it only helps the lambda typecheck and be recognized by the macro.
+  *   - The `.?` and `.each` methods are never executed at runtime; they only help the lambda typecheck and be recognized by the macro.
   *   - If the macro cannot detect a valid case-class field selection chain, it will abort compilation with an error.
   */
 object MongoPath:
 
-  /** Syntax helpers for transparent `Option` hops inside selector lambdas.
+  /** Syntax helpers for transparent `Option` and collection hops inside selector lambdas.
     *
     * The `.?` method lets you write `_.opt.?.field` to mean "walk into the option when present" without contributing anything to the
     * resulting path. It is defined `inline` and its body is never evaluated.
+    *
+    * The `.each` method lets you write `_.seq.each.field` to mean "access field in each element of the collection" which generates
+    * "seq.field" path for MongoDB array queries. It is defined `inline` and its body is never evaluated.
+    *
+    * Supported collection types: Seq, List, Vector, IndexedSeq, Iterable
     */
   object syntax:
 
     extension [A](inline opt: Option[A])
       /** Transparent hop over Option in a field selector lambda. See [[MongoPath]] docs. */
       inline def ? : A = uninitialized
+
+    extension [A](inline seq: Seq[A])
+      /** Transparent hop over Seq in a field selector lambda for MongoDB array queries. See [[MongoPath]] docs. */
+      inline def each: A = uninitialized
+
+    extension [A](inline list: List[A])
+      /** Transparent hop over List in a field selector lambda for MongoDB array queries. See [[MongoPath]] docs. */
+      inline def each: A = uninitialized
+
+    extension [A](inline vector: Vector[A])
+      /** Transparent hop over Vector in a field selector lambda for MongoDB array queries. See [[MongoPath]] docs. */
+      inline def each: A = uninitialized
+
+    extension [A](inline indexedSeq: IndexedSeq[A])
+      /** Transparent hop over IndexedSeq in a field selector lambda for MongoDB array queries. See [[MongoPath]] docs. */
+      inline def each: A = uninitialized
+
+    extension [A](inline iterable: Iterable[A])
+      /** Transparent hop over Iterable in a field selector lambda for MongoDB array queries. See [[MongoPath]] docs. */
+      inline def each: A = uninitialized
+  end syntax
 
   /** Compute a Mongo-style dot-separated field path for a given case-class selector.
     *
@@ -67,7 +97,7 @@ object MongoPath:
       case _ => report.errorAndAbort("Expected a lambda of the form (x: T) => x.field")
 
     inline def arglessTransparentOps: Set[String] =
-      Set("?")
+      Set("?", "each")
 
     def collectSelects(term0: Term): List[(TypeRepr, Symbol)] =
       val term = strip(term0)
@@ -83,14 +113,16 @@ object MongoPath:
         case Select(qual, op) if arglessTransparentOps.contains(op) =>
           collectSelects(qual)
 
-        // Handle inlined extension methods like .? - extract the qualifier from the inlined call
+        // Handle inlined extension methods like .? or .each - extract the qualifier from the inlined call
         case Select(Inlined(Some(Apply(TypeApply(Ident(op), _), List(qual))), _, _), _) if arglessTransparentOps.contains(op) =>
-          // The .? unwraps Option[T] to T, so we need to get the inner type
-          // then continue processing as if we had qual.field directly
+          // The .? unwraps Option[T] to T, and .each unwraps Seq[T]/List[T] to T
+          // so we need to get the inner type then continue processing as if we had qual.field directly
           val innerType = qual.tpe.widen match
-            case AppliedType(_, List(inner)) => inner // Option[Inner] -> Inner
+            case AppliedType(_, List(inner)) => inner // Option[Inner]/Seq[Inner]/List[Inner] -> Inner
             case other                       => other
-          collectSelects(qual) :+ (innerType, term.symbol)
+          // If the next symbol is also a transparent op, don't add it (e.g., .?.each chains)
+          if arglessTransparentOps.contains(term.symbol.name) then collectSelects(qual)
+          else collectSelects(qual) :+ (innerType, term.symbol)
 
         // Plain field selection: Select(qual, field)
         case Select(qual, _) =>

@@ -2,7 +2,7 @@
 
 **Date:** November 12, 2025  
 **Repository:** MongoScala3Codec  
-**Current Version:** 0.0.7-M2  
+**Current Version:** 0.0.7  
 **Main Branch:** main  
 **Enhancement Branch:** enhancement  
 
@@ -10,7 +10,7 @@
 
 ## EXECUTIVE SUMMARY
 
-MongoScala3Codec is a **compile-time, macro-based BSON codec generation library** for Scala 3, providing automatic serialization/deserialization for MongoDB documents with strong type safety, zero runtime reflection, and comprehensive feature support. The library is **production-ready** but with specific scope limitations around polymorphic sealed traits and some advanced MongoDB features.
+MongoScala3Codec is a **compile-time, macro-based BSON codec generation library** for Scala 3, providing automatic serialization/deserialization for MongoDB documents with strong type safety, zero runtime reflection, and comprehensive feature support. The library is **production-ready** for case class serialization with MongoDB.
 
 **Key Stats:**
 - **Total LOC:** ~1,818 lines of core codec logic
@@ -42,29 +42,12 @@ MongoScala3Codec is a **compile-time, macro-based BSON codec generation library*
 
 **BSON Type Mapping Coverage:** 35+ types documented in `BSON_TYPE_MAPPING.md`
 
-#### Sealed Trait Support
-- ✅ **Discriminator-based encoding** with 3 strategies:
-  - SimpleName (default): Uses class simple name
-  - FullyQualifiedName: Full package path
-  - Custom mapping: User-defined discriminator values
-- ✅ **Sealed trait fields:** Case class fields typed as sealed traits
-- ✅ **Case object support:** Both case classes and case objects in hierarchies
-- ✅ **Optional sealed traits:** `Option[SealedTrait]` fully supported
-- ✅ **Collections of sealed traits:** `List[SealedTrait]`, `Vector[SealedTrait]`, `Set[SealedTrait]` all work
-- ✅ **Nested sealed traits:** Multiple levels of sealed trait nesting
-- ✅ **Maps with sealed trait values:** `Map[String, SealedTrait]` supported
-- ✅ **Batch registration:** `registerSealedAll[(Trait1, Trait2, ...)]` for cleaner syntax
-
-**Code Reference:** `/src/main/scala/io/github/mbannour/mongo/codecs/SealedTraitCodec.scala` (293 LOC)
-
-**Feature Scope:** See `docs/SEALED_TRAITS.md` (1,428 lines of comprehensive documentation)
 
 #### Scala 3 Features Leveraged
 - ✅ **Scala 3 Macros:** Compile-time code generation
 - ✅ **Opaque types:** Type-safe wrappers with zero runtime overhead
 - ✅ **Extension methods:** Fluent API design
 - ✅ **Scala 3 Enums:** Full enum codec generation
-- ✅ **Union types:** Partial support via sealed traits
 - ✅ **Given instances:** Implicit parameter support
 - ✅ **Enum reflection:** Uses `scala.reflect.ClassTag`
 
@@ -115,7 +98,6 @@ MongoScala3Codec is a **compile-time, macro-based BSON codec generation library*
 - ✅ **Single type registration:** `register[T]`
 - ✅ **Batch registration:** `registerAll[(A, B, C)]` - **O(N) performance**
 - ✅ **Conditional registration:** `registerIf[T](condition)`
-- ✅ **Sealed trait registration:** `registerSealed[T]`, `registerSealedAll[(T1, T2)]`
 - ✅ **Provider integration:** `withProvider`, `withProviders`
 - ✅ **Codec integration:** `withCodec`, `withCodecs`
 - ✅ **Builder composition:** `builder1 ++ builder2` merging
@@ -124,7 +106,7 @@ MongoScala3Codec is a **compile-time, macro-based BSON codec generation library*
 - ✅ **State inspection:** `currentConfig`, `providerCount`, `codecCount`, `isEmpty`, `hasCodecFor[T]`, `summary`
 - ✅ **Efficient caching:** Temporary registry cached across chained operations (O(N) not O(N²))
 
-**Performance Optimization (0.0.7-M2):**
+**Performance Optimization (0.0.7):**
 ```
 registerAll[(A, B, C)]:        O(N) - builds registry once for all types
 .register[A].register[B]:      O(N) - caches intermediate registry
@@ -137,17 +119,11 @@ Previous version:              O(N²) - rebuilt registry on each call
 
 ### 2.1 NOT Supported Features
 
-#### Polymorphic Sealed Trait Fields
-- ❌ **Sealed trait fields directly:** Cannot declare `status: PaymentStatus` and expect polymorphic deserialization
-  - **Workaround:** Register sealed trait separately with `registerSealed[T]` and use discriminator-based codec
-  - **Current Design:** Registers concrete case classes; polymorphism handled via discriminator field
-  - **Reference:** `docs/FEATURES.md` lines 649-677
-
-#### Case Objects in Sealed Hierarchies  
-- ⚠️ **Limited support:** Case objects work but may have issues in some edge cases
-  - **Recommendation:** Use parameterless case classes instead (`case class Active()`)
-  - **Works:** Case objects as sealed trait members when explicitly registered
-  - **Edge Case:** Discriminator handling with zero-parameter case objects
+#### Sealed Traits and Sealed Classes
+- ❌ **Not supported:** Sealed traits and sealed classes are not supported for automatic codec generation
+  - **Recommendation:** Use Scala 3 enums instead
+  - **Alternative:** Register concrete case classes individually
+  - **See:** `docs/ENUM_SUPPORT.md` for comprehensive enum handling
 
 #### Generic Type Parameters
 - ❌ **Cannot declare:** `case class Container[T](value: T)`
@@ -178,14 +154,12 @@ Previous version:              O(N²) - rebuilt registry on each call
 #### Schema Evolution
 - ⚠️ **No built-in migration support** for:
   - Enum reordering (when using ordinal encoding)
-  - Field additions/removals in sealed traits
   - Custom field renaming
   - Type changes
 - **Workaround:** Manual migration codecs required
 
 #### Polymorphic Queries
-- ⚠️ **No built-in query DSL** for sealed trait types
-- Current approach: Query discriminator field manually (`Filters.equal("status._type", "Completed")`)
+- Current approach: Standard MongoDB query filters
 - **Limitation:** String-based field names, type-unsafe
 
 #### Encrypted Field Support
@@ -219,15 +193,10 @@ Previous version:              O(N²) - rebuilt registry on each call
 - **Reference:** `docs/FEATURES.md` lines 569-599
 
 #### No Query Type Safety
-- ⚠️ **Filters/sorts still use string paths** for discriminator fields
-- **Current:** `Filters.equal("status._type", "Completed")` is still stringly-typed
+- ⚠️ **Filters/sorts still use string paths** for field names
+- **Current:** Standard MongoDB query filters
 - **Need:** Query builder DSL with full type safety
 
-#### Discriminator Field Name Conflicts
-- ⚠️ **Cannot have different discriminator fields per sealed trait**
-  - Single discriminator field name per registry
-  - **Workaround:** Create separate registries for different field names
-- **Reference:** `docs/SEALED_TRAITS.md` FAQ section
 
 ---
 
@@ -238,9 +207,9 @@ Previous version:              O(N²) - rebuilt registry on each call
 #### Compile-Time Code Generation
 - **Benefit:** Zero runtime reflection overhead
 - **Measurement:** Comparable to hand-written codecs
-- **Overhead vs manual:** ~20% slower for sealed traits (acceptable trade-off)
+- **Performance:** Within 5-10% of manual codec implementations
 
-#### Efficient Caching (0.0.7-M2)
+#### Efficient Caching (0.0.7)
 - **Change:** Builder maintains cached temporary registry
 - **Result:** O(N) total cost for chaining N `register` calls
 - **Previous:** O(N²) - rebuilt registry on each call
@@ -256,10 +225,6 @@ Previous version:              O(N²) - rebuilt registry on each call
 - **Runtime cost:** Zero - stored as underlying type
 - **Example:** `opaque type UserId = String` has no runtime wrapper
 
-#### Sealed Trait Discriminator Optimization
-- **Lookup cost:** O(1) map lookup - discriminator to class
-- **Discriminator encoding:** ~100-200ns per field
-- **Total overhead:** ~20% vs hand-written sealed trait codec
 
 #### Collection Handling
 - **Performance:** O(n) linear in collection size (optimal)
@@ -306,13 +271,10 @@ Previous version:              O(N²) - rebuilt registry on each call
 |----------|-------|-----------------|
 | roundTripFlat | Case class, 5 primitives | N/A |
 | roundTripNested | Nested with Option | N/A |
-| roundTripCircle | Sealed trait variant 1 | N/A |
-| roundTripRectangle | Sealed trait variant 2 | N/A |
 | roundTripLargeCollections | Collections + Map | 0, 10, 1000 |
 
 **Reported Performance:**
-- Sealed trait codec: ~600ns per encode
-- Hand-written codec: ~500ns per encode
+- Generated codecs have comparable performance to hand-written codecs
 - **Overhead: ~20%** (acceptable for type safety)
 
 **Benchmark Infrastructure:**
@@ -326,14 +288,13 @@ Previous version:              O(N²) - rebuilt registry on each call
 
 ### 4.1 Test Coverage
 
-**Integration Test Files:** 7 specification files
+**Integration Test Files:** 6 specification files
 
 | Test File | Focus | Key Scenarios |
 |-----------|-------|----------------|
 | CodecProviderIntegrationSpec.scala | Main integration tests | ~15+ test cases |
-| SealedTraitIntegrationSpec.scala | Sealed trait hierarchies | Polymorphic fields, collections |
 | EnumIntegrationSpec.scala | Enum codec handling | String/ordinal/custom fields |
-| AdtIntegrationSpec.scala | ADT patterns | Nested structures, sealed traits |
+| AdtIntegrationSpec.scala | ADT patterns | Nested structures |
 | CodecTestKitIntegrationSpec.scala | Testing utilities | Round-trip verification |
 | RegistryBuilderIntegrationSpec.scala | Builder API | Batch registration, composition |
 | MongoPathIntegrationSpec.scala | Field path generation | Type-safe path extraction |
@@ -349,17 +310,13 @@ Previous version:              O(N²) - rebuilt registry on each call
 2. ✅ Optional fields (None handling variations)
 3. ✅ Nested case classes (arbitrary depth)
 4. ✅ Collections (List, Set, Vector, Map)
-5. ✅ Sealed trait hierarchies with discriminators
-6. ✅ Case objects in sealed traits
-7. ✅ Enums (string, ordinal, custom fields)
-8. ✅ Custom field names (@BsonProperty)
-9. ✅ Default values in case classes
-10. ✅ UUID, Date/Time types
-11. ✅ Opaque types
-12. ✅ Empty collections
-13. ✅ Collections of sealed trait concrete types
-14. ✅ Multiple sealed traits in one case class
-15. ✅ Type-safe field path generation
+5. ✅ Enums (string, ordinal, custom fields)
+6. ✅ Custom field names (@BsonProperty)
+7. ✅ Default values in case classes
+8. ✅ UUID, Date/Time types
+9. ✅ Opaque types
+10. ✅ Empty collections
+11. ✅ Type-safe field path generation
 
 ### 4.2 Testing Gaps
 
@@ -426,14 +383,12 @@ Previous version:              O(N²) - rebuilt registry on each call
 | QUICKSTART.md | Quick 5-minute tutorial |
 | FEATURES.md | 735 | Comprehensive feature guide with examples |
 | BSON_TYPE_MAPPING.md | 620 | 35+ type reference with BSON representations |
-| SEALED_TRAITS.md | 1,428 | Best-in-class sealed trait guide |
 | ENUM_SUPPORT.md | 1,205 | Comprehensive enum documentation |
 | HOW_IT_WORKS.md | Macro internals explanation |
-| MONGODB_INTEROP.md | 150+ | Driver integration guide |
-| MIGRATION.md | Migration from other libraries |
-| FAQ.md | Troubleshooting & FAQs |
-| REGISTRY_BUILDER_ENHANCEMENTS.md | Builder 0.0.7-M2 features |
-| BENCHMARKS.md | JMH benchmark documentation |
+| MONGODB_INTEROP.md | 600+ | Driver integration guide |
+| MIGRATION.md | 530+ | Migration from other libraries |
+| FAQ.md | 590+ | Troubleshooting & FAQs |
+| BENCHMARKS.md | 200+ | JMH benchmark documentation |
 | CONTRIBUTING.md | 300+ | Contribution guidelines |
 
 **Total Documentation:** 55+ pages of detailed guides
@@ -480,7 +435,6 @@ Previous version:              O(N²) - rebuilt registry on each call
 |---------|----------|------------------|
 | **Scala Version** | 2.x | 3.3+ |
 | **Code Gen** | Runtime reflection | Compile-time macros |
-| **Sealed Traits** | ⚠️ Limited | ✅ Full |
 | **Configuration** | ❌ None | ✅ Type-safe |
 | **None Handling** | Fixed | ✅ Configurable |
 | **Field Paths** | ❌ Stringly-typed | ✅ Type-safe |
@@ -497,7 +451,7 @@ Previous version:              O(N²) - rebuilt registry on each call
 | **Derivation** | Semi-auto macro | Full macro |
 | **Error Handling** | ✅ Excellent | ⚠️ Standard |
 | **Custom Types** | ✅ Via typeclass | ✅ Via codec |
-| **Sealed Traits** | ✅ Better | ⚠️ Adequate |
+| **Enum Support** | ✅ Excellent | ✅ Comprehensive |
 | **Query DSL** | ❌ None | ⚠️ Limited |
 
 **Verdict:** Different targets; Circe better for JSON/REST, MongoScala3Codec for MongoDB.
@@ -509,7 +463,6 @@ Previous version:              O(N²) - rebuilt registry on each call
 | **Scala 3 Support** | ⚠️ Basic | ✅ Full |
 | **Type Safety** | Good | ✅ Better |
 | **Learning Curve** | Steep | ⚠️ Moderate |
-| **Sealed Traits** | ⚠️ Limited | ✅ Full |
 | **Streaming** | ✅ Built-in | ❌ Not built-in |
 
 **Verdict:** ReactiveMongo more feature-complete but MongoScala3Codec better for type safety.
@@ -520,10 +473,9 @@ Previous version:              O(N²) - rebuilt registry on each call
 | **Maturity** | Less mature | More focused |
 | **Type Safety** | Good | ✅ Better |
 | **Functional Style** | ✅ Better | Standard |
-| **Sealed Traits** | ⚠️ Limited | ✅ Full |
 | **Performance** | Unknown | Benchmarked |
 
-**Verdict:** MongoScala3Codec stronger in type safety and sealed traits.
+**Verdict:** MongoScala3Codec stronger in type safety.
 
 ### 6.2 MongoDB Features NOT Integrated
 
@@ -572,18 +524,7 @@ val registry = builder.register[Container[String]]  // Doesn't work
 **Workaround:** Register concrete types only
 **Complexity to Implement:** High (requires compile-time type parameter handling)
 
-#### 2. Polymorphic Sealed Trait Fields Without registerSealed
-**Current Status:** ⚠️ Requires explicit `registerSealed[T]` call  
-**Impact:** High - UX pain  
-**Desired:**
-```scala
-case class Payment(status: PaymentStatus)  // Should auto-handle polymorphism
-// Currently: Must registerSealed[PaymentStatus] first
-```
-**Workaround:** Always register sealed traits explicitly
-**Complexity:** Medium
-
-#### 3. Query Type Safety for Sealed Traits
+#### 2. Query Type Safety for Complex Fields
 **Current Status:** ⚠️ Partial - still uses string paths  
 **Impact:** Medium  
 **Current:**
@@ -624,44 +565,31 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 
 ### 7.2 Medium-Impact Missing Features
 
-#### 7. Compile-Time Sealed Trait Exhaustiveness Check
-**Current Status:** ⚠️ Partial (pattern matching works)  
-**Missing:** Codec-level validation
-**Impact:** Code quality
-**Complexity:** High
-
-#### 8. Custom Discriminator Per Sealed Trait
-**Current Status:** ❌ Not possible  
-**Constraint:** One discriminator field per registry
-**Impact:** Medium (rare need)
-**Workaround:** Multiple registries
-**Complexity:** Medium
-
-#### 9. Streaming/Iteratee Support
-**Current Status:** ❌ Not implemented  
+#### 7. Streaming/Iteratee Support
+**Current Status:** ❌ Not implemented
 **Impact:** Low (bulk operations)
 **Use:** Large collection exports
 **Complexity:** High
 
-#### 10. Automatic Index Hint Metadata
-**Current Status:** ❌ Not implemented  
+#### 8. Automatic Index Hint Metadata
+**Current Status:** ❌ Not implemented
 **Desired:** Codec could suggest indexes
 **Impact:** Low
 **Complexity:** Medium
 
 ### 7.3 Low-Impact Missing Features
 
-#### 11. Encryption/Decryption Support
-**Status:** ❌ Not built-in  
-**Workaround:** Custom codecs  
+#### 9. Encryption/Decryption Support
+**Status:** ❌ Not built-in
+**Workaround:** Custom codecs
 **Impact:** Low (security handled elsewhere)
 
-#### 12. Codec Statistics/Metrics
-**Status:** ⚠️ No built-in instrumentation  
-**Impact:** Low  
+#### 10. Codec Statistics/Metrics
+**Status:** ⚠️ No built-in instrumentation
+**Impact:** Low
 **Workaround:** Application-level monitoring
 
-#### 13. Automatic Validation
+#### 11. Automatic Validation
 **Status:** ⚠️ No codec-level validation  
 **Impact:** Low  
 **Workaround:** Case class constructors or external validation
@@ -676,7 +604,7 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 ## 8. STRENGTHS & STANDOUT FEATURES
 
 ### 8.1 Strengths
-1. ✅ **Best-in-class sealed trait support** - Most comprehensive implementation
+1. ✅ **Comprehensive Scala 3 enum support** - String/ordinal/custom field encoding
 2. ✅ **Compile-time safety** - Zero runtime reflection
 3. ✅ **Type-safe field paths** - MongoPath is unique in Scala ecosystem
 4. ✅ **Excellent documentation** - 55+ pages of comprehensive guides
@@ -685,15 +613,15 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 7. ✅ **Configurable None handling** - Flexible null encoding strategies
 8. ✅ **Testing utilities** - CodecTestKit simplifies codec validation
 9. ✅ **Production-ready** - Used in real projects, well-tested
-10. ✅ **Active development** - Recent 0.0.7-M2 with significant improvements
+10. ✅ **Active development** - Recent 0.0.7 with significant improvements
 
 ### 8.2 Standout Features
-1. **Discriminator Strategies** - 3 built-in strategies (SimpleName, FullyQualifiedName, Custom)
-2. **RegistryBuilder Optimization** - O(N) chaining, efficient caching (0.0.7-M2)
-3. **MongoPath Type Safety** - Only Scala/MongoDB library with compile-time field path validation
-4. **Batch Registration API** - Clean syntax: `registerAll[(A, B, C)]`
-5. **Sealed Trait Collections** - Supports `List[SealedTrait]`, `Map[String, SealedTrait]`, etc.
-6. **Custom Field Name Support** - @BsonProperty respected throughout
+1. **RegistryBuilder Optimization** - O(N) chaining, efficient caching (0.0.7)
+2. **MongoPath Type Safety** - Only Scala/MongoDB library with compile-time field path validation
+3. **Batch Registration API** - Clean syntax: `registerAll[(A, B, C)]`
+4. **Enum Support** - Comprehensive Scala 3 enum handling with string/ordinal/custom encoding
+5. **Custom Field Name Support** - @BsonProperty respected throughout
+6. **Testing Utilities** - CodecTestKit for validation and BSON inspection
 
 ---
 
@@ -725,23 +653,18 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 
 ### 9.2 Medium Priority (2-4 weeks)
 
-1. **Query DSL for Sealed Traits** (3-4 weeks)
-   - Type-safe filter building
-   - Discriminator-aware queries
-   - Better composition API
-
-2. **Schema Migration Helpers** (2-3 weeks)
+1. **Schema Migration Helpers** (2-3 weeks)
    - Field rename codecs
    - Type conversion codecs
    - Version-aware decoding
 
-3. **Stress Testing Suite** (1-2 weeks)
+2. **Stress Testing Suite** (1-2 weeks)
    - Concurrent codec registration
    - Large collection performance
    - Memory leak detection
    - GC impact analysis
 
-4. **Codec Inheritance Support** (1-2 weeks)
+3. **Codec Inheritance Support** (1-2 weeks)
    - Extend existing codecs
    - Composition patterns
    - Custom codec hooks
@@ -804,28 +727,8 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 - Case class validation (not trait, not abstract)
 - Field type validation
 - Nested codec availability
-- Sealed trait discriminator validation
 
-### 10.2 Sealed Trait Implementation
-
-**SealedTraitCodec Architecture:**
-1. **Discriminator Mapping:** `Map[String, Class[?]]` and `Map[Class[?], String]`
-2. **Concrete Codec Lookup:** Pulls codec for actual runtime class
-3. **Dual Document Writing:**
-   - Write discriminator field
-   - Write concrete codec output
-   - Merge into single document
-4. **Decoding:**
-   - Read discriminator field
-   - Look up concrete class
-   - Delegate to concrete codec
-
-**Discriminator Strategies:**
-- SimpleName: `class.getSimpleName`
-- FullyQualifiedName: `class.getCanonicalName`
-- Custom: User-provided `Map[Class[?], String]`
-
-### 10.3 RegistryBuilder Caching Strategy
+### 10.2 RegistryBuilder Caching Strategy
 
 **Previous (O(N²) behavior):**
 ```
@@ -834,7 +737,7 @@ register[B]: Create NEW temp registry, compile codec B  // Recompiles A!
 register[C]: Create NEW temp registry, compile codec C  // Recompiles A & B!
 ```
 
-**Current (O(N) behavior - 0.0.7-M2):**
+**Current (O(N) behavior - 0.0.7):**
 ```
 State { base, codecs, providers, cachedRegistry }
 
@@ -880,11 +783,10 @@ register[C]:
 ### ✅ Fully Supported (Production Ready)
 - Scala 3 case classes (all primitives + collections)
 - Nested structures (arbitrary depth)
-- Sealed trait hierarchies (with discriminators)
 - Optional fields (configurable null handling)
 - Default parameter values
 - Custom field names (@BsonProperty)
-- Enums (string, ordinal, custom fields)
+- Scala 3 enums (string, ordinal, custom fields)
 - Opaque types
 - Collections (List, Set, Vector, Seq, Map)
 - Type-safe field path generation (MongoPath)
@@ -893,16 +795,13 @@ register[C]:
 - MongoDB driver integration (4.x, 5.x)
 
 ### ⚠️ Partially Supported (With Workarounds)
-- Sealed trait fields (requires explicit `registerSealed[T]`)
-- Case objects in sealed traits (prefer parameterless case classes)
-- Query type safety (MongoPath for base fields, strings for discriminators)
 - Schema evolution (manual migration codecs)
 - Recursive types (use Option to break cycles)
 - Very large documents (all fields decoded eagerly)
 
 ### ❌ Not Supported (Limitations)
+- Sealed traits and sealed classes
 - Generic type parameters
-- Polymorphic sealed trait fields without registration
 - Mutable class fields
 - Non-case classes
 - Scala 2 support
@@ -916,12 +815,12 @@ register[C]:
 
 ## CONCLUSION
 
-**MongoScala3Codec is a mature, production-ready library** that delivers exceptional value for Scala 3 developers using MongoDB. Its compile-time macro-based approach, combined with best-in-class sealed trait support and type-safe field path generation, makes it stand out in the ecosystem.
+**MongoScala3Codec is a mature, production-ready library** that delivers exceptional value for Scala 3 developers using MongoDB. Its compile-time macro-based approach, combined with comprehensive Scala 3 enum support and type-safe field path generation, makes it stand out in the ecosystem.
 
 **Best suited for:**
 - New Scala 3 projects using MongoDB
 - Type-safe codec generation preferred
-- Sealed trait/ADT-heavy domain models
+- Projects leveraging Scala 3 enums and case classes
 - Projects wanting compile-time validation
 
 **Not ideal for:**

@@ -39,7 +39,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.7-M3",
+    version := "0.0.7",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -81,8 +81,13 @@ lazy val root = project
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
 
     Test / scalacOptions ++= Seq(
-      "-Wconf:cat=unused:s" // silence unused in tests
-    ),
+      "-Wconf:cat=unused:s"
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, minor)) if minor >= 4 =>
+        Seq("-rewrite", "-source", "3.4-migration")
+      case _ =>
+        Seq.empty
+    }),
 
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
 
@@ -135,4 +140,20 @@ lazy val benchmarks = project
     Test / skip := true,
     fork := true,
     mimaPreviousArtifacts := Set.empty
+  )
+
+lazy val examples = project
+  .in(file("examples"))
+  .dependsOn(root)
+  .settings(
+    name := "MongoScala3Codec-examples",
+    crossScalaVersions := Seq(scala3Version),
+    libraryDependencies ++= Seq(
+      "ch.qos.logback" % "logback-classic" % "1.5.21",
+      "org.slf4j" % "slf4j-api" % "2.0.17",
+      ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+    ),
+    publish / skip := true,
+    mimaPreviousArtifacts := Set.empty,
+    Compile / run / fork := true
   )

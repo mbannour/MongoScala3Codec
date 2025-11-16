@@ -455,31 +455,6 @@ val person = Person(
 }
 ```
 
-### Sealed Traits (ADTs)
-
-```scala
-sealed trait Shape
-case class Circle(_id: ObjectId, radius: Double) extends Shape
-case class Rectangle(_id: ObjectId, width: Double, height: Double) extends Shape
-
-// Register concrete implementations
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[Circle]
-  .register[Rectangle]
-  .build
-```
-
-**BSON Storage (Circle):**
-```json
-{
-  "_id": {"$oid": "..."},
-  "radius": 5.0
-}
-```
-
-**Note:** Current implementation registers concrete case classes individually. Full polymorphic sealed trait support is planned for future releases.
-
 ### Enums
 
 ```scala
@@ -562,16 +537,33 @@ case class Node(value: Int, next: Option[Node])
 
 #### Enums with Parameters
 ```scala
-// ❌ Limited support
+// ✅ Supported with custom codec provider
 enum Status(val code: Int):
   case Active extends Status(1)
   case Inactive extends Status(0)
 
-// ✅ Workaround
-sealed trait Status { def code: Int }
-case object Active extends Status { val code = 1 }
-case object Inactive extends Status { val code = 0 }
+// Create custom codec provider
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+import org.bson.codecs.{Codec, IntegerCodec}
+
+given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
+
+val statusProvider = EnumValueCodecProvider[Status, Int](
+  toValue = _.code,
+  fromValue = code => Status.values.find(_.code == code).getOrElse(
+    throw new IllegalArgumentException(s"Invalid status code: $code")
+  )
+)
+
+// Register in codec registry
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withProviders(statusProvider)
+  .register[YourCaseClass]
+  .build
 ```
+
+See [Enum Support Guide](ENUM_SUPPORT.md) for complete documentation.
 
 ## Performance Characteristics
 
@@ -615,6 +607,6 @@ println(bson.toJson())
 ## Next Steps
 
 - 📖 [Feature Overview](FEATURES.md) - Complete feature guide
-- 🔧 [Custom Codecs](ADVANCED.md) - Implementing custom type support
+- 🎯 [Enum Support](ENUM_SUPPORT.md) - Scala 3 enum handling
 - ❓ [FAQ](FAQ.md) - Type-related troubleshooting
 

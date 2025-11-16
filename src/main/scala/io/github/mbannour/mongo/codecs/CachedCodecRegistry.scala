@@ -19,19 +19,17 @@ import org.bson.codecs.configuration.CodecRegistry
   * @param initialCache
   *   Optional pre-populated cache of codecs (for backward compatibility)
   */
-private[mbannour] class CachedCodecRegistry(
+class CachedCodecRegistry(
     underlying: CodecRegistry,
     initialCache: Map[Class[?], Codec[?]] = Map.empty
 ) extends CodecRegistry:
 
-  // Thread-safe cache using ConcurrentHashMap for lock-free reads/writes
   private val cache: ConcurrentHashMap[Class[?], Codec[?]] =
     val chm = new ConcurrentHashMap[Class[?], Codec[?]]()
     initialCache.foreach { case (k, v) => chm.put(k, v) }
     chm
 
   override def get[T](clazz: Class[T]): Codec[T] =
-    // computeIfAbsent is thread-safe and atomic
     cache
       .computeIfAbsent(
         clazz,
@@ -40,7 +38,6 @@ private[mbannour] class CachedCodecRegistry(
       .asInstanceOf[Codec[T]]
 
   override def get[T](clazz: Class[T], registry: CodecRegistry): Codec[T] =
-    // For this overload, we don't cache since it uses a different registry
     underlying.get(clazz, registry)
 
 end CachedCodecRegistry
