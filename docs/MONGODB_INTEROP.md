@@ -32,7 +32,7 @@ Complete guide to using MongoScala3Codec with MongoDB Scala and Java drivers.
 // build.sbt
 libraryDependencies ++= Seq(
   "io.github.mbannour" %% "mongoscala3codec" % "0.0.7",
-  "org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1" cross CrossVersion.for3Use2_13
+  "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 ```
 
@@ -599,5 +599,6 @@ val mongo: MongoEnvironment =
 ## Next Steps
 
 - 📖 [BSON Type Mapping](BSON_TYPE_MAPPING.md) - Type compatibility
-- 🧪 [Testing Guide](TESTING.md) - Testing with MongoDB
+- 🎯 [Enum Support](ENUM_SUPPORT.md) - Scala 3 enum handling
+- ❓ [FAQ](FAQ.md) - Common questions and troubleshooting
 

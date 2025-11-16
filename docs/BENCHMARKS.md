@@ -24,14 +24,14 @@ Tests nested structures with optional fields:
 - Nested `Address` object (optional)
 - Tests `Option[T]` handling
 
-### 3. **roundTripCircle** - ADT (Sealed Trait)
-Tests algebraic data types with manual discriminators:
-- `Circle` case extending `Shape` trait
-- Tests sealed trait encoding/decoding
+### 3. **roundTripCircle** - Case Class with Discriminator
+Tests case classes with manual discriminator fields:
+- `Circle` case class with `_id`, `_t`, and `radius` fields
+- Tests discriminator field encoding/decoding
 
-### 4. **roundTripRectangle** - ADT Variant
-Another ADT implementation:
-- `Rectangle` case extending `Shape` trait
+### 4. **roundTripRectangle** - Case Class Variant
+Another case class with discriminator:
+- `Rectangle` case class with `_id`, `_t`, `width`, and `height` fields
 - Different field structure than Circle
 
 ### 5. **roundTripLargeCollections** - Collections Performance

@@ -187,7 +187,7 @@ Write clear commit messages following [Conventional Commits](https://www.convent
 git add .
 git commit -m "feat: add support for BigInt codec"
 git commit -m "fix: resolve Option[T] encoding with NoneHandling.Ignore"
-git commit -m "docs: add examples for sealed trait usage"
+git commit -m "docs: add examples for enum usage"
 ```
 
 **Commit Message Format:**

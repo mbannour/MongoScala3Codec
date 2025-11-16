@@ -180,8 +180,6 @@ val registry = MongoClient.DEFAULT_CODEC_REGISTRY
   .build
 ```
 
-For more details, see [RegistryBuilder Enhancements Documentation](REGISTRY_BUILDER_ENHANCEMENTS.md).
-
 ---
 
 ## Case Classes
@@ -241,12 +239,11 @@ collection.insertOne(product).toFuture()
 ```json
 {
   "_id": ObjectId("..."),
-  "_t": "Circle",
-  "radius": 5.0
+  "name": "Laptop",
+  "price": 999.99,
+  "inStock": true
 }
 ```
-
-**Note:** As of version 0.0.7, discriminator field customization has been simplified. The library uses a standard discriminator approach for sealed trait hierarchies.
 
 ## Optional Fields
 
@@ -481,7 +478,7 @@ val registry = RegistryBuilder
 }
 ```
 
-**Note:** Only plain enums are supported. Enums with parameters or ADT-style enums should use sealed traits instead.
+**Note:** Enums with parameters are supported using custom codec providers (see [Enum Support Guide](ENUM_SUPPORT.md) for details).
 
 ---
 

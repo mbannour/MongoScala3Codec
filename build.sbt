@@ -81,7 +81,10 @@ lazy val root = project
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
 
     Test / scalacOptions ++= Seq(
-      "-Wconf:cat=unused:s" // silence unused in tests
+      "-Wconf:cat=unused:s", // silence unused in tests
+      "-rewrite",
+      "-source",
+      "3.4-migration"
     ),
 
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
@@ -135,4 +138,20 @@ lazy val benchmarks = project
     Test / skip := true,
     fork := true,
     mimaPreviousArtifacts := Set.empty
+  )
+
+lazy val examples = project
+  .in(file("examples"))
+  .dependsOn(root)
+  .settings(
+    name := "MongoScala3Codec-examples",
+    crossScalaVersions := Seq(scala3Version),
+    libraryDependencies ++= Seq(
+      "ch.qos.logback" % "logback-classic" % "1.5.21",
+      "org.slf4j" % "slf4j-api" % "2.0.17",
+      ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+    ),
+    publish / skip := true,
+    mimaPreviousArtifacts := Set.empty,
+    Compile / run / fork := true
   )

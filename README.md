@@ -23,7 +23,7 @@
 ✅ **Zero Boilerplate** - One line registers any case class
 ✅ **Compile-Time Safe** - Catch errors before deployment, not in production
 ✅ **BSON-Native** - Preserves ObjectId, Binary, Decimal128, Dates
-✅ **Sealed Traits** - Industry-leading polymorphic support with discriminators
+✅ **Scala 3 Enums** - Full support with string/ordinal/custom field encoding
 ✅ **Production-Ready** - Comprehensive error messages, 280+ tests, stress-tested
 
 ### **Unique Advantages**
@@ -369,7 +369,7 @@ For use with MongoDB Scala Driver:
 ```scala
 libraryDependencies ++= Seq(
   "io.github.mbannour" %% "mongoscala3codec" % "0.0.7",
-  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.2.1").cross(CrossVersion.for3Use2_13)
+  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 )
 ```
 
@@ -390,7 +390,7 @@ See the **[Quickstart](docs/QUICKSTART.md)** for a hands-on tutorial, or jump st
 MongoScala3Codec includes JMH microbenchmarks for measuring codec performance. The benchmarks cover:
 - Flat case classes with primitives
 - Nested structures with `Option` fields
-- Sealed trait hierarchies (ADTs)
+- Case class hierarchies with manual discriminators
 - Large collections (List, Vector, Map)
 
 See **[Benchmarks Documentation](docs/BENCHMARKS.md)** for details on running benchmarks and interpreting results.
