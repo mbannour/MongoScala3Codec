@@ -81,11 +81,13 @@ lazy val root = project
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
 
     Test / scalacOptions ++= Seq(
-      "-Wconf:cat=unused:s", // silence unused in tests
-      "-rewrite",
-      "-source",
-      "3.4-migration"
-    ),
+      "-Wconf:cat=unused:s"
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, minor)) if minor >= 4 =>
+        Seq("-rewrite", "-source", "3.4-migration")
+      case _ =>
+        Seq.empty
+    }),
 
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
 
