@@ -2,7 +2,7 @@ import xerial.sbt.Sonatype.*
 import sbt.ClassLoaderLayeringStrategy
 import scoverage.ScoverageKeys.*
 
-val scala3Version = "3.7.1"
+val scala3Version = "3.7.4"
 
 ThisBuild / semanticdbEnabled := true
 ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
@@ -79,7 +79,6 @@ lazy val root = project
       "-Wconf:msg=unused local definition:s"
     ),
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
-
     Test / scalacOptions ++= Seq(
       "-Wconf:cat=unused:s"
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -88,21 +87,17 @@ lazy val root = project
       case _ =>
         Seq.empty
     }),
-
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
-
     Compile / doc / scalacOptions ++= Seq(
       "-nowarn",
       "-Wconf:any:s"
     ),
-
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false,
     mimaPreviousArtifacts := Set(
       organization.value %% moduleName.value % "0.0.6"
     ),
-
     mimaFailOnNoPrevious := false
   )
 
