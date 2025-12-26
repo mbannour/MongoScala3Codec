@@ -61,7 +61,7 @@ lazy val root = project
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "org.scalacheck" %% "scalacheck" % "1.18.1" % Test,
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.1").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.2").cross(CrossVersion.for3Use2_13)
     ),
     Compile / scalacOptions ++= Seq(
       "-encoding",
@@ -79,7 +79,6 @@ lazy val root = project
       "-Wconf:msg=unused local definition:s"
     ),
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
-
     Test / scalacOptions ++= Seq(
       "-Wconf:cat=unused:s"
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -88,21 +87,17 @@ lazy val root = project
       case _ =>
         Seq.empty
     }),
-
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
-
     Compile / doc / scalacOptions ++= Seq(
       "-nowarn",
       "-Wconf:any:s"
     ),
-
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false,
     mimaPreviousArtifacts := Set(
       organization.value %% moduleName.value % "0.0.6"
     ),
-
     mimaFailOnNoPrevious := false
   )
 
