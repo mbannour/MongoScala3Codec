@@ -106,10 +106,8 @@ object CaseClassBsonWriter:
             case _ =>
               report.errorAndAbort("nestedType is not a scala.quoted.Type")
 
-          // Check if this is a sealed trait at compile time
-          val isSealed = nestedTypeRepr.typeSymbol.flags.is(Flags.Sealed) &&
-            (nestedTypeRepr.typeSymbol.flags.is(Flags.Trait) ||
-              nestedTypeRepr.typeSymbol.flags.is(Flags.Abstract))
+          // Check if this is a sealed type (trait, class, or abstract class) at compile time
+          val isSealed = nestedTypeRepr.typeSymbol.flags.is(Flags.Sealed)
 
           nestedTypeRepr.asType match
             case '[nt] =>

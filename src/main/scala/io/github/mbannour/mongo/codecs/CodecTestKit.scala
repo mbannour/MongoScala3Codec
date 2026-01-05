@@ -1,10 +1,11 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.jdk.CollectionConverters.*
+import scala.util.{Failure, Success, Try}
+
 import org.bson.codecs.configuration.CodecRegistry
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter, BsonValue}
-import scala.jdk.CollectionConverters.*
-import scala.util.{Try, Success, Failure}
 
 /** Testing utilities for BSON codecs.
   *

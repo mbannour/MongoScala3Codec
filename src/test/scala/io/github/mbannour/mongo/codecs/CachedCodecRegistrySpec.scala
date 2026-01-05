@@ -1,9 +1,10 @@
 package io.github.mbannour.mongo.codecs
 
-import io.github.mbannour.mongo.codecs.RegistryBuilder.*
 import org.bson.codecs.configuration.CodecRegistries
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import io.github.mbannour.mongo.codecs.RegistryBuilder.*
 
 class CachedCodecRegistrySpec extends AnyFlatSpec with Matchers:
 

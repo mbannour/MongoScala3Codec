@@ -145,45 +145,53 @@ val registry = RegistryBuilder
 
 ---
 
-### Error: "Sealed class not supported"
+### Working with Sealed Traits and Classes
 
-**Problem:**
+**✅ Sealed traits and classes are fully supported as of version 0.0.8!**
+
+**Solution:** Use `registerSealed[T]` for automatic polymorphic codec generation:
+
 ```scala
-sealed class Status
-case class Active() extends Status
-case class Inactive() extends Status
+sealed trait Status
+case class Active(since: Long) extends Status
+case class Inactive(reason: String) extends Status
 
-case class User(status: Status)
-// Compilation error
-```
-
-**Cause:** Sealed classes and sealed traits are not supported for automatic codec generation.
-
-**Solution:** Use Scala 3 enumerations instead:
-```scala
-enum Status:
-  case Active, Inactive
-
-case class User(status: Status)
-
-import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
-
-val statusProvider = EnumValueCodecProvider.forStringEnum[Status]
+case class User(name: String, status: Status)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProviders(statusProvider)
+  .registerSealed[Status]  // Registers Status + all subtypes
+  .register[User]
+  .build
+
+// Works perfectly with automatic discriminator!
+val user = User("Alice", Active(System.currentTimeMillis()))
+// Encodes as: {"name": "Alice", "status": {"_type": "Active", "since": ...}}
+```
+
+**Key Features:**
+- Automatic discriminator field (default: `_type`, configurable)
+- Single registration call for entire hierarchy
+- Works with collections: `List[Status]`, `Vector[Animal]`, etc.
+- Supports sealed trait, sealed class, and sealed abstract class
+
+**For simple enumerations without parameters, use Scala 3 enums:**
+```scala
+enum SimpleStatus:
+  case Active, Inactive
+
+case class User(status: SimpleStatus)
+
+import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withProviders(EnumValueCodecProvider.forStringEnum[SimpleStatus])
   .register[User]
   .build
 ```
 
-For enums with parameters:
-```scala
-enum Status(val code: Int):
-  case Active extends Status(1)
-  case Inactive extends Status(0)
-
-case class User(status: Status)
+**See [Sealed Trait Support Guide](SEALED_TRAIT_SUPPORT.md) for comprehensive examples.**
 
 import org.bson.codecs.{Codec, IntegerCodec}
 

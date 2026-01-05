@@ -3,6 +3,7 @@ package io.github.mbannour.mongo.codecs
 import scala.compiletime.*
 import scala.reflect.ClassTag
 import scala.util.Try
+
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
@@ -156,6 +157,40 @@ object RegistryBuilder:
     val added = accumulateProvidersLoop[T](Nil, state, tempRegistry)
     state.copy(providers = state.providers ++ added.reverse)
 
+  /** Accumulate sealed trait providers recursively through tuple */
+  private inline def accumulateSealedProvidersLoop[T <: Tuple](
+      acc: List[CodecProvider],
+      state: State,
+      tempRegistry: CodecRegistry
+  ): List[CodecProvider] =
+    inline erasedValue[T] match
+      case _: EmptyTuple => acc
+      case _: (h *: t)   =>
+        // Create provider for the sealed trait itself
+        val sealedProvider = SealedCodecProviderMacro.createProvider[h](using
+          summonInline[ClassTag[h]],
+          state.config,
+          tempRegistry
+        )
+
+        // Create providers for all concrete case class subtypes
+        val subclassProviders = SealedCodecProviderMacro.createSubclassProviders[h](
+          state.config,
+          tempRegistry
+        )
+
+        // Accumulate all providers and continue with rest of tuple
+        accumulateSealedProvidersLoop[t](
+          (sealedProvider :: subclassProviders.toList) ++ acc,
+          state,
+          tempRegistry
+        )
+
+  /** Accumulate all sealed trait providers from a tuple */
+  private inline def accumulateSealedProviders[T <: Tuple](state: State, tempRegistry: CodecRegistry): State =
+    val added = accumulateSealedProvidersLoop[T](Nil, state, tempRegistry)
+    state.copy(providers = state.providers ++ added.reverse)
+
   /** Extension methods for fluent builder API */
   extension (builder: RegistryBuilder)
 
@@ -243,6 +278,89 @@ object RegistryBuilder:
       val provider = CodecProviderMacro.createCodecProvider[T](using ct, b1.config, tempRegistry)
       b1.copy(providers = b1.providers :+ provider)
     end register
+
+    /** Register a sealed trait or class with automatic codec derivation for all subtypes.
+      *
+      * This method:
+      *   - Generates a discriminator-based codec for the sealed trait/class
+      *   - Automatically registers codecs for all concrete case class subtypes
+      *   - Enables polymorphic serialization with a discriminator field (default: "_type")
+      *
+      * The discriminator field stores the concrete type name during encoding and is used to determine which concrete codec to use during
+      * decoding.
+      *
+      * @tparam T
+      *   The sealed trait or class to register
+      * @example
+      *   {{{
+      *   sealed trait Status
+      *   case class Active(since: Long) extends Status
+      *   case class Inactive(reason: String) extends Status
+      *
+      *   val registry = MongoClient.DEFAULT_CODEC_REGISTRY
+      *     .newBuilder
+      *     .registerSealed[Status]
+      *     .build
+      *
+      *   // Active encoded as: {"_type": "Active", "since": 1234567890}
+      *   // Inactive encoded as: {"_type": "Inactive", "reason": "Completed"}
+      *   }}}
+      *
+      * @note
+      *   Only case classes are supported as sealed subtypes. Case objects are not supported - use Scala 3 enums instead.
+      */
+    inline def registerSealed[T: ClassTag]: RegistryBuilder =
+      val (tempRegistry, b1) = getOrBuildRegistry(builder)
+
+      // Create provider for the sealed trait itself
+      val sealedProvider = SealedCodecProviderMacro.createProvider[T](using
+        summon[ClassTag[T]],
+        b1.config,
+        tempRegistry
+      )
+
+      // Create providers for all concrete case class subtypes
+      val subclassProviders = SealedCodecProviderMacro.createSubclassProviders[T](
+        b1.config,
+        tempRegistry
+      )
+
+      // Add both the sealed trait provider and all subclass providers
+      b1.copy(providers = (b1.providers :+ sealedProvider) ++ subclassProviders)
+    end registerSealed
+
+    /** Batch register multiple sealed traits using tuple syntax.
+      *
+      * This is significantly more efficient than calling `registerSealed` multiple times as it builds the temporary registry only once.
+      * Each sealed trait registration includes the trait itself plus all its concrete case class subtypes.
+      *
+      * @tparam T
+      *   A tuple of sealed trait types to register
+      * @example
+      *   {{{
+      *   sealed trait Animal
+      *   case class Dog(name: String) extends Animal
+      *   case class Cat(name: String) extends Animal
+      *
+      *   sealed trait Vehicle
+      *   case class Car(make: String) extends Vehicle
+      *   case class Bike(brand: String) extends Vehicle
+      *
+      *   // Register multiple sealed traits at once - more efficient
+      *   val registry = RegistryBuilder
+      *     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+      *     .registerSealedAll[(Animal, Vehicle)]
+      *     .build
+      *   }}}
+      *
+      * @note
+      *   Only case classes are supported as sealed subtypes. Case objects are not supported - use Scala 3 enums instead.
+      */
+    inline def registerSealedAll[T <: Tuple]: RegistryBuilder =
+      val (temp, b0) = getOrBuildRegistry(builder)
+
+      accumulateSealedProviders[T](b0, temp)
+    end registerSealedAll
 
     /** Batch register multiple types using tuple syntax.
       *

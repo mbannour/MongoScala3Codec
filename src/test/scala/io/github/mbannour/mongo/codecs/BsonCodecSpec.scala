@@ -1,11 +1,12 @@
 package io.github.mbannour.mongo.codecs
 
-import io.github.mbannour.mongo.codecs.RegistryBuilder.*
-import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
-import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistries
+import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
+import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+
+import io.github.mbannour.mongo.codecs.RegistryBuilder.*
 
 class BsonCodecSpec extends AnyFlatSpec with Matchers:
 

@@ -59,11 +59,16 @@ object CaseClassCodecGenerator:
   )(using Quotes): Expr[Codec[T]] =
     import quotes.reflect.*
 
-    // Ensure T is a case class (or a sealed hierarchy of case classes)
+    // Ensure T is a case class OR redirect sealed traits to SealedTraitCodecGenerator
     val tpeSym = TypeRepr.of[T].typeSymbol
     if !tpeSym.flags.is(Flags.Case) then
       val typeName = tpeSym.name
-      val isSealedTrait = tpeSym.flags.is(Flags.Sealed) && tpeSym.flags.is(Flags.Trait)
+      val isSealed = tpeSym.flags.is(Flags.Sealed)
+
+      // If it's a sealed type, redirect to SealedTraitCodecGenerator
+      if isSealed then return SealedTraitCodecGenerator.generateSealedCodecImpl[T](config, baseRegistry, classTag)
+
+      // Otherwise, generate error for non-case, non-sealed types
       val typeKind =
         if tpeSym.flags.is(Flags.Trait) then "trait"
         else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
@@ -71,31 +76,14 @@ object CaseClassCodecGenerator:
         else "type"
 
       val errorMessage =
-        if isSealedTrait then
-          s"Cannot generate BSON codec for sealed trait '$typeName'" +
-            s"\n\n'$typeName' is a sealed trait, not a case class. BSON codecs can only be generated for case classes." +
-            "\n\n" +
-            "❌ Wrong usage:" +
-            s"\n  registry.newBuilder.register[$typeName]  // This won't work!" +
-            "\n\n" +
-            "✅ Correct usage:" +
-            s"\n  registry.newBuilder.registerSealed[$typeName]  // Register sealed trait + all subtypes" +
-            "\n\n" +
-            "This will:" +
-            s"\n  • Automatically register all case class subtypes of $typeName" +
-            s"\n  • Create a discriminator-based codec for polymorphic fields" +
-            s"\n  • Enable ${typeName} to be used as a field type in other case classes" +
-            "\n\n" +
-            "Alternative (if you don't want discriminators):" +
-            "\n  • Register each concrete case class subtype individually with .register[ConcreteType]"
-        else
-          s"Cannot generate BSON codec for '$typeName'" +
-            s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes." +
-            "\n\n" +
-            "Suggestions:" +
-            s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
-            "\n  • For regular classes, create a case class wrapper" +
-            "\n  • For abstract classes, use sealed trait + case class subtypes instead"
+        s"Cannot generate BSON codec for '$typeName'" +
+          s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes or sealed types." +
+          "\n\n" +
+          "Suggestions:" +
+          s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
+          "\n  • For sealed traits/classes, use registerSealed[$typeName] instead of register[$typeName]" +
+          "\n  • For regular classes, create a case class wrapper" +
+          "\n  • For abstract classes, use sealed trait + case class subtypes instead"
 
       report.errorAndAbort(errorMessage)
     end if
@@ -184,11 +172,16 @@ object CaseClassCodecGenerator:
           reader.readStartDocument()
           while reader.readBsonType != BsonType.END_OF_DOCUMENT do
             val name = reader.readName
-            val typeArgs = fieldTypeArgs.getOrElse(name, List.empty)
-            if typeArgs.isEmpty then reader.skipValue()
+
+            // Skip discriminator field if present (for sealed trait hierarchies)
+            // The discriminator is used by SealedTraitCodecGenerator to determine the concrete type
+            if name == codecConfig.discriminatorField then reader.skipValue()
             else
-              val value = readValue(reader, decoderContext, typeArgs.head, typeArgs.tail, fieldTypeArgs)
-              fieldsData += (name -> value)
+              val typeArgs = fieldTypeArgs.getOrElse(name, List.empty)
+              if typeArgs.isEmpty then reader.skipValue()
+              else
+                val value = readValue(reader, decoderContext, typeArgs.head, typeArgs.tail, fieldTypeArgs)
+                fieldsData += (name -> value)
           end while
           reader.readEndDocument()
           getInstance(fieldsData.toMap)

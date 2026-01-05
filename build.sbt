@@ -39,7 +39,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.7",
+    version := "0.0.8-M1",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -113,8 +113,8 @@ lazy val integrationTests = project
       "org.scalactic" %% "scalactic" % "3.2.19" % Test,
       "org.scalacheck" %% "scalacheck" % "1.19.0" % Test,
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
-      "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.41.4" % Test,
-      "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.41.4" % Test,
+      "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.44.0" % Test,
+      "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.44.0" % Test,
       ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
     ),
     testFrameworks += new TestFramework("org.scalatest.tools.Framework"),

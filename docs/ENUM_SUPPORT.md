@@ -62,7 +62,8 @@ case class Task(_id: ObjectId, title: String, priority: Priority)
 val priorityProvider = EnumValueCodecProvider.forStringEnum[Priority]
 
 // 4. Build registry with enum codec
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(priorityProvider)
   .register[Task]
@@ -110,7 +111,8 @@ import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
 val colorProvider = EnumValueCodecProvider.forStringEnum[Color]
 
 // Register with codec registry
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(colorProvider)
   .register[ColoredItem]
@@ -164,7 +166,8 @@ case class UserProfile(
 val levelProvider = EnumValueCodecProvider.forOrdinalEnum[Level]
 
 // Register with codec registry
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(levelProvider)
   .register[UserProfile]
@@ -224,7 +227,8 @@ case class ApiResponse(
 // Standard string-based provider works
 val statusProvider = EnumValueCodecProvider.forStringEnum[StatusCode]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(statusProvider)
   .register[ApiResponse]
@@ -305,7 +309,8 @@ val priorityProvider = EnumValueCodecProvider[Priority, String](
   )
 )
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(priorityProvider)
   .register[TaskItem]
@@ -411,7 +416,8 @@ val permissionProvider = EnumValueCodecProvider[Permission, Int](
   )
 )
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(permissionProvider)
   .register[AccessControl]
@@ -453,7 +459,8 @@ case class UserSettings(
 ```scala
 val themeProvider = EnumValueCodecProvider.forStringEnum[Theme]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone  // Important: None values won't be stored
   .withProviders(themeProvider)
   .register[UserSettings]
@@ -535,7 +542,8 @@ case class Document(
 ```scala
 val tagProvider = EnumValueCodecProvider.forStringEnum[Tag]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(tagProvider)
   .register[Document]
@@ -601,7 +609,8 @@ case class ProjectTracker(
 ```scala
 val statusProvider = EnumValueCodecProvider.forStringEnum[Status]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(statusProvider)
   .register[ProjectTracker]
@@ -680,7 +689,8 @@ case class Order(
 val orderStatusProvider = EnumValueCodecProvider.forStringEnum[OrderStatus]
 val paymentMethodProvider = EnumValueCodecProvider.forStringEnum[PaymentMethod]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(orderStatusProvider, paymentMethodProvider)
   .register[OrderItem]  // Register nested class
@@ -744,7 +754,8 @@ val difficultyProvider = EnumValueCodecProvider.forStringEnum[Difficulty]
 val gameModeProvider = EnumValueCodecProvider.forStringEnum[GameMode]
 val characterProvider = EnumValueCodecProvider.forStringEnum[Character]
 
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(difficultyProvider, gameModeProvider, characterProvider)
   .register[GameSession]
@@ -983,7 +994,8 @@ db.collection.find({ status: { $type: "int" } }).forEach(doc => {
 **Solution:** Register all nested classes:
 
 ```scala
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withProviders(statusProvider)
   .register[NestedClass]  // ✅ Register nested class first

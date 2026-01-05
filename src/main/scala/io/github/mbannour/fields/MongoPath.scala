@@ -1,9 +1,10 @@
 package io.github.mbannour.fields
 
-import scala.quoted.*
-import org.mongodb.scala.bson.annotations.BsonProperty
-import scala.compiletime.uninitialized
 import scala.annotation.tailrec
+import scala.compiletime.uninitialized
+import scala.quoted.*
+
+import org.mongodb.scala.bson.annotations.BsonProperty
 
 /** Macro-powered extractor for case-class field paths that map to MongoDB document keys.
   *

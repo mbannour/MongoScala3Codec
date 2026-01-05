@@ -3,8 +3,8 @@ package io.github.mbannour.fields
 import org.mongodb.scala.bson.annotations.BsonProperty
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import io.github.mbannour.fields.MongoPath.syntax.?
-import io.github.mbannour.fields.MongoPath.syntax.each
+
+import io.github.mbannour.fields.MongoPath.syntax.{?, each}
 
 /** Comprehensive test suite for MongoPath.
   *

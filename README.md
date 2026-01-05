@@ -1,12 +1,29 @@
 # MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.7-brightgreen)
-![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.0%2B-blue)
+![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8--M2-brightgreen)
+![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.1%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 
 **MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead and production-ready error handling.
 
 ---
+
+## Installation
+
+Add to your `build.sbt`:
+
+```scala
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1"
+```
+
+For use with MongoDB Scala Driver:
+
+```scala
+libraryDependencies ++= Seq(
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1",
+  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+)
+```
 
 ## ⚡ Why MongoScala3Codec?
 
@@ -24,6 +41,7 @@
 ✅ **Compile-Time Safe** - Catch errors before deployment, not in production
 ✅ **BSON-Native** - Preserves ObjectId, Binary, Decimal128, Dates
 ✅ **Scala 3 Enums** - Full support with string/ordinal/custom field encoding
+✅ **Sealed Traits** - Automatic polymorphic codec generation with discriminators
 ✅ **Production-Ready** - Comprehensive error messages, 280+ tests, stress-tested
 
 ### **Unique Advantages**
@@ -103,9 +121,9 @@ val found = people.find().first().toFuture()
 
 | Getting Started | Advanced | Reference |
 |----------------|----------|-----------|
-| [Quickstart](docs/QUICKSTART.md) | [Enum Support](docs/ENUM_SUPPORT.md) | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
-| [Feature Overview](docs/FEATURES.md) | [How It Works](docs/HOW_IT_WORKS.md) | [MongoDB Interop](docs/MONGODB_INTEROP.md) |
-| [FAQ & Troubleshooting](docs/FAQ.md) | | [Migration Guide](docs/MIGRATION.md) |
+| [Quickstart](docs/QUICKSTART.md) | [Sealed Trait Support](docs/SEALED_TRAIT_SUPPORT.md) | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
+| [Feature Overview](docs/FEATURES.md) | [Enum Support](docs/ENUM_SUPPORT.md) | [MongoDB Interop](docs/MONGODB_INTEROP.md) |
+| [FAQ & Troubleshooting](docs/FAQ.md) | [How It Works](docs/HOW_IT_WORKS.md) | [Migration Guide](docs/MIGRATION.md) |
 
 **💡 New to the library?** Start with [QUICKSTART.md](docs/QUICKSTART.md) 
 
@@ -114,6 +132,7 @@ val found = people.find().first().toFuture()
 ## Features
 
 - ✅ Automatic BSON codec generation for Scala 3 case classes
+- ✅ **Sealed trait/class support** - Polymorphic codecs with automatic discriminators (New in 0.0.8)
 - ✅ **Support for default parameter values** - missing fields use defaults automatically
 - ✅ Support for options and nested case classes
 - ✅ Custom field name annotations (e.g., `@BsonProperty`)
@@ -167,8 +186,8 @@ Testing helpers for round-trip checks and structure assertions.
 ### A) Single Types
 
 ```scala
-val reg = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val reg = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[MyType]
   .build
 ```
@@ -176,8 +195,8 @@ val reg = MongoClient.DEFAULT_CODEC_REGISTRY
 ### B) Batch Types (Faster)
 
 ```scala
-val reg = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val reg = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .registerAll[(Address, Person, Task)]
   .build
 ```
@@ -187,8 +206,8 @@ val reg = MongoClient.DEFAULT_CODEC_REGISTRY
 ### C) Configure Option Handling
 
 ```scala
-val reg = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val reg = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone   // or .encodeNone
   .registerAll[(Address, Person)]
   .build
@@ -199,8 +218,8 @@ val reg = MongoClient.DEFAULT_CODEC_REGISTRY
 ```scala
 val isProd = sys.env.get("APP_ENV").contains("prod")
 
-val reg = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val reg = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[CommonType]
   .registerIf[ProdOnlyType](isProd)
   .build
@@ -209,11 +228,13 @@ val reg = MongoClient.DEFAULT_CODEC_REGISTRY
 ### E) Merging Builders
 
 ```scala
-val common = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val common = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[Address]
   .register[Person]
 
-val extra = MongoClient.DEFAULT_CODEC_REGISTRY.newBuilder
+val extra = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[Department]
 
 val reg = (common ++ extra).build
@@ -342,36 +363,56 @@ println(bson.toJson())  // email omitted due to Ignore
 
 ---
 
+## Sealed Trait Support (New in 0.0.8)
+
+✅ **Sealed traits and classes are fully supported!** Use `registerSealed[T]` for automatic polymorphic codec generation:
+
+```scala
+sealed trait Animal
+case class Dog(name: String, breed: String) extends Animal
+case class Cat(name: String, lives: Int) extends Animal
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealed[Animal]  // Registers Animal + all subtypes
+  .build
+
+// Works polymorphically with automatic discriminator field
+val animals: List[Animal] = List(
+  Dog("Rex", "Labrador"),
+  Cat("Whiskers", 9)
+)
+```
+
+**Features:**
+- ✅ Automatic discriminator field (default: `_type`, configurable)
+- ✅ Single call registers entire hierarchy
+- ✅ Batch registration with `registerSealedAll[(Type1, Type2, ...)]` for multiple sealed traits
+- ✅ Works with collections, nested structures, and Option fields
+- ✅ Supports sealed trait, sealed class, and sealed abstract class
+
+**Batch Registration:**
+```scala
+// Register multiple sealed traits efficiently
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealedAll[(Animal, Vehicle, Status)]
+  .build
+```
+
+**Limitations:**
+- ⚠️ Case objects in sealed hierarchies are not supported - use case classes or Scala 3 enums
+- ⚠️ Sealed traits with type parameters are not yet supported
+
+👉 **See [Sealed Trait Support Guide](docs/SEALED_TRAIT_SUPPORT.md)** for comprehensive examples and migration guide.
+
+---
+
 ## Troubleshooting & Limitations
-
-⚠️ **Sealed classes are not supported** - Use Scala 3 Enumerations instead. Sealed traits and sealed classes cannot be automatically derived. For ADT-like structures, use Scala 3 `enum` types with `EnumValueCodecProvider`.
-
-⚠️ **Polymorphic sealed traits as fields** (e.g., `status: PaymentStatus`) are not supported yet. Use concrete types in fields, or wrappers that you register explicitly.
-
-⚠️ **Case objects in sealed hierarchies** are not fully supported. Prefer parameterless case classes.
-
-⚠️ **Collections of sealed traits** (e.g., `List[PaymentStatus]`) are not supported yet. Use collections of concrete members.
 
 ⚠️ **Value codecs with CodecTestKit.toBsonDocument** are intended for document-like types; for scalars, encode into a field or provide a helper that returns `BsonValue`.
 
 ---
-
-## Installation
-
-Add to your `build.sbt`:
-
-```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7"
-```
-
-For use with MongoDB Scala Driver:
-
-```scala
-libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.7",
-  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
-)
-```
 
 **Requirements:**
 - Scala 3.3.1 or higher

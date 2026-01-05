@@ -1,8 +1,9 @@
 package io.github.mbannour.mongo.codecs
 
+import org.bson.codecs.configuration.CodecRegistries
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.bson.codecs.configuration.CodecRegistries
+
 import io.github.mbannour.mongo.codecs.RegistryBuilder.* // Import extension methods
 
 class RegistryBuilderEnhancementsSpec extends AnyFlatSpec with Matchers:
@@ -149,7 +150,7 @@ class RegistryBuilderEnhancementsSpec extends AnyFlatSpec with Matchers:
     // tryGetCodec should build a full snapshot including providers
     // However, the current implementation uses cachedRegistry which doesn't include providers yet
     // So we need to check after building or use a method that forces a full build
-    val codec = builder.tryGetCodec[SimpleUser]
+    builder.tryGetCodec[SimpleUser]
 
     // The codec might not be found in the cached derivation environment
     // but should be available after building the full registry

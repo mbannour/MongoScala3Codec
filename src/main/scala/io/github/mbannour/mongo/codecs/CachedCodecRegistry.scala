@@ -1,6 +1,7 @@
 package io.github.mbannour.mongo.codecs
 
 import java.util.concurrent.ConcurrentHashMap
+
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistry
 
