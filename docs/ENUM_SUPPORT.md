@@ -28,7 +28,7 @@ Comprehensive guide for using Scala 3 enums with MongoDB in MongoScala3Codec.
 
 MongoScala3Codec provides comprehensive support for Scala 3 enums with MongoDB. The library handles enum serialization and deserialization using compile-time macros, avoiding reflection where possible for better performance and type safety.
 
-**⚠️ Important:** This library does **not support sealed classes or sealed traits**. Use Scala 3 `enum` types instead. Scala 3 enumerations provide a superior alternative to sealed class hierarchies with better type safety, compile-time validation, and seamless MongoDB integration.
+**Note:** For sealed traits and classes with case class subtypes, use `registerSealed[T]` for automatic polymorphic codec generation (available since v0.0.8). For simple enumerations without parameters, Scala 3 `enum` types provide an excellent alternative with better type safety and compile-time validation.
 
 ### Key Features
 

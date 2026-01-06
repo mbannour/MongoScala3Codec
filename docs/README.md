@@ -19,7 +19,7 @@
 - ✅ Sealed trait/class support with automatic discriminators (New in 0.0.8)
 - ✅ Scala 3 enum support with string/ordinal/custom field encoding
 - ✅ Type-safe field paths (MongoPath) - unique in the ecosystem
-- ✅ Production-grade error messages and 290+ tests
+- ✅ Production-grade error messages and 280+ tests
 
 ---
 
@@ -138,7 +138,7 @@
 - **Total Pages:** 50+
 - **Code Examples:** 200+
 - **Coverage:** All features documented
-- **Last Updated:** November 2025
+- **Last Updated:** January 2026
 
 ---
 
