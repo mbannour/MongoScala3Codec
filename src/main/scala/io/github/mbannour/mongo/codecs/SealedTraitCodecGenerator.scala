@@ -50,8 +50,7 @@ object SealedTraitCodecGenerator:
     * This generates a codec that:
     *   1. During encoding:
     *      - Writes discriminator field with the concrete class name
-    *      - Delegates field writing to the concrete case class codec
-    *      2. During decoding:
+    *      - Delegates field writing to the concrete case class codec 2. During decoding:
     *      - Uses mark/reset to peek at the discriminator field
     *      - Looks up the appropriate concrete codec
     *      - Delegates to that codec for full decoding
