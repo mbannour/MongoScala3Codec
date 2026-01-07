@@ -2,7 +2,7 @@
 
 **Date:** November 12, 2025  
 **Repository:** MongoScala3Codec  
-**Current Version:** 0.0.8-M1  
+**Current Version:** 0.0.8  
 **Main Branch:** main  
 **Enhancement Branch:** enhancement  
 

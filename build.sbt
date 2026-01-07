@@ -24,7 +24,8 @@ ThisBuild / coverageHighlighting := true
 ThisBuild / coverageMinimumStmtTotal := 50
 ThisBuild / coverageFailOnMinimum := true
 
-usePgpKeyHex("8D15E6EFEC642C76")
+usePgpKeyHex("268599B76CCD8B4C")
+
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 ThisBuild / scalaVersion := scala3Version
 ThisBuild / versionScheme := Some("early-semver")
@@ -39,7 +40,7 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.8-M1",
+    version := "0.0.8",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),

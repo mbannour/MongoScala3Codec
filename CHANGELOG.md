@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.0.8-M1] - 2026-01-06
+## [0.0.8] - 2026-01-07
 
 ### Added
 - Comprehensive README improvements with best practices
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing documentation files (CHANGELOG, CODE_OF_CONDUCT, SECURITY)
 
 ### Changed
-- Updated all documentation to reference version 0.0.8-M1
+- Updated all documentation to reference version 0.0.8
 - Improved documentation consistency across all files
 - Enhanced getting started flow with clearer paths
 - Updated ENUM_SUPPORT.md to reflect sealed trait support availability
@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - License reference in CONTRIBUTING.md (now consistently MIT)
 - Date references in documentation
 
-## [0.0.8-M1] - 2025-12
+## [0.0.8-M1] - 2025-12-15
 
 ### Added
 - Sealed trait and sealed class support with `registerSealed[T]`
