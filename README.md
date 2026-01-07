@@ -1,6 +1,6 @@
 # MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8--M1-brightgreen)
+![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8-brightgreen)
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.1%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -36,7 +36,7 @@
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8",
   ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 )
 ```
@@ -110,14 +110,14 @@ people.insertOne(person).toFuture()
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.8"
 ```
 
 For use with MongoDB Scala Driver:
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8",
   ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 )
 ```
