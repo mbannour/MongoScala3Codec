@@ -232,7 +232,7 @@ val registry = RegistryBuilder
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.7",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 
@@ -352,11 +352,10 @@ val user = User("Alice", None)
 
 **Solution:** Configure NoneHandling:
 ```scala
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
+  .ignoreNone
   .register[User]
   .build
 

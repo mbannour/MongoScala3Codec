@@ -16,9 +16,10 @@
 **MongoScala3Codec provides:**
 - ✅ Native Scala 3 macro-based codec generation
 - ✅ Full BSON type support with compile-time safety
+- ✅ Sealed trait/class support with automatic discriminators (New in 0.0.8)
 - ✅ Scala 3 enum support with string/ordinal/custom field encoding
 - ✅ Type-safe field paths (MongoPath) - unique in the ecosystem
-- ✅ Production-grade error messages and 290+ tests
+- ✅ Production-grade error messages and 280+ tests
 
 ---
 
@@ -49,6 +50,7 @@
 
 | Document | For When You Need... |
 |----------|---------------------|
+| **[SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md)** | Polymorphic codecs with sealed traits/classes (New in 0.0.8) |
 | **[ENUM_SUPPORT.md](ENUM_SUPPORT.md)** | Scala 3 enums (string/ordinal/custom) |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | Macro internals & optimization techniques |
 
@@ -96,9 +98,10 @@
 5. ✅ [BENCHMARKS.md](BENCHMARKS.md) - Performance validation
 
 ### Path 3: **Advanced Features** (For Power Users)
-1. ✅ [ENUM_SUPPORT.md](ENUM_SUPPORT.md) - Enum handling
-2. ✅ [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - Internals
-3. ✅ [CONTRIBUTING.md](../CONTRIBUTING.md) - Extend the library
+1. ✅ [SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md) - Polymorphic codecs
+2. ✅ [ENUM_SUPPORT.md](ENUM_SUPPORT.md) - Enum handling
+3. ✅ [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - Internals
+4. ✅ [CONTRIBUTING.md](../CONTRIBUTING.md) - Extend the library
 
 ---
 
@@ -111,6 +114,7 @@
 | Install library | [README.md](../README.md) | Installation |
 | First example | [QUICKSTART.md](QUICKSTART.md) | Complete |
 | Register types | [FEATURES.md](FEATURES.md) | Registering Codecs |
+| Sealed traits | [SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md) | Quick Start |
 | Handle enums | [ENUM_SUPPORT.md](ENUM_SUPPORT.md) | Quick Start |
 | None handling | [FEATURES.md](FEATURES.md) | Optional Fields |
 | Custom fields | [FEATURES.md](FEATURES.md) | @BsonProperty |
@@ -134,7 +138,7 @@
 - **Total Pages:** 50+
 - **Code Examples:** 200+
 - **Coverage:** All features documented
-- **Last Updated:** November 2025
+- **Last Updated:** January 2026
 
 ---
 

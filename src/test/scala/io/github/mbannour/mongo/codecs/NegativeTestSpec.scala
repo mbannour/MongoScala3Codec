@@ -1,12 +1,13 @@
 package io.github.mbannour.mongo.codecs
 
+import org.bson.codecs.DecoderContext
+import org.bson.codecs.configuration.CodecRegistries
+import org.bson.types.ObjectId
+import org.bson.{BsonDocument, BsonInvalidOperationException}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.bson.codecs.configuration.CodecRegistries
-import org.bson.{BsonDocument, BsonInvalidOperationException}
-import org.bson.types.ObjectId
+
 import io.github.mbannour.mongo.codecs.RegistryBuilder.*
-import org.bson.codecs.DecoderContext
 
 /** Negative test cases to ensure proper error handling and validation.
   *

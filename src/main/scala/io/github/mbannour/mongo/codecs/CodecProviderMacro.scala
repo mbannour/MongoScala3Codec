@@ -1,8 +1,8 @@
 package io.github.mbannour.mongo.codecs
 
+import scala.annotation.unused
 import scala.quoted.*
 import scala.reflect.ClassTag
-import scala.annotation.unused
 
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}

@@ -6,6 +6,7 @@ MongoScala3Codec provides comprehensive BSON codec generation for Scala 3 applic
 
 - [Automatic Codec Generation](#automatic-codec-generation)
 - [RegistryBuilder Enhancements (New in 0.0.7)](#registrybuilder-enhancements-new-in-007)
+- [Sealed Trait Support (New in 0.0.8)](#sealed-trait-support-new-in-008)
 - [Case Classes](#case-classes)
 - [Optional Fields](#optional-fields)
 - [Collections](#collections)
@@ -54,16 +55,16 @@ Version 0.0.7 introduces significant enhancements to `RegistryBuilder` with impr
 #### Single Type Registration with `just[T]`
 Register one type and build immediately:
 ```scala
-given CodecRegistry = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+given CodecRegistry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .just[User]
 ```
 
 #### Batch Registration with `registerAll`
 More efficient than chaining multiple `register` calls:
 ```scala
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .registerAll[(User, Address, Order, Product)]
   .build
@@ -74,7 +75,8 @@ val registry = MongoClient.DEFAULT_CODEC_REGISTRY
 #### Conditional Registration with `registerIf`
 Register types based on runtime conditions:
 ```scala
-val registry = baseRegistry.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[CommonType]
   .registerIf[DebugInfo](isDevelopment)
   .registerIf[AdminTools](isAdmin)
@@ -84,7 +86,8 @@ val registry = baseRegistry.newBuilder
 #### Batch and Build with `withTypes`
 Register multiple types and build in one call:
 ```scala
-val registry = baseRegistry.newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .withTypes[(User, Order, Product)]
 ```
@@ -93,11 +96,13 @@ val registry = baseRegistry.newBuilder
 
 Merge multiple builders using the `++` operator:
 ```scala
-val commonTypes = baseRegistry.newBuilder
+val commonTypes = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[Address]
   .register[Person]
 
-val specificTypes = baseRegistry.newBuilder
+val specificTypes = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .register[Department]
   .register[Employee]
 
@@ -109,7 +114,8 @@ val registry = (commonTypes ++ specificTypes).build
 Query builder state for debugging and conditional logic:
 
 ```scala
-val builder = registry.newBuilder
+val builder = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone
   .register[User]
   .register[Order]
@@ -173,12 +179,113 @@ val registry = RegistryBuilder
   .build
 
 // New style (recommended)
-val registry = MongoClient.DEFAULT_CODEC_REGISTRY
-  .newBuilder
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
   .ignoreNone  // or .encodeNone
   .register[User]
   .build
 ```
+
+---
+
+## Sealed Trait Support (New in 0.0.8)
+
+MongoScala3Codec now supports sealed traits and classes with automatic polymorphic codec generation.
+
+### Basic Usage
+
+```scala
+sealed trait Animal
+case class Dog(name: String, breed: String) extends Animal
+case class Cat(name: String, lives: Int) extends Animal
+case class Bird(name: String, canFly: Boolean) extends Animal
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealed[Animal]  // Registers Animal + all subtypes
+  .build
+```
+
+**Key Features:**
+- ✅ **Automatic discriminator field** - No manual type field needed
+- ✅ **Single registration** - One call registers entire hierarchy
+- ✅ **Polymorphic collections** - `List[Animal]` works seamlessly
+- ✅ **Nested structures** - Use as fields in other case classes
+- ✅ **Configurable** - Custom discriminator field names
+
+### Encoding Example
+
+```scala
+val dog: Animal = Dog("Rex", "Labrador")
+// Encoded as: {"_type": "Dog", "name": "Rex", "breed": "Labrador"}
+
+val cat: Animal = Cat("Whiskers", 9)
+// Encoded as: {"_type": "Cat", "name": "Whiskers", "lives": 9}
+```
+
+### Polymorphic Collections
+
+```scala
+case class Zoo(name: String, animals: List[Animal])
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealed[Animal]
+  .register[Zoo]
+  .build
+
+val zoo = Zoo("City Zoo", List(
+  Dog("Max", "Beagle"),
+  Cat("Luna", 3),
+  Bird("Polly", true)
+))
+// Round-trips perfectly with discriminators
+```
+
+### Custom Discriminator Field
+
+```scala
+val config = CodecConfig(discriminatorField = "_class")
+
+val registry = baseRegistry
+  .withConfig(config)
+  .registerSealed[Animal]
+  .build
+// Uses "_class" instead of "_type"
+```
+
+### Supported Types
+
+- ✅ `sealed trait`
+- ✅ `sealed class`
+- ✅ `sealed abstract class`
+- ✅ Multi-level hierarchies
+- ⚠️ Case objects not supported (use case classes or Scala 3 enums)
+
+### Batch Registration with `registerSealedAll`
+
+Register multiple sealed traits efficiently:
+
+```scala
+sealed trait Animal
+case class Dog(name: String) extends Animal
+
+sealed trait Vehicle
+case class Car(make: String) extends Vehicle
+
+sealed trait Status
+case class Active(since: Long) extends Status
+
+// Register all at once - more efficient than separate calls
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealedAll[(Animal, Vehicle, Status)]
+  .build
+```
+
+**Performance:** `registerSealedAll` builds the temporary registry only once, making it significantly faster than chaining `registerSealed` calls.
+
+**See [Sealed Trait Support Guide](SEALED_TRAIT_SUPPORT.md) for comprehensive examples.**
 
 ---
 

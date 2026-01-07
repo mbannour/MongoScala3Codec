@@ -2,7 +2,7 @@
 
 **Date:** November 12, 2025  
 **Repository:** MongoScala3Codec  
-**Current Version:** 0.0.7  
+**Current Version:** 0.0.8-M1  
 **Main Branch:** main  
 **Enhancement Branch:** enhancement  
 
@@ -613,7 +613,7 @@ Filters.equal(PaymentFields.status.discriminator, PaymentStatus.Completed)
 7. ✅ **Configurable None handling** - Flexible null encoding strategies
 8. ✅ **Testing utilities** - CodecTestKit simplifies codec validation
 9. ✅ **Production-ready** - Used in real projects, well-tested
-10. ✅ **Active development** - Recent 0.0.7 with significant improvements
+10. ✅ **Active development** - Version 0.0.8 adds sealed trait support
 
 ### 8.2 Standout Features
 1. **RegistryBuilder Optimization** - O(N) chaining, efficient caching (0.0.7)

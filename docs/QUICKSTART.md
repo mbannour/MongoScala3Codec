@@ -17,16 +17,16 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 - MongoDB instance (local or cloud)
 - SBT or Mill build tool
 
-## Step 1: Add Dependency (30 seconds)
+## Step 1: Add Dependency
 
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.7"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.8-M1"
 libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 ```
 
-## Step 2: Define Your Domain Models (1 minute)
+## Step 2: Define Your Domain Models
 
 ```scala
 import org.bson.types.ObjectId
@@ -51,7 +51,7 @@ case class Customer(
 
 ```
 
-## Step 3: Register Codecs (1 minute)
+## Step 3: Register Codecs
 
 ```scala
 import io.github.mbannour.mongo.codecs.RegistryBuilder
@@ -72,7 +72,7 @@ given CodecRegistry = codecRegistry
 **New in 0.0.7:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
 
 
-## Step 4: Connect to MongoDB (30 seconds)
+## Step 4: Connect to MongoDB
 
 ```scala
 import org.mongodb.scala._
@@ -85,7 +85,7 @@ val userCollection: MongoCollection[User] = database.getCollection[User]("users"
 val customerCollection: MongoCollection[Customer] = database.getCollection[Customer]("customers")
 ```
 
-## Step 5: Insert and Query Data (2 minutes)
+## Step 5: Insert and Query Data
 
 ```scala
 import org.mongodb.scala.model.Filters
@@ -157,11 +157,10 @@ case class BlogPost(
 )
 
 @main def quickstartExample(): Unit =
-  // 2. Setup codec registry
-  given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
   
   val codecRegistry = RegistryBuilder
     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+    .ignoreNone
     .register[BlogPost]
     .build
   
