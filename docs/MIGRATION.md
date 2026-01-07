@@ -352,11 +352,10 @@ val user = User("Alice", None)
 
 **Solution:** Configure NoneHandling:
 ```scala
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withConfig(summon[CodecConfig])
+  .ignoreNone
   .register[User]
   .build
 

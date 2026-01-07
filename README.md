@@ -1,10 +1,9 @@
 # MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8--M2-brightgreen)
+![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8--M1-brightgreen)
 ![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.1%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![codecov](https://codecov.io/gh/mbannour/MongoScala3Codec/branch/main/graph/badge.svg)](https://codecov.io/gh/mbannour/MongoScala3Codec)
 
 **MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead and production-ready error handling.
 
@@ -25,7 +24,6 @@
   - [Testing](#testing)
 - [Architecture](#-architecture)
 - [Performance](#-performance--benchmarks)
-- [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
 - [Support & Community](#-support--community)
 - [License](#-license)
@@ -478,31 +476,6 @@ MongoScala3Codec includes JMH microbenchmarks for measuring codec performance. T
 - **Compile Time**: Batch registration reduces compile time by 60%
 
 👉 **See [Benchmarks Documentation](docs/BENCHMARKS.md)** for details on running benchmarks and interpreting results.
-
----
-
-## 🗺️ Roadmap
-
-### v0.0.8 (Current)
-- ✅ Sealed trait support with discriminators
-- ✅ Batch sealed trait registration
-- ✅ Enhanced error messages
-- 🚧 Improved documentation
-
-### v0.1.0 (Next)
-- 🎯 Stable API (semantic versioning)
-- 🎯 Performance optimizations for large hierarchies
-- 🎯 Custom discriminator field names
-- 🎯 Support for sealed traits with type parameters
-- 🎯 Scala 3.6+ compatibility
-
-### Future
-- 💡 Derivation for arbitrary ADTs
-- 💡 Integration with Cats Effect / ZIO
-- 💡 Schema validation utilities
-- 💡 Migration tooling from Scala 2 macros
-
-**Have a feature request?** Open an issue or discussion on GitHub!
 
 ---
 
