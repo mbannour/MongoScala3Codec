@@ -1,7 +1,7 @@
 # MongoScala3Codec
 
 ![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.8-brightgreen)
-![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.1%2B-blue)
+![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.7%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
