@@ -3,134 +3,195 @@ name: Test Scala Library
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
 jobs:
+  # ── Formatting (runs once, gates all other jobs) ────────────────────
+  format:
+    runs-on: ubuntu-latest
+    name: Check Formatting
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Check formatting (sources + build files)
+        run: sbt scalafmtCheckAll scalafmtSbtCheck
+
+  # ── Unit tests (full Scala × JDK matrix) ───────────────────────────
   test:
     runs-on: ubuntu-latest
-    name: Test (Scala ${{ matrix.scala-version }}, JDK ${{ matrix.java-version }})
+    name: Test (Scala ${{ matrix.scala }}, JDK ${{ matrix.java }})
+    needs: [format]
+    timeout-minutes: 30
 
     strategy:
       matrix:
-        scala-version: ["3.3.1", "3.4.2", "3.7.1"]
-        java-version: ["17"]
+        scala: ["3.3.1", "3.4.2", "3.6.3", "3.6.4", "3.7.1", "3.8.0"]
+        java: ["11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]
       fail-fast: false
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      # Zulu provides builds for ALL JDK versions 11–21 (including non-LTS)
+      - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: ${{ matrix.java-version }}
+          distribution: zulu
+          java-version: ${{ matrix.java }}
+          cache: sbt
 
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
 
-      - name: Verify sbt installation
-        run: sbt sbtVersion
-
-      - name: Cache sbt and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.ivy2/cache
-            ~/.sbt
-            ~/.coursier
-          key: ${{ runner.os }}-sbt-${{ matrix.scala-version }}-${{ hashFiles('**/build.sbt') }}
-          restore-keys: |
-            ${{ runner.os }}-sbt-
-
-      - name: Check code formatting
-        run: sbt ++${{ matrix.scala-version }} scalafmtCheckAll
-
       - name: Run unit tests
-        run: sbt ++${{ matrix.scala-version }} test
-        env:
-          CI: true
+        run: sbt ++${{ matrix.scala }} test
+
+  # ── Integration tests (primary Scala version only, LTS JDKs) ───────
+  # integrationTests subproject is pinned to the primary Scala version
+  # (see crossScalaVersions in build.sbt), so no ++ version switch here.
+  integration-test:
+    runs-on: ubuntu-latest
+    name: Integration Tests (JDK ${{ matrix.java }})
+    needs: [format]
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        java: ["11", "17", "21"]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: sbt
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
 
       - name: Run integration tests
-        run: sbt ++${{ matrix.scala-version }} integrationTests/test
-        env:
-          CI: true
+        run: sbt integrationTests/test
 
-      - name: JMH smoke compile (benchmarks)
-        run: sbt ++${{ matrix.scala-version }} "benchmarks / Jmh / compile"
+  # ── JMH benchmark compile check ────────────────────────────────────
+  # benchmarks subproject is pinned to the primary Scala version.
+  benchmark-compile:
+    runs-on: ubuntu-latest
+    name: JMH Smoke Compile
+    needs: [format]
+    timeout-minutes: 15
 
-      - name: Clear cache (avoid caching sensitive files)
-        run: |
-          rm -rf ~/.ivy2/cache
-          rm -rf ~/.sbt/boot
-          rm -rf ~/.coursier
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Compile benchmarks
+        run: sbt "benchmarks / Jmh / compile"
+
+  # ── Code coverage ──────────────────────────────────────────────────
   coverage:
     runs-on: ubuntu-latest
     name: Code Coverage
+    needs: [format]
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
+          cache: sbt
 
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
 
-      - name: Cache sbt and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.ivy2/cache
-            ~/.sbt
-            ~/.coursier
-          key: ${{ runner.os }}-sbt-coverage-${{ hashFiles('**/build.sbt') }}
-          restore-keys: |
-            ${{ runner.os }}-sbt-
-
+      # coverageFailOnMinimum in build.sbt enforces the 50% threshold
       - name: Run tests with coverage
         run: sbt clean coverage test coverageReport
-        env:
-          CI: true
+
+      - name: Find coverage report
+        id: coverage-report
+        run: |
+          REPORT=$(find . -path "*/scoverage-report/scoverage.xml" -type f | head -1)
+          if [[ -z "$REPORT" ]]; then
+            echo "::error::No scoverage report found"
+            exit 1
+          fi
+          echo "path=$REPORT" >> "$GITHUB_OUTPUT"
+          COVERAGE=$(grep -oP 'statement-rate="\K[^"]+' "$REPORT" | head -1)
+          echo "### Code Coverage: ${COVERAGE}%" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          files: ./target/scala-3.7.1/scoverage-report/scoverage.xml
+          files: ${{ steps.coverage-report.outputs.path }}
           fail_ci_if_error: false
 
-      - name: Check coverage threshold
-        run: |
-          COVERAGE=$(grep -oP 'statement-rate="\K[^"]+' target/scala-3.7.1/scoverage-report/scoverage.xml | head -1)
-          echo "Coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
-            echo "❌ Coverage $COVERAGE% is below 50% threshold"
-            exit 1
-          else
-            echo "✅ Coverage $COVERAGE% meets the 50% threshold"
-          fi
-
+  # ── Gate (branch protection target) ────────────────────────────────
   all-tests-passed:
     runs-on: ubuntu-latest
     name: All Tests Passed
-    needs: [test, coverage]
     if: always()
+    needs: [test, integration-test, benchmark-compile, coverage]
 
     steps:
-      - name: Check test results
+      - name: Check results
         run: |
-          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.coverage.result }}" == "success" ]]; then
-            echo "✅ All tests passed!"
-          else
-            echo "❌ Some tests failed"
-            exit 1
-          fi
+          results=(
+            "${{ needs.test.result }}"
+            "${{ needs.integration-test.result }}"
+            "${{ needs.benchmark-compile.result }}"
+            "${{ needs.coverage.result }}"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::One or more jobs failed or were cancelled"
+              exit 1
+            fi
+          done
+          echo "All tests passed!"
 # scala-steward:on
