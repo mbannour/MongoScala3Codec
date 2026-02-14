@@ -31,7 +31,7 @@ Complete guide to using MongoScala3Codec with MongoDB Scala and Java drivers.
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.8",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.9",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 ```
