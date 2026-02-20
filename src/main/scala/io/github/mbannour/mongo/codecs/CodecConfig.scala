@@ -24,7 +24,8 @@ package io.github.mbannour.mongo.codecs
 case class CodecConfig(
     noneHandling: NoneHandling = NoneHandling.Encode,
     discriminatorField: String = "_type",
-    discriminatorStrategy: DiscriminatorStrategy = DiscriminatorStrategy.SimpleName
+    discriminatorStrategy: DiscriminatorStrategy = DiscriminatorStrategy.SimpleName,
+    private[codecs] val writeDiscriminator: Boolean = false
 ):
   /** Returns true if None values should be encoded as BSON null. */
   def shouldEncodeNone: Boolean = noneHandling == NoneHandling.Encode

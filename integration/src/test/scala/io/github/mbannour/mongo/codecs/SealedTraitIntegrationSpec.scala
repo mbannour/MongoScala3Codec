@@ -545,4 +545,344 @@ class SealedTraitIntegrationSpec extends AnyFlatSpec with Matchers with ScalaChe
     CodecTestKit.roundTrip(car)(using codec2Vehicle) shouldBe car
   }
 
+  // ===== Concrete-subtype codec must include discriminator (Updates.set path) =====
+
+  it should "include discriminator when encoding concrete subtype directly via registerSealedAll" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealedAll[(Animal, Shape, Vehicle)]
+      .build
+
+    // Animal subtype encoded via concrete codec
+    val dogDoc = new BsonDocument()
+    val dogWriter = new BsonDocumentWriter(dogDoc)
+    registry.get(classOf[Dog]).encode(dogWriter, Dog("Rex", "Labrador"), org.bson.codecs.EncoderContext.builder().build())
+
+    dogDoc.containsKey("_type") shouldBe true
+    dogDoc.getString("_type").getValue shouldBe "Dog"
+
+    // Shape subtype encoded via concrete codec
+    val circleDoc = new BsonDocument()
+    val circleWriter = new BsonDocumentWriter(circleDoc)
+    registry.get(classOf[Circle]).encode(circleWriter, Circle(new ObjectId(), 5.0), org.bson.codecs.EncoderContext.builder().build())
+
+    circleDoc.containsKey("_type") shouldBe true
+    circleDoc.getString("_type").getValue shouldBe "Circle"
+
+    // Vehicle subtype encoded via concrete codec
+    val carDoc = new BsonDocument()
+    val carWriter = new BsonDocumentWriter(carDoc)
+    registry.get(classOf[Car]).encode(carWriter, Car("Toyota", "Camry"), org.bson.codecs.EncoderContext.builder().build())
+
+    carDoc.containsKey("_type") shouldBe true
+    carDoc.getString("_type").getValue shouldBe "Car"
+
+    // Sealed codecs can decode what the concrete codecs produced
+    val animalCodec  = registry.get(classOf[Animal])
+    val shapeCodec   = registry.get(classOf[Shape])
+    val vehicleCodec = registry.get(classOf[Vehicle])
+
+    animalCodec.decode(
+      new BsonDocumentReader(dogDoc), org.bson.codecs.DecoderContext.builder().build()
+    ) shouldBe Dog("Rex", "Labrador")
+
+    shapeCodec.decode(
+      new BsonDocumentReader(circleDoc), org.bson.codecs.DecoderContext.builder().build()
+    ) shouldBe a[Circle]
+
+    vehicleCodec.decode(
+      new BsonDocumentReader(carDoc), org.bson.codecs.DecoderContext.builder().build()
+    ) shouldBe Car("Toyota", "Camry")
+  }
+
+  it should "use custom discriminator field when encoding concrete subtype directly" in {
+    val config = CodecConfig(discriminatorField = "_class")
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .withConfig(config)
+      .registerSealed[Animal]
+      .build
+
+    // Encode via concrete-class codec
+    val catDoc = new BsonDocument()
+    val catWriter = new BsonDocumentWriter(catDoc)
+    registry.get(classOf[Cat]).encode(catWriter, Cat("Fluffy", 7), org.bson.codecs.EncoderContext.builder().build())
+
+    catDoc.containsKey("_class") shouldBe true
+    catDoc.containsKey("_type") shouldBe false
+    catDoc.getString("_class").getValue shouldBe "Cat"
+
+    // Sealed codec (also configured with _class) must decode it correctly
+    val animalCodec = registry.get(classOf[Animal])
+    val result = animalCodec.decode(
+      new BsonDocumentReader(catDoc), org.bson.codecs.DecoderContext.builder().build()
+    )
+    result shouldBe Cat("Fluffy", 7)
+    result shouldBe a[Cat]
+  }
+
+  "Property-based: direct subtype encoding" should "always carry the discriminator field" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .build
+
+    // Encode using the CONCRETE class codecs (as Updates.set would)
+    forAll { (dog: Dog) =>
+      val doc = new BsonDocument()
+      val writer = new BsonDocumentWriter(doc)
+      registry.get(classOf[Dog]).encode(writer, dog, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Dog"
+    }
+
+    forAll { (cat: Cat) =>
+      val doc = new BsonDocument()
+      val writer = new BsonDocumentWriter(doc)
+      registry.get(classOf[Cat]).encode(writer, cat, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Cat"
+    }
+
+    forAll { (bird: Bird) =>
+      val doc = new BsonDocument()
+      val writer = new BsonDocumentWriter(doc)
+      registry.get(classOf[Bird]).encode(writer, bird, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Bird"
+    }
+  }
+
+  "Property-based: direct subtype encode → sealed decode" should "round-trip correctly for arbitrary animals" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .build
+
+    val animalCodec = registry.get(classOf[Animal])
+
+    forAll { (dog: Dog) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), dog, org.bson.codecs.EncoderContext.builder().build())
+      val decoded = animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build())
+      decoded shouldBe dog
+      decoded shouldBe a[Dog]
+    }
+
+    forAll { (bird: Bird) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), bird, org.bson.codecs.EncoderContext.builder().build())
+      val decoded = animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build())
+      decoded shouldBe bird
+      decoded shouldBe a[Bird]
+    }
+  }
+
+  // ===== replaceOne / findOneAndReplace: outer-document codec path =====
+  //
+  // replaceOne and findOneAndReplace encode the full replacement document via the
+  // outer type codec, which delegates to the sealed-trait codec for sealed fields.
+  // This is a different code path from Updates.set (concrete subtype codec).
+
+  "Property-based: replaceOne/findOneAndReplace simulation" should
+      "always encode the sealed field with a discriminator via the outer-document codec" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .register[Owner]
+      .build
+
+    val ownerCodec = registry.get(classOf[Owner])
+
+    forAll { (animal: Animal) =>
+      val owner = Owner("TestOwner", animal)
+      val doc   = new BsonDocument()
+      ownerCodec.encode(new BsonDocumentWriter(doc), owner, org.bson.codecs.EncoderContext.builder().build())
+
+      // The nested "pet" sub-document must carry the discriminator
+      doc.getDocument("pet").containsKey("_type") shouldBe true
+
+      // And the full document must round-trip correctly
+      val decoded = ownerCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build())
+      decoded shouldBe owner
+    }
+  }
+
+  it should "correctly encode the new discriminator when replacing one subtype with another" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .register[Owner]
+      .build
+
+    val ownerCodec = registry.get(classOf[Owner])
+
+    // Simulate replacing a Dog document with a Cat document
+    forAll { (original: Dog, replacement: Cat) =>
+      val replacedOwner = Owner("Alice", replacement)
+      val doc           = new BsonDocument()
+      ownerCodec.encode(new BsonDocumentWriter(doc), replacedOwner, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.getDocument("pet").getString("_type").getValue shouldBe "Cat"
+      ownerCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe replacedOwner
+    }
+  }
+
+  it should "encode all elements with discriminator for a List[SealedTrait] replacement field" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .register[Zoo]
+      .build
+
+    val zooCodec = registry.get(classOf[Zoo])
+
+    forAll { (dog: Dog, cat: Cat, bird: Bird) =>
+      val zoo    = Zoo("Test Zoo", List(dog, cat, bird))
+      val zooDoc = new BsonDocument()
+      zooCodec.encode(new BsonDocumentWriter(zooDoc), zoo, org.bson.codecs.EncoderContext.builder().build())
+
+      val animalsArray = zooDoc.getArray("animals")
+      animalsArray.get(0).asDocument().containsKey("_type") shouldBe true
+      animalsArray.get(1).asDocument().containsKey("_type") shouldBe true
+      animalsArray.get(2).asDocument().containsKey("_type") shouldBe true
+
+      zooCodec.decode(new BsonDocumentReader(zooDoc), org.bson.codecs.DecoderContext.builder().build()) shouldBe zoo
+    }
+  }
+
+  // ===== Updates.push / Updates.addToSet: element encoded via concrete subtype codec =====
+
+  "Property-based: Updates.push simulation" should
+      "always encode the pushed element with a discriminator via the concrete codec" in {
+    val registry    = RegistryBuilder.from(defaultBsonRegistry).registerSealed[Animal].build
+    val animalCodec = registry.get(classOf[Animal])
+
+    forAll { (dog: Dog) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), dog, org.bson.codecs.EncoderContext.builder().build())
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Dog"
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe dog
+    }
+
+    forAll { (cat: Cat) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Cat]).encode(new BsonDocumentWriter(doc), cat, org.bson.codecs.EncoderContext.builder().build())
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Cat"
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe cat
+    }
+
+    forAll { (bird: Bird) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), bird, org.bson.codecs.EncoderContext.builder().build())
+      doc.containsKey("_type") shouldBe true
+      doc.getString("_type").getValue shouldBe "Bird"
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe bird
+    }
+  }
+
+  "Property-based: Updates.addToSet simulation" should
+      "always encode the set element with a discriminator via the concrete codec" in {
+    // Updates.addToSet has the same encoding path as Updates.push at the codec level
+    val registry    = RegistryBuilder.from(defaultBsonRegistry).registerSealed[Animal].build
+    val animalCodec = registry.get(classOf[Animal])
+
+    forAll { (animal: Animal) =>
+      val doc = new BsonDocument()
+      animal match
+        case d: Dog  => registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), d, org.bson.codecs.EncoderContext.builder().build())
+        case c: Cat  => registry.get(classOf[Cat]).encode(new BsonDocumentWriter(doc), c, org.bson.codecs.EncoderContext.builder().build())
+        case b: Bird => registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), b, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe animal
+    }
+  }
+
+  // ===== Updates.setOnInsert (upsert): same encoding path as Updates.set =====
+
+  "Property-based: Updates.setOnInsert simulation" should
+      "always encode the upserted sealed value with a discriminator via the concrete codec" in {
+    val registry    = RegistryBuilder.from(defaultBsonRegistry).registerSealed[Animal].build
+    val animalCodec = registry.get(classOf[Animal])
+
+    forAll { (animal: Animal) =>
+      val doc = new BsonDocument()
+      animal match
+        case d: Dog  => registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), d, org.bson.codecs.EncoderContext.builder().build())
+        case c: Cat  => registry.get(classOf[Cat]).encode(new BsonDocumentWriter(doc), c, org.bson.codecs.EncoderContext.builder().build())
+        case b: Bird => registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), b, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe animal
+    }
+  }
+
+  // ===== bulkWrite =====
+
+  "Property-based: bulkWrite UpdateOneModel simulation" should
+      "always encode the update value with a discriminator via the concrete codec" in {
+    val registry    = RegistryBuilder.from(defaultBsonRegistry).registerSealed[Animal].build
+    val animalCodec = registry.get(classOf[Animal])
+
+    // UpdateOneModel uses Updates.set internally — concrete codec path
+    forAll { (dog: Dog) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), dog, org.bson.codecs.EncoderContext.builder().build())
+      doc.getString("_type").getValue shouldBe "Dog"
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe dog
+    }
+
+    forAll { (bird: Bird) =>
+      val doc = new BsonDocument()
+      registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), bird, org.bson.codecs.EncoderContext.builder().build())
+      doc.getString("_type").getValue shouldBe "Bird"
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe bird
+    }
+  }
+
+  "Property-based: bulkWrite ReplaceOneModel simulation" should
+      "always encode the sealed field with a discriminator via the outer-document codec" in {
+    val registry = RegistryBuilder
+      .from(defaultBsonRegistry)
+      .registerSealed[Animal]
+      .register[Owner]
+      .build
+
+    val ownerCodec = registry.get(classOf[Owner])
+
+    // ReplaceOneModel encodes the full replacement document — outer codec path
+    forAll { (animal: Animal) =>
+      val owner = Owner("BulkUser", animal)
+      val doc   = new BsonDocument()
+      ownerCodec.encode(new BsonDocumentWriter(doc), owner, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.getDocument("pet").containsKey("_type") shouldBe true
+      ownerCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe owner
+    }
+  }
+
+  "Property-based: findOneAndUpdate simulation" should
+      "encode the replacement sealed value with a discriminator" in {
+    val registry    = RegistryBuilder.from(defaultBsonRegistry).registerSealed[Animal].build
+    val animalCodec = registry.get(classOf[Animal])
+
+    // findOneAndUpdate with Updates.set encodes the new value via the concrete codec
+    forAll { (animal: Animal) =>
+      val doc = new BsonDocument()
+      animal match
+        case d: Dog  => registry.get(classOf[Dog]).encode(new BsonDocumentWriter(doc), d, org.bson.codecs.EncoderContext.builder().build())
+        case c: Cat  => registry.get(classOf[Cat]).encode(new BsonDocumentWriter(doc), c, org.bson.codecs.EncoderContext.builder().build())
+        case b: Bird => registry.get(classOf[Bird]).encode(new BsonDocumentWriter(doc), b, org.bson.codecs.EncoderContext.builder().build())
+
+      doc.containsKey("_type") shouldBe true
+      animalCodec.decode(new BsonDocumentReader(doc), org.bson.codecs.DecoderContext.builder().build()) shouldBe animal
+    }
+  }
+
 end SealedTraitIntegrationSpec

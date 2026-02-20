@@ -335,6 +335,51 @@ val registry = RegistryBuilder
 
 ---
 
+### Issue: "BsonInvalidOperationException: Missing discriminator field '_type'" after Updates.set
+
+**Problem:**
+```scala
+sealed trait Animal
+case class Dog(name: String, breed: String) extends Animal
+case class Bird(name: String, canFly: Boolean) extends Animal
+
+case class User(_id: ObjectId, name: String, pet: Animal)
+
+// Update a sealed-trait field using Updates.set
+collection.updateOne(
+  Filters.eq("_id", userId),
+  Updates.set("pet", Bird("Tweety", true))
+).toFuture()
+
+// Later, reading it back throws:
+// BsonInvalidOperationException: Missing discriminator field '_type'
+```
+
+**Cause:** When `Updates.set` encodes a value, the MongoDB driver calls `registry.get(classOf[Bird])` — the concrete subtype codec — rather than the `Animal` sealed trait codec. In older versions of this library, the concrete subtype codec did not write the `_type` discriminator, so the stored document was not self-describing and could not be decoded as an `Animal`.
+
+**Solution:** This was fixed in the library. Ensure you are using a version that includes the fix, and register the sealed hierarchy with `registerSealed[T]` (not bare `register[T]` for individual subtypes):
+
+```scala
+// ✅ Correct - registerSealed produces discriminator-aware codecs for all subtypes
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealed[Animal]   // covers Animal, Dog, Cat, Bird
+  .register[User]
+  .build
+
+// ❌ Incorrect - bare register[T] codecs do NOT write the discriminator
+val badRegistry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .register[Dog]
+  .register[Bird]
+  .register[User]
+  .build
+```
+
+After the fix, `Updates.set("pet", Bird("Tweety", true))` stores `{"_type": "Bird", "name": "Tweety", "canFly": true}`, which decodes correctly as `Animal`.
+
+---
+
 ### Issue: Default values not being used
 
 **Problem:**

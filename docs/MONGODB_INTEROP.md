@@ -31,7 +31,7 @@ Complete guide to using MongoScala3Codec with MongoDB Scala and Java drivers.
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.9",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.10",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 ```
@@ -206,6 +206,29 @@ val updateResult = userCollection
 val deleteResult = userCollection
   .deleteOne(Filters.eq("name", "Alice"))
   .toFuture()
+
+// UPDATE A SEALED TRAIT FIELD
+// When a case class field is a sealed trait, use Updates.set with a concrete subtype.
+// registerSealed ensures the concrete-subtype codec writes the discriminator automatically.
+sealed trait ContactMethod
+case class Email(address: String) extends ContactMethod
+case class Phone(number: String) extends ContactMethod
+
+case class Contact(_id: ObjectId, name: String, preferred: ContactMethod)
+
+val contactRegistry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerSealed[ContactMethod]
+  .register[Contact]
+  .build
+
+val contactCollection = database.getCollection[Contact]("contacts").withCodecRegistry(contactRegistry)
+
+// Replaces the 'preferred' field; encodes as {"_type": "Phone", "number": "555-1234"}
+val sealedUpdateResult = contactCollection.updateOne(
+  Filters.eq("name", "Alice"),
+  Updates.set("preferred", Phone("555-1234"))
+).toFuture()
 ```
 
 ### Complex Queries

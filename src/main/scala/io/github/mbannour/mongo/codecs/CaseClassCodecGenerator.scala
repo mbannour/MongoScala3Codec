@@ -148,6 +148,10 @@ object CaseClassCodecGenerator:
           val clazz = value.getClass
           caseClassesMapInv.get(clazz) match
             case Some(discriminator) =>
+              // When this codec is registered as a sealed subtype, write the discriminator so
+              // that Updates.set and similar operations produce a self-describing BSON document
+              // that the sealed-trait codec can decode later.
+              if codecConfig.writeDiscriminator then writer.writeString(codecConfig.discriminatorField, discriminator)
               // For case classes, delegate to the helper writer with the discriminator.
               CaseClassBsonWriter.writeCaseClassData(
                 discriminator,

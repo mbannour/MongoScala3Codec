@@ -207,6 +207,11 @@ object SealedCodecProviderMacro:
       if mainSymbol.flags.is(Flags.Sealed) then subclasses(mainSymbol).filter(isCaseClass).toList
       else List.empty
 
+    // Subtype providers must write the discriminator so that encoding via the concrete-class
+    // codec (e.g. via Updates.set) produces a self-describing document that the sealed-trait
+    // codec can decode.
+    val subConfig: Expr[CodecConfig] = '{ $config.copy(writeDiscriminator = true) }
+
     val providerExprs: List[Expr[CodecProvider]] = caseClassSymbols.map { subSymbol =>
       subSymbol.typeRef.asType match
         case '[subType] =>
@@ -216,7 +221,7 @@ object SealedCodecProviderMacro:
               '{
                 CodecProviderMacro.createCodecProvider[subType](using
                   $classTagExpr,
-                  $config,
+                  $subConfig,
                   $codecRegistry
                 )
               }

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-02-20
+
+### Fixed
+- **Sealed trait discriminator missing on direct subtype encoding**: When using `Updates.set` (or any operation that encodes a concrete sealed subtype directly via `registry.get(classOf[ConcreteSubtype])`), the generated BSON document now correctly includes the discriminator field (`_type` by default). Previously the discriminator was omitted, causing `BsonInvalidOperationException: Missing discriminator field '_type'` when the stored document was later decoded as the sealed trait type.
+
 ## [0.0.9] - 2026-02-14
 
 ### Changed
