@@ -22,7 +22,7 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.9"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.10"
 libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 ```
 
