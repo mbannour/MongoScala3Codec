@@ -36,7 +36,7 @@
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.9",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.10",
   ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 )
 ```
@@ -110,14 +110,14 @@ people.insertOne(person).toFuture()
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.9"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.10"
 ```
 
 For use with MongoDB Scala Driver:
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.9",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.10",
   ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
 )
 ```
