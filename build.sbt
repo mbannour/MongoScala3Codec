@@ -37,6 +37,7 @@ Global / excludeLintKeys += publishMavenStyle
 
 lazy val root = project
   .in(file("."))
+  .aggregate(testkit)
   .dependsOn(testkit % "test->compile")
   .settings(
     name := "MongoScala3Codec",
