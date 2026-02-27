@@ -590,6 +590,68 @@ class UserCodecSpec extends AnyFlatSpec {
 For integration tests with real MongoDB, use Testcontainers (see existing integration tests in the project).
 For a complete setup and examples, see [TESTKIT.md](TESTKIT.md).
 
+### Q: Why do I get `Duplicate codec detected for ...` at compile time?
+
+**A:** The builder now prevents registering more than one codec for the same target type.
+
+This compile-time error appears when the same case class (or sealed parent) is registered more than once, for example:
+
+```scala
+case class RoleAssignment(role: String)
+
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .withCodec(roleAssignmentCodec)   // explicit codec for RoleAssignment
+  .register[RoleAssignment]         // duplicate registration of the same target type
+  .build
+```
+
+Or when the same type is repeated inside a tuple:
+
+```scala
+RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .registerAll[(RoleAssignment, RoleAssignment)]
+```
+
+Typical error shape:
+
+```text
+Duplicate codec detected for RoleAssignment.
+...
+```
+
+Common causes:
+
+1. You added an explicit codec with `withCodec[T]` and also derived the same type with `register[T]` or `registerAll[...]`.
+2. The same type appears more than once inside `registerAll[(...)]` or `registerSealedAll[(...)]`.
+3. You called `register[T]` / `registerSealed[T]` twice for the same target.
+4. You merged two builders with `++` and both builders already contain the same type.
+
+How to fix it:
+
+1. Keep exactly one registration path per target type.
+2. If you already have a manual codec, remove the duplicate `register[T]` / `registerAll[...]` call.
+3. If you want auto-derived codecs, remove the duplicate `withCodec[T]`.
+4. If the duplicate is inside a tuple, keep each type only once.
+5. If the duplicate comes from `++`, remove the overlapping registration from one side before merging.
+
+Why this check is beneficial:
+
+1. It prevents silent codec overrides where one registration would otherwise win without warning.
+2. It catches configuration mistakes during compilation instead of surfacing as runtime serialization bugs.
+3. It makes refactors safer when moving types between `withCodec`, `register`, and `registerAll`.
+4. It keeps codec ownership clear: each model type has exactly one source of truth.
+5. It reduces subtle data-corruption risks caused by encoding with one codec and decoding with another.
+
+Recommended rule: for each model type, choose one of these and only one:
+
+- `withCodec[T](...)`
+- `register[T]`
+- inclusion in `registerAll[(...)]`
+- `registerSealed[T]`
+- inclusion in `registerSealedAll[(...)]`
+
 ---
 
 ## Troubleshooting Tips

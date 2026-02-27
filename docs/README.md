@@ -115,6 +115,7 @@
 | Install library | [README.md](../README.md) | Installation |
 | First example | [QUICKSTART.md](QUICKSTART.md) | Complete |
 | Unit test codecs | [TESTKIT.md](TESTKIT.md) | Complete |
+| Fix duplicate codec compile errors | [FAQ.md](FAQ.md) | Duplicate codec errors |
 | Register types | [FEATURES.md](FEATURES.md) | Registering Codecs |
 | Sealed traits | [SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md) | Quick Start |
 | Handle enums | [ENUM_SUPPORT.md](ENUM_SUPPORT.md) | Quick Start |

@@ -72,6 +72,8 @@ val registry = RegistryBuilder
 
 **Performance:** `registerAll` builds the temporary registry only once for all types, making it significantly faster than chained `register` calls.
 
+**Safety:** duplicate registrations are rejected at compile time. If the same type appears twice (for example once via `withCodec[T]` and again via `register[T]`, or twice inside `registerAll[(A, A)]`), compilation fails with a `Duplicate codec detected for ...` error instead of silently overriding a codec. This prevents hard-to-debug serialization drift and keeps one clear codec source of truth per model type.
+
 #### Conditional Registration with `registerIf`
 Register types based on runtime conditions:
 ```scala
