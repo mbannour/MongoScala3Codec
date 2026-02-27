@@ -447,9 +447,9 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
 
     // Opaque type ensures that RegistryBuilder cannot be directly manipulated
     // Each operation returns a new RegistryBuilder instance
-    val builder1: RegistryBuilder = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
-    val builder2: RegistryBuilder = builder1.ignoreNone
-    val builder3: RegistryBuilder = builder2.register[Person]
+    val builder1: RegistryBuilder[Tuple] = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
+    val builder2: RegistryBuilder[Tuple] = builder1.ignoreNone
+    val builder3: RegistryBuilder[Tuple] = builder2.register[Person]
 
     // Each builder is independent and immutable
     val registry = builder3.build
@@ -548,7 +548,7 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   it should "enable reusable builder patterns" in {
 
     // Create reusable base builders - opaque type makes this safe
-    def standardBuilder: RegistryBuilder = RegistryBuilder
+    def standardBuilder: RegistryBuilder[Tuple] = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .ignoreNone
 
@@ -622,12 +622,12 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
   it should "support complex builder composition" in {
 
     // Compose builders in functional style - enabled by opaque type safety
-    def withStandardTypes(builder: RegistryBuilder): RegistryBuilder =
+    def withStandardTypes(builder: RegistryBuilder[Tuple]): RegistryBuilder[Tuple] =
       builder
         .register[Address]
         .register[Person]
 
-    def withBusinessTypes(builder: RegistryBuilder): RegistryBuilder =
+    def withBusinessTypes(builder: RegistryBuilder[Tuple]): RegistryBuilder[Tuple] =
       builder
         .register[Department]
         .register[Company]
@@ -842,9 +842,9 @@ class RegistryBuilderIntegrationSpec extends AnyFlatSpec with ForAllTestContaine
     // Two levels of opaque types:
     // 1. RegistryBuilder is an opaque type (type-safe builder pattern)
     // 2. UserProfile uses opaque types (UserId, Email, Age) for domain modeling
-    val builder: RegistryBuilder = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
-    val registryBuilder: RegistryBuilder = builder.ignoreNone
-    val withCodec: RegistryBuilder = registryBuilder.register[UserProfile]
+    val builder: RegistryBuilder[Tuple] = RegistryBuilder.from(MongoClient.DEFAULT_CODEC_REGISTRY)
+    val registryBuilder: RegistryBuilder[Tuple] = builder.ignoreNone
+    val withCodec: RegistryBuilder[Tuple] = registryBuilder.register[UserProfile]
     val registry: CodecRegistry = withCodec.build
 
     val database = createDatabaseWithRegistry(registry)

@@ -43,6 +43,7 @@
 | **[FEATURES.md](FEATURES.md)** | Complete feature catalog with examples |
 | **[BSON_TYPE_MAPPING.md](BSON_TYPE_MAPPING.md)** | 35+ supported types & BSON mappings |
 | **[MONGODB_INTEROP.md](MONGODB_INTEROP.md)** | MongoDB driver integration & CRUD operations |
+| **[TESTKIT.md](TESTKIT.md)** | How to add and use CodecTestKit in your test suite |
 
 ---
 
@@ -113,6 +114,7 @@
 |------|----------|---------|
 | Install library | [README.md](../README.md) | Installation |
 | First example | [QUICKSTART.md](QUICKSTART.md) | Complete |
+| Unit test codecs | [TESTKIT.md](TESTKIT.md) | Complete |
 | Register types | [FEATURES.md](FEATURES.md) | Registering Codecs |
 | Sealed traits | [SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md) | Quick Start |
 | Handle enums | [ENUM_SUPPORT.md](ENUM_SUPPORT.md) | Quick Start |

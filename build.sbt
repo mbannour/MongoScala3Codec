@@ -37,10 +37,11 @@ Global / excludeLintKeys += publishMavenStyle
 
 lazy val root = project
   .in(file("."))
+  .dependsOn(testkit % "test->compile")
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.10",
+    version := "0.0.10_M2",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
     licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
@@ -82,12 +83,11 @@ lazy val root = project
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
     Test / scalacOptions ++= Seq(
       "-Wconf:cat=unused:s"
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, minor)) if minor >= 4 =>
-        Seq("-rewrite", "-source", "3.4-migration")
-      case _ =>
-        Seq.empty
-    }),
+      // Note: -rewrite and -source 3.4-migration are intentionally excluded here.
+      // They cause automatic source mutation during normal test runs.
+      // Run migration rewrites manually when needed:
+      //   sbt "; set Test/scalacOptions += \"-rewrite\"; set Test/scalacOptions += \"-source\"; set Test/scalacOptions += \"3.4-migration\"; test"
+    ),
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
     Compile / doc / scalacOptions ++= Seq(
       "-nowarn",
@@ -102,9 +102,35 @@ lazy val root = project
     mimaFailOnNoPrevious := false
   )
 
+lazy val testkit = project
+  .in(file("testkit"))
+  .settings(
+    name := "mongoscala3codec-testkit",
+    description := "Testing utilities for MongoScala3Codec: codec round-trips, BSON inspection, property-based helpers.",
+    libraryDependencies ++= Seq(
+      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.3").cross(CrossVersion.for3Use2_13)
+    ),
+    Compile / scalacOptions ++= Seq(
+      "-encoding",
+      "utf8",
+      "-deprecation",
+      "-feature",
+      "-Xtarget:11",
+      "-unchecked",
+      "-Wunused:all",
+      "-Wconf:msg=unused local definition:s"
+    ),
+    Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
+    Test / scalacOptions ++= Seq("-Wconf:cat=unused:s"),
+    credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
+    publish / skip := false,
+    mimaPreviousArtifacts := Set.empty,
+    mimaFailOnNoPrevious := false
+  )
+
 lazy val integrationTests = project
   .in(file("integration"))
-  .dependsOn(root)
+  .dependsOn(root, testkit % "test->compile")
   .settings(
     name := "integration-tests",
     // Limit cross-building here to the primary Scala version to avoid test dep gaps
@@ -127,7 +153,7 @@ lazy val integrationTests = project
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
-  .dependsOn(root)
+  .dependsOn(root, testkit)
   .enablePlugins(JmhPlugin)
   .settings(
     name := "MongoScala3Codec-benchmarks",

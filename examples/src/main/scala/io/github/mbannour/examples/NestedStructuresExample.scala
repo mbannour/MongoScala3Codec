@@ -55,7 +55,6 @@ object NestedStructuresExample:
     val registry: CodecRegistry = RegistryBuilder
       .from(MongoClient.DEFAULT_CODEC_REGISTRY)
       .registerAll[(Address, ContactInfo, Company)]
-      .register[ContactInfo]
       .build
 
     val collection: MongoCollection[Company] = database

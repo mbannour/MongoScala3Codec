@@ -122,6 +122,13 @@ libraryDependencies ++= Seq(
 )
 ```
 
+For test-only codec assertions and BSON inspection:
+
+```scala
+libraryDependencies +=
+  "io.github.mbannour" %% "mongoscala3codec-testkit" % "0.0.10" % Test
+```
+
 **Requirements:**
 - Scala 3.3.1 or higher
 - JDK 11 or higher
@@ -173,6 +180,7 @@ libraryDependencies ++= Seq(
 |--------------|---------------|
 | **Get started quickly** | [Quickstart Guide](docs/QUICKSTART.md) |
 | **Understand all features** | [Feature Overview](docs/FEATURES.md) |
+| **Test codecs without MongoDB** | [CodecTestKit Guide](docs/TESTKIT.md) |
 | **Work with sealed traits** | [Sealed Trait Support](docs/SEALED_TRAIT_SUPPORT.md) |
 | **Use Scala 3 enums** | [Enum Support](docs/ENUM_SUPPORT.md) |
 | **Understand BSON mapping** | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
@@ -388,6 +396,11 @@ val reg = RegistryBuilder
 Test your codecs without a database using `CodecTestKit`:
 
 ```scala
+libraryDependencies +=
+  "io.github.mbannour" %% "mongoscala3codec-testkit" % "0.0.10" % Test
+```
+
+```scala
 import io.github.mbannour.mongo.codecs.{CodecTestKit, RegistryBuilder, CodecConfig, NoneHandling}
 import org.bson.codecs.Codec
 import org.bson.types.ObjectId
@@ -417,6 +430,8 @@ println(bson.toJson())  // email omitted due to Ignore
 ✅ Catch codec bugs early (no DB needed)
 ✅ Validate BSON structure deterministically
 ✅ Works with ScalaTest, MUnit, ScalaCheck
+
+👉 **See [CodecTestKit Guide](docs/TESTKIT.md)** for focused testkit setup and examples.
 
 ---
 

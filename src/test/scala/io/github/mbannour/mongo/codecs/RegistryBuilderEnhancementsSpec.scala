@@ -24,6 +24,11 @@ class RegistryBuilderEnhancementsSpec extends AnyFlatSpec with Matchers:
   case class DebugInfo(timestamp: Long, message: String)
   case class AdminFeature(enabled: Boolean)
 
+  // Sealed hierarchy used for duplicate-detection tests
+  sealed trait TestNotification
+  case class EmailNotif(to: String) extends TestNotification
+  case class SmsNotif(phone: String) extends TestNotification
+
   "RegistryBuilder.just" should "register a single type and build immediately" in {
     val registry = defaultBsonRegistry.newBuilder.just[SimpleUser]
 
@@ -94,6 +99,17 @@ class RegistryBuilderEnhancementsSpec extends AnyFlatSpec with Matchers:
       new org.bson.codecs.LongCodec()
     )
     assert(withMore.codecCount == 3)
+  }
+
+  it should "support codecs provided via Seq spread syntax" in {
+    val builder = defaultBsonRegistry.newBuilder
+    val extraCodecs: Seq[org.bson.codecs.Codec[?]] = Seq(
+      new org.bson.codecs.StringCodec(),
+      new org.bson.codecs.IntegerCodec()
+    )
+
+    val withSeqSpread = builder.withCodecs(extraCodecs*)
+    assert(withSeqSpread.codecCount == 2)
   }
 
   "RegistryBuilder.providerCount" should "return the number of registered providers" in {
@@ -256,6 +272,104 @@ class RegistryBuilderEnhancementsSpec extends AnyFlatSpec with Matchers:
     assert(registry.get(classOf[SimpleUser]) != null)
     assert(registry.get(classOf[Address]) != null)
     assert(registry.get(classOf[Person]) != null)
+  }
+
+  // ── Issue 2: AnyRegistryBuilder alias ─────────────────────────────────────
+
+  "RegistryBuilder.AnyRegistryBuilder" should "be a valid type alias for RegistryBuilder[Tuple]" in {
+    val builder: RegistryBuilder.AnyRegistryBuilder = defaultBsonRegistry.newBuilder.register[SimpleUser]
+    assert(builder.providerCount == 1)
+  }
+
+  it should "accept a builder with no registered types" in {
+    val builder: RegistryBuilder.AnyRegistryBuilder = defaultBsonRegistry.newBuilder
+    assert(builder.isEmpty)
+  }
+
+  // ── Issue 4: runtime guard for sealed subtype duplicates ──────────────────
+
+  "RegistryBuilder.register" should "throw IllegalStateException when registering a sealed subtype explicitly" in {
+    val builder = defaultBsonRegistry.newBuilder.registerSealed[TestNotification]
+    val ex = intercept[IllegalStateException] {
+      builder.register[EmailNotif]
+    }
+    assert(ex.getMessage.contains("EmailNotif"))
+    assert(ex.getMessage.contains("sealed subtype"))
+  }
+
+  it should "throw IllegalStateException for a second sealed subtype registered explicitly" in {
+    val builder = defaultBsonRegistry.newBuilder.registerSealed[TestNotification]
+    val ex = intercept[IllegalStateException] {
+      builder.register[SmsNotif]
+    }
+    assert(ex.getMessage.contains("SmsNotif"))
+  }
+
+  "RegistryBuilder.withCodec" should "throw IllegalStateException when adding a codec for an already-sealed subtype" in {
+    import org.bson.{BsonReader, BsonWriter}
+    import org.bson.codecs.{DecoderContext, EncoderContext}
+
+    // A minimal codec whose getEncoderClass returns the real EmailNotif class
+    val emailCodec = new org.bson.codecs.Codec[EmailNotif]:
+      def decode(reader: BsonReader, ctx: DecoderContext): EmailNotif = ???
+      def encode(writer: BsonWriter, value: EmailNotif, ctx: EncoderContext): Unit = ???
+      def getEncoderClass: Class[EmailNotif] = classOf[EmailNotif]
+
+    val builder = defaultBsonRegistry.newBuilder.registerSealed[TestNotification]
+    val ex = intercept[IllegalStateException] {
+      builder.withCodec(emailCodec)
+    }
+    assert(ex.getMessage.contains("EmailNotif"))
+    assert(ex.getMessage.contains("sealed subtype"))
+  }
+
+  "RegistryBuilder.++" should "merge sealedSubtypeClasses from both builders" in {
+    // After merging, register on a subtype of either sealed trait must throw
+    val left = defaultBsonRegistry.newBuilder.registerSealed[TestNotification]
+    val right = defaultBsonRegistry.newBuilder.register[SimpleUser]
+    val merged: RegistryBuilder.AnyRegistryBuilder = left ++ right
+    val ex = intercept[IllegalStateException] {
+      merged.register[EmailNotif]
+    }
+    assert(ex.getMessage.contains("EmailNotif"))
+  }
+
+  // ── Issue 5: runtime duplicate detection in withCodecs dynamic fallback ───
+
+  "RegistryBuilder.withCodecs (dynamic Seq)" should "throw IllegalArgumentException when a codec duplicates one already in the builder" in {
+    val builder = defaultBsonRegistry.newBuilder
+      .withCodec(new org.bson.codecs.StringCodec())
+    val extraCodecs: Seq[org.bson.codecs.Codec[?]] = Seq(
+      new org.bson.codecs.StringCodec() // duplicates the existing StringCodec
+    )
+    val ex = intercept[IllegalArgumentException] {
+      builder.withCodecs(extraCodecs*)
+    }
+    assert(ex.getMessage.contains("duplicate codec"))
+    assert(ex.getMessage.contains("String"))
+  }
+
+  it should "throw IllegalArgumentException when the dynamic sequence itself contains duplicate codec classes" in {
+    val builder = defaultBsonRegistry.newBuilder
+    val dupCodecs: Seq[org.bson.codecs.Codec[?]] = Seq(
+      new org.bson.codecs.IntegerCodec(),
+      new org.bson.codecs.IntegerCodec() // duplicate within the seq, no prior registration needed
+    )
+    val ex = intercept[IllegalArgumentException] {
+      builder.withCodecs(dupCodecs*)
+    }
+    assert(ex.getMessage.contains("duplicate codec"))
+    assert(ex.getMessage.contains("Integer"))
+  }
+
+  it should "not throw when codecs are distinct from existing ones" in {
+    val builder = defaultBsonRegistry.newBuilder
+      .withCodec(new org.bson.codecs.StringCodec())
+    val extraCodecs: Seq[org.bson.codecs.Codec[?]] = Seq(
+      new org.bson.codecs.IntegerCodec()
+    )
+    val result = builder.withCodecs(extraCodecs*)
+    assert(result.codecCount == 2)
   }
 
 end RegistryBuilderEnhancementsSpec

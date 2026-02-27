@@ -233,4 +233,41 @@ object SealedCodecProviderMacro:
       case '{ $list: List[CodecProvider] } => '{ $list.toVector }
   end createSubclassProvidersImpl
 
+  /** Returns the set of runtime `Class` objects for all concrete case-class subtypes of a sealed type `T`.
+    *
+    * This is evaluated at compile time and used at runtime to detect duplicate registrations when a caller registers a concrete subtype
+    * (via `register[T]` or `withCodec[T]`) after the sealed parent was already registered via `registerSealed[T]`.
+    *
+    * @tparam T
+    *   The sealed trait or class
+    * @return
+    *   A `Set[Class[?]]` containing one entry for every concrete case-class subtype discovered at compile time
+    */
+  inline def subclassRuntimeClasses[T]: Set[Class[?]] =
+    ${ subclassRuntimeClassesImpl[T] }
+
+  private def subclassRuntimeClassesImpl[T: Type](using Quotes): Expr[Set[Class[?]]] =
+    import quotes.reflect.*
+
+    val mainSymbol = TypeRepr.of[T].typeSymbol
+
+    def isCaseClass(sym: Symbol): Boolean = sym.isClassDef && sym.flags.is(Flags.Case)
+
+    def subclasses(sym: Symbol): Set[Symbol] =
+      val direct = sym.children.toSet
+      direct ++ direct.flatMap(subclasses)
+
+    val caseSymbols: List[Symbol] =
+      if mainSymbol.flags.is(Flags.Sealed) then subclasses(mainSymbol).filter(isCaseClass).toList
+      else List.empty
+
+    caseSymbols.foldLeft('{ Set.empty[Class[?]] }) { (accExpr, sym) =>
+      sym.typeRef.asType match
+        case '[subType] =>
+          Expr.summon[ClassTag[subType]] match
+            case Some(ct) => '{ $accExpr + $ct.runtimeClass }
+            case None     => report.errorAndAbort(s"Cannot summon ClassTag for ${sym.fullName}")
+    }
+  end subclassRuntimeClassesImpl
+
 end SealedCodecProviderMacro

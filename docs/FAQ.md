@@ -556,6 +556,11 @@ def findUser(id: String)(implicit cs: ContextShift[IO]): IO[User] =
 **A:** Use `CodecTestKit` for unit tests without MongoDB:
 
 ```scala
+libraryDependencies +=
+  "io.github.mbannour" %% "mongoscala3codec-testkit" % "0.0.10" % Test
+```
+
+```scala
 import io.github.mbannour.mongo.codecs.CodecTestKit
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -583,6 +588,7 @@ class UserCodecSpec extends AnyFlatSpec {
 ```
 
 For integration tests with real MongoDB, use Testcontainers (see existing integration tests in the project).
+For a complete setup and examples, see [TESTKIT.md](TESTKIT.md).
 
 ---
 
@@ -644,4 +650,3 @@ If you can't find a solution here:
 - 📖 [Quickstart Guide](QUICKSTART.md) - Get started in 5 minutes
 - 🔧 [Feature Overview](FEATURES.md) - Learn about all features
 - 🚀 [Migration Guide](MIGRATION.md) - Migrate from other libraries
-

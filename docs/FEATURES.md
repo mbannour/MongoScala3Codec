@@ -708,6 +708,13 @@ collection.find(
 
 `CodecTestKit` provides utilities for testing codecs without MongoDB.
 
+Add testkit as a test-only dependency:
+
+```scala
+libraryDependencies +=
+  "io.github.mbannour" %% "mongoscala3codec-testkit" % "0.0.10" % Test
+```
+
 ### Round-Trip Testing
 
 ```scala
@@ -772,4 +779,3 @@ For more details, see [FAQ & Troubleshooting](FAQ.md).
 - 🔧 [How It Works](HOW_IT_WORKS.md) - Understand the internals
 - 🚀 [Migration Guide](MIGRATION.md) - Migrate from other libraries
 - ❓ [FAQ & Troubleshooting](FAQ.md) - Common issues and solutions
-

@@ -1,6 +1,7 @@
 package io.github.mbannour.mongo.codecs
 
 import scala.compiletime.*
+import scala.quoted.*
 import scala.reflect.ClassTag
 import scala.util.Try
 
@@ -84,8 +85,14 @@ import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
   *   - Chaining `register[A].register[B]...` is O(N) total, not O(N²)
   *   - The cache is preserved across register calls and only rebuilt when base/codecs change
   *   - The final registry is assembled once in `build()` with all accumulated providers
+  *
+  * ===Migration Note (type parameter)===
+  * `RegistryBuilder` now carries a compile-time `[+Registered <: Tuple]` type parameter that tracks which types have been registered. Code
+  * that previously annotated values as plain `RegistryBuilder` must now use one of:
+  *   - `RegistryBuilder[Tuple]` — explicit wildcard form
+  *   - `RegistryBuilder.AnyRegistryBuilder` — convenience type alias provided for this purpose
   */
-opaque type RegistryBuilder = RegistryBuilder.State
+opaque type RegistryBuilder[+Registered <: Tuple] = RegistryBuilder.State
 
 object RegistryBuilder:
 
@@ -109,14 +116,33 @@ object RegistryBuilder:
       config: CodecConfig = CodecConfig(),
       providers: Vector[CodecProvider] = Vector.empty,
       codecs: Vector[Codec[?]] = Vector.empty,
-      cachedRegistry: Option[CodecRegistry] = None
+      cachedRegistry: Option[CodecRegistry] = None,
+      sealedSubtypeClasses: Set[Class[?]] = Set.empty
   )
 
+  /** Type alias for `RegistryBuilder[Tuple]`.
+    *
+    * Use this when you need a non-specific reference to a builder without caring about which types are tracked. This is the migration alias
+    * for code that previously used `RegistryBuilder` without a type argument (before the `[+Registered <: Tuple]` type parameter was
+    * added).
+    *
+    * @example
+    *   {{{
+    *   // Before (no longer compiles — RegistryBuilder now requires a type argument):
+    *   val b: RegistryBuilder = someMethod()
+    *
+    *   // After — use the alias or an explicit type argument:
+    *   val b: RegistryBuilder.AnyRegistryBuilder = someMethod()
+    *   val b: RegistryBuilder[Tuple]             = someMethod()
+    *   }}}
+    */
+  type AnyRegistryBuilder = RegistryBuilder[Tuple]
+
   /** Create builder from base registry with default configuration */
-  def from(base: CodecRegistry): RegistryBuilder = State(base)
+  def from(base: CodecRegistry): RegistryBuilder[EmptyTuple] = State(base)
 
   /** Create builder from base registry with custom configuration */
-  def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
+  def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder[EmptyTuple] =
     State(base, config)
 
   private def getOrBuildRegistry(state: State): (CodecRegistry, State) =
@@ -136,6 +162,150 @@ object RegistryBuilder:
 
     fromRegistries(parts.result()*)
   end buildRegistry
+
+  private def captureVarargs[A](args: A*): Seq[A] = args
+
+  /** Non-inline helper that checks whether the encoder class of a codec is already tracked as a sealed subtype. Kept non-inline so that
+    * `codec` is always typed as `Codec[?]` (the Java interface), where `getEncoderClass` is declared with `()`. This avoids a Scala 3
+    * inline-resolution error that occurs when a concrete Scala codec class overrides `getEncoderClass` without `()`.
+    */
+  private def checkSealedSubtypeClass(codec: Codec[?], sealedSubtypeClasses: Set[Class[?]]): Unit =
+    val encoderClass = codec.getEncoderClass
+    if sealedSubtypeClasses.contains(encoderClass) then
+      throw new IllegalStateException(
+        s"Duplicate registration: ${encoderClass.getSimpleName} is already registered " +
+          s"as a sealed subtype (via registerSealed). Remove the .withCodec[A] call."
+      )
+
+  private inline def tupleContains[Ts <: Tuple, A]: Boolean =
+    inline erasedValue[Ts] match
+      case _: EmptyTuple  => false
+      case _: (A *: _)    => true
+      case _: (_ *: tail) => tupleContains[tail, A]
+      case _              => false
+
+  private inline def typeName[T]: String = ${ typeNameImpl[T] }
+
+  private def typeNameImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val tpe = TypeRepr.of[T].dealias
+    val symbol = tpe.typeSymbol
+    val renderedName =
+      if symbol != Symbol.noSymbol && symbol.name.nonEmpty && symbol.name != "<none>" then symbol.name
+      else tpe.show
+    Expr(renderedName)
+  end typeNameImpl
+
+  private inline def duplicateCodecError[T](inline detail: String): Nothing =
+    compiletime.error("Duplicate codec detected for " + typeName[T] + ". " + detail)
+
+  private inline def ensureExplicitNotRegistered[T, Registered <: Tuple]: Unit =
+    inline if tupleContains[Registered, T] then
+      duplicateCodecError[T](
+        "withCodec[T] cannot add a type that is already tracked in this builder. " +
+          "Remove either the earlier .register[T] / .registerAll call or this .withCodec[T] call."
+      )
+
+  private inline def ensureDerivedNotRegistered[T, Registered <: Tuple]: Unit =
+    inline if tupleContains[Registered, T] then
+      duplicateCodecError[T](
+        "This type is already registered in this builder. " +
+          "Remove the duplicate .register[T], .registerSealed[T], .registerAll, or .registerSealedAll call."
+      )
+
+  private inline def ensureDistinctTupleTypes[Ts <: Tuple]: Unit =
+    inline erasedValue[Ts] match
+      case _: EmptyTuple => ()
+      case _: (h *: t) =>
+        inline if tupleContains[t, h] then
+          duplicateCodecError[h](
+            "The same type appears more than once in your tuple argument to registerAll/registerSealedAll. " +
+              "Each type must appear exactly once — remove the duplicate."
+          )
+        else ensureDistinctTupleTypes[t]
+      case _ => ()
+
+  private inline def ensureTupleNotRegistered[Ts <: Tuple, Registered <: Tuple]: Unit =
+    inline erasedValue[Ts] match
+      case _: EmptyTuple => ()
+      case _: (h *: t) =>
+        ensureDerivedNotRegistered[h, Registered]
+        ensureTupleNotRegistered[t, Registered]
+      case _ => ()
+
+  private inline def ensureNoOverlap[Incoming <: Tuple, Existing <: Tuple]: Unit =
+    inline erasedValue[Incoming] match
+      case _: EmptyTuple => ()
+      case _: (h *: t) =>
+        inline if tupleContains[Existing, h] then
+          duplicateCodecError[h](
+            "Cannot merge builders: this type is registered in both the left and right builder. " +
+              "Remove .register[T] or .registerSealed[T] from one of the builders before using ++."
+          )
+        else ensureNoOverlap[t, Existing]
+      case _ => ()
+
+  private def withCodecsImpl[Registered <: Tuple: Type](
+      builderExpr: Expr[RegistryBuilder[Registered]],
+      codecsExpr: Expr[Seq[Codec[?]]]
+  )(using Quotes): Expr[RegistryBuilder[Tuple]] =
+    import quotes.reflect.*
+
+    def codecTargetType(codecExpr: Expr[Codec[?]]): TypeRepr =
+      codecExpr.asTerm.tpe.widen.baseType(TypeRepr.of[Codec].typeSymbol) match
+        case AppliedType(_, List(targetType)) => targetType
+        case _ =>
+          report.errorAndAbort(
+            s"withCodecs only accepts Codec[T] values, but found: ${codecExpr.asTerm.tpe.show}"
+          )
+
+    def chain[Current <: Tuple: Type](
+        currentExpr: Expr[RegistryBuilder[Current]],
+        codecs: List[Expr[Codec[?]]]
+    ): Expr[RegistryBuilder[Tuple]] =
+      codecs match
+        case Nil => currentExpr
+        case codecExpr :: tail =>
+          codecTargetType(codecExpr).asType match
+            case '[target] =>
+              val typedCodec = codecExpr.asExprOf[Codec[target]]
+              type Next = Tuple.Concat[Current, target *: EmptyTuple]
+              given Type[Next] = Type.of[Tuple.Concat[Current, target *: EmptyTuple]]
+              val nextExpr: Expr[RegistryBuilder[Next]] =
+                '{ $currentExpr.withCodec[target]($typedCodec) }
+              chain[Next](nextExpr, tail)
+
+    codecsExpr match
+      case Varargs(args) =>
+        chain[Registered](builderExpr, args.map(_.asExprOf[Codec[?]]).toList)
+      case _ =>
+        // Runtime Seq/spread (codecs*) cannot be fully inspected at compile-time.
+        // Fall back to runtime append with a two-part duplicate check:
+        //   (a) incoming codecs vs. already-registered codecs in the builder, and
+        //   (b) duplicates within the incoming sequence itself.
+        '{
+          val runtimeCodecs = captureVarargs($codecsExpr*)
+          val existingClasses: Set[Class[?]] = $builderExpr.codecs.map(_.getEncoderClass).toSet
+          val incomingClasses: Seq[Class[?]] = runtimeCodecs.map(_.getEncoderClass)
+          // (a) incoming vs. existing
+          val dupVsExisting: Seq[Class[?]] = incomingClasses.filter(existingClasses.contains)
+          // (b) within the incoming sequence – collect every class seen more than once
+          val seen = collection.mutable.HashSet.empty[Class[?]]
+          val dupWithinSelf: Seq[Class[?]] = incomingClasses.filter(cls => !seen.add(cls))
+          val allDups: Seq[Class[?]] = (dupVsExisting ++ dupWithinSelf).distinct
+          if allDups.nonEmpty then
+            throw new IllegalArgumentException(
+              "withCodecs: duplicate codec(s) detected at runtime. " +
+                "Duplicate encoder class(es): " + allDups.map(_.getSimpleName).mkString(", ") +
+                ". Remove the duplicate codec(s) from the sequence."
+            )
+          $builderExpr.copy(
+            codecs = $builderExpr.codecs ++ runtimeCodecs,
+            cachedRegistry = None
+          )
+        }
+    end match
+  end withCodecsImpl
 
   private inline def accumulateProvidersLoop[T <: Tuple](
       acc: List[CodecProvider],
@@ -157,14 +327,19 @@ object RegistryBuilder:
     val added = accumulateProvidersLoop[T](Nil, state, tempRegistry)
     state.copy(providers = state.providers ++ added.reverse)
 
-  /** Accumulate sealed trait providers recursively through tuple */
+  /** Accumulate sealed trait providers recursively through tuple.
+    *
+    * Returns a pair of (accumulated providers, accumulated subtype runtime classes) so that the caller can detect duplicate registrations
+    * of concrete subtypes that were already covered by an earlier `registerSealed` call.
+    */
   private inline def accumulateSealedProvidersLoop[T <: Tuple](
       acc: List[CodecProvider],
+      accSubtypes: Set[Class[?]],
       state: State,
       tempRegistry: CodecRegistry
-  ): List[CodecProvider] =
+  ): (List[CodecProvider], Set[Class[?]]) =
     inline erasedValue[T] match
-      case _: EmptyTuple => acc
+      case _: EmptyTuple => (acc, accSubtypes)
       case _: (h *: t)   =>
         // Create provider for the sealed trait itself
         val sealedProvider = SealedCodecProviderMacro.createProvider[h](using
@@ -179,20 +354,27 @@ object RegistryBuilder:
           tempRegistry
         )
 
+        // Collect runtime classes for all concrete subtypes for duplicate detection
+        val newSubtypes = SealedCodecProviderMacro.subclassRuntimeClasses[h]
+
         // Accumulate all providers and continue with rest of tuple
         accumulateSealedProvidersLoop[t](
           (sealedProvider :: subclassProviders.toList) ++ acc,
+          accSubtypes ++ newSubtypes,
           state,
           tempRegistry
         )
 
   /** Accumulate all sealed trait providers from a tuple */
   private inline def accumulateSealedProviders[T <: Tuple](state: State, tempRegistry: CodecRegistry): State =
-    val added = accumulateSealedProvidersLoop[T](Nil, state, tempRegistry)
-    state.copy(providers = state.providers ++ added.reverse)
+    val (added, subtypeClasses) = accumulateSealedProvidersLoop[T](Nil, Set.empty, state, tempRegistry)
+    state.copy(
+      providers = state.providers ++ added.reverse,
+      sealedSubtypeClasses = state.sealedSubtypeClasses ++ subtypeClasses
+    )
 
   /** Extension methods for fluent builder API */
-  extension (builder: RegistryBuilder)
+  extension [Registered <: Tuple](builder: RegistryBuilder[Registered])
 
     /** Configure with a function - functional approach for flexible configuration.
       *
@@ -214,7 +396,7 @@ object RegistryBuilder:
       *   }
       *   }}}
       */
-    def configure(f: CodecConfig => CodecConfig): RegistryBuilder =
+    def configure(f: CodecConfig => CodecConfig): RegistryBuilder[Registered] =
       builder.copy(config = f(builder.config), cachedRegistry = None)
 
     /** Set the codec configuration directly.
@@ -222,15 +404,15 @@ object RegistryBuilder:
       * @param newConfig
       *   The codec configuration to use
       */
-    def withConfig(newConfig: CodecConfig): RegistryBuilder =
+    def withConfig(newConfig: CodecConfig): RegistryBuilder[Registered] =
       builder.copy(config = newConfig, cachedRegistry = None)
 
     /** Switch policy: omit `None` fields entirely from BSON documents. */
-    def ignoreNone: RegistryBuilder =
+    def ignoreNone: RegistryBuilder[Registered] =
       configure(_.copy(noneHandling = NoneHandling.Ignore))
 
     /** Switch policy: encode `None` as BSON `null`. */
-    def encodeNone: RegistryBuilder =
+    def encodeNone: RegistryBuilder[Registered] =
       configure(_.copy(noneHandling = NoneHandling.Encode))
 
     /** Add a single explicit codec.
@@ -240,22 +422,38 @@ object RegistryBuilder:
       * @param codec
       *   The codec to add
       */
-    def withCodec[A](codec: Codec[A]): RegistryBuilder =
+    inline def withCodec[A](codec: Codec[A]): RegistryBuilder[Tuple.Concat[Registered, A *: EmptyTuple]] =
+      ensureExplicitNotRegistered[A, Registered]
+      // Delegate the sealedSubtypeClasses check to a non-inline method that accepts Codec[?].
+      // This avoids a Scala 3 inline resolution issue: when withCodec is inlined at a call site
+      // where the static type is a concrete Scala codec class that overrides getEncoderClass
+      // without (), calling codec.getEncoderClass in an inline body causes a compile error
+      // ("does not take parameters"). The non-inline helper always sees Codec[?] (the Java
+      // interface), where getEncoderClass is declared with (), so the call is always valid.
+      checkSealedSubtypeClass(codec, builder.sealedSubtypeClasses)
       builder.copy(codecs = builder.codecs :+ codec, cachedRegistry = None)
+    end withCodec
 
     /** Add a single codec provider.
       *
       * @param provider
+      *   The codec provider to add
+      * @note
+      *   No duplicate-target detection is performed for providers added via this method. If you register a provider for a type that was
+      *   already registered via `register[T]` or `registerSealed[T]`, the duplicate will be silently accepted. Prefer the typed
+      *   `register`/`registerSealed` API where compile-time safety is needed.
       */
-    def withProvider(provider: CodecProvider): RegistryBuilder =
+    def withProvider(provider: CodecProvider): RegistryBuilder[Registered] =
       builder.copy(providers = builder.providers :+ provider, cachedRegistry = None)
 
     /** Add multiple codec providers at once.
       *
       * @param providers
       *   Variable number of codec providers to add
+      * @note
+      *   Same caveat as `withProvider`: no duplicate-target detection is performed for providers added via this method.
       */
-    def withProviders(providers: CodecProvider*): RegistryBuilder =
+    def withProviders(providers: CodecProvider*): RegistryBuilder[Registered] =
       builder.copy(providers = builder.providers ++ providers, cachedRegistry = None)
 
     /** Add multiple codecs at once.
@@ -263,8 +461,8 @@ object RegistryBuilder:
       * @param codecs
       *   Variable number of codecs to add
       */
-    def withCodecs(codecs: Codec[?]*): RegistryBuilder =
-      builder.copy(codecs = builder.codecs ++ codecs, cachedRegistry = None)
+    transparent inline def withCodecs(inline codecs: Codec[?]*): RegistryBuilder[Tuple] =
+      ${ withCodecsImpl[Registered]('builder, 'codecs) }
 
     /** Register a type with automatic codec derivation.
       *
@@ -273,7 +471,13 @@ object RegistryBuilder:
       * @tparam T
       *   The type to register (must be a case class)
       */
-    inline def register[T](using ct: ClassTag[T]): RegistryBuilder =
+    inline def register[T](using ct: ClassTag[T]): RegistryBuilder[Tuple.Concat[Registered, T *: EmptyTuple]] =
+      ensureDerivedNotRegistered[T, Registered]
+      if builder.sealedSubtypeClasses.contains(ct.runtimeClass) then
+        throw new IllegalStateException(
+          s"Duplicate registration: ${ct.runtimeClass.getSimpleName} is already registered as a sealed subtype " +
+            s"(via registerSealed). Remove the .register[T] call."
+        )
       val (tempRegistry, b1) = getOrBuildRegistry(builder)
       val provider = CodecProviderMacro.createCodecProvider[T](using ct, b1.config, tempRegistry)
       b1.copy(providers = b1.providers :+ provider)
@@ -309,7 +513,8 @@ object RegistryBuilder:
       * @note
       *   Only case classes are supported as sealed subtypes. Case objects are not supported - use Scala 3 enums instead.
       */
-    inline def registerSealed[T: ClassTag]: RegistryBuilder =
+    inline def registerSealed[T: ClassTag]: RegistryBuilder[Tuple.Concat[Registered, T *: EmptyTuple]] =
+      ensureDerivedNotRegistered[T, Registered]
       val (tempRegistry, b1) = getOrBuildRegistry(builder)
 
       // Create provider for the sealed trait itself
@@ -325,8 +530,14 @@ object RegistryBuilder:
         tempRegistry
       )
 
+      // Collect runtime classes for all concrete subtypes for duplicate detection
+      val subtypeClasses = SealedCodecProviderMacro.subclassRuntimeClasses[T]
+
       // Add both the sealed trait provider and all subclass providers
-      b1.copy(providers = (b1.providers :+ sealedProvider) ++ subclassProviders)
+      b1.copy(
+        providers = (b1.providers :+ sealedProvider) ++ subclassProviders,
+        sealedSubtypeClasses = b1.sealedSubtypeClasses ++ subtypeClasses
+      )
     end registerSealed
 
     /** Batch register multiple sealed traits using tuple syntax.
@@ -356,7 +567,9 @@ object RegistryBuilder:
       * @note
       *   Only case classes are supported as sealed subtypes. Case objects are not supported - use Scala 3 enums instead.
       */
-    inline def registerSealedAll[T <: Tuple]: RegistryBuilder =
+    inline def registerSealedAll[T <: Tuple]: RegistryBuilder[Tuple.Concat[Registered, T]] =
+      ensureDistinctTupleTypes[T]
+      ensureTupleNotRegistered[T, Registered]
       val (temp, b0) = getOrBuildRegistry(builder)
 
       accumulateSealedProviders[T](b0, temp)
@@ -373,7 +586,9 @@ object RegistryBuilder:
       *   builder.registerAll[(Person, Address, Department)]
       *   }}}
       */
-    inline def registerAll[T <: Tuple]: RegistryBuilder =
+    inline def registerAll[T <: Tuple]: RegistryBuilder[Tuple.Concat[Registered, T]] =
+      ensureDistinctTupleTypes[T]
+      ensureTupleNotRegistered[T, Registered]
       val (temp, b0) = getOrBuildRegistry(builder)
 
       accumulateProviders[T](b0, temp)
@@ -393,7 +608,7 @@ object RegistryBuilder:
       *     .registerIf[AdminFeature](hasAdminAccess)
       *   }}}
       */
-    inline def registerIf[T: ClassTag](condition: Boolean): RegistryBuilder =
+    inline def registerIf[T: ClassTag](condition: Boolean): RegistryBuilder[Tuple] =
       if condition then register[T] else builder
 
     /** Build the final [[org.bson.codecs.configuration.CodecRegistry]].
@@ -453,12 +668,15 @@ object RegistryBuilder:
       *   val full = common ++ specificBuilder
       *   }}}
       */
-    def ++(other: RegistryBuilder): RegistryBuilder =
+    inline def ++[Other <: Tuple](other: RegistryBuilder[Other]): RegistryBuilder[Tuple.Concat[Registered, Other]] =
+      ensureNoOverlap[Other, Registered]
       builder.copy(
         providers = builder.providers ++ other.providers,
         codecs = builder.codecs ++ other.codecs,
+        sealedSubtypeClasses = builder.sealedSubtypeClasses ++ other.sealedSubtypeClasses,
         cachedRegistry = None // Invalidate cache when merging
       )
+    end ++
 
     /** Clear the cached temporary registry.
       *
@@ -467,7 +685,7 @@ object RegistryBuilder:
       * @return
       *   A new builder with cache cleared
       */
-    def clearCache: RegistryBuilder =
+    def clearCache: RegistryBuilder[Registered] =
       builder.copy(cachedRegistry = None)
 
     /** Get the current codec configuration.
@@ -553,9 +771,9 @@ object RegistryBuilder:
   /** Extension methods for CodecRegistry to create builders */
   extension (registry: CodecRegistry)
     /** Create a new builder from this registry */
-    def newBuilder: RegistryBuilder = from(registry)
+    def newBuilder: RegistryBuilder[EmptyTuple] = from(registry)
 
     /** Create a new builder with custom configuration */
-    def builderWith(config: CodecConfig): RegistryBuilder = apply(registry, config)
+    def builderWith(config: CodecConfig): RegistryBuilder[EmptyTuple] = apply(registry, config)
 
 end RegistryBuilder
