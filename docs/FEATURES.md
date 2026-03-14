@@ -538,7 +538,7 @@ case class User(
 
 ## Scala 3 Enums
 
-Support for simple Scala 3 enums (no parameters or custom fields).
+Support for Scala 3 enums via `EnumValueCodecProvider`.
 
 ### String-Based Enum
 
@@ -552,7 +552,7 @@ import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[Priority]())
+  .withProvider(EnumValueCodecProvider.forStringEnum[Priority])
   .register[Task]
   .build
 ```
@@ -571,7 +571,7 @@ val registry = RegistryBuilder
 ```scala
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[Priority](useOrdinal = true))
+  .withProvider(EnumValueCodecProvider.forOrdinalEnum[Priority])
   .register[Task]
   .build
 ```
@@ -585,7 +585,7 @@ val registry = RegistryBuilder
 }
 ```
 
-**Note:** Enums with parameters are supported using custom codec providers (see [Enum Support Guide](ENUM_SUPPORT.md) for details).
+**Note:** Enums with custom parameter fields are also supported using `EnumValueCodecProvider.apply[E, V]` with explicit encode/decode functions (see [Enum Support Guide](ENUM_SUPPORT.md) for details).
 
 ---
 
@@ -671,36 +671,34 @@ val registry2 = RegistryBuilder
 
 ## Type-Safe Field Path Resolution
 
-Compile-time safe MongoDB field path extraction with `MongoFieldResolver`.
+Compile-time safe MongoDB field path extraction with `MongoPath`.
 
 ```scala
-import io.github.mbannour.fields.MongoFieldResolver
+import io.github.mbannour.fields.MongoPath
+import io.github.mbannour.fields.MongoPath.syntax.?    // Option hop
+import org.mongodb.scala.bson.annotations.BsonProperty
+import org.bson.types.ObjectId
 
-case class Address(street: String, city: String, zipCode: Int)
-case class Person(_id: ObjectId, name: String, age: Int, address: Option[Address])
+case class Address(street: String, @BsonProperty("zip") zipCode: Int)
+case class Person(_id: ObjectId, name: String, address: Option[Address])
 
-// Generate field paths at compile-time
-object PersonFields extends MongoFieldResolver[Person]
-
-// Type-safe field references
-PersonFields.name           // "name"
-PersonFields.age            // "age"
-PersonFields.address.city   // "address.city"
-PersonFields.address.zipCode // "address.zipCode"
+// Extract dot-separated field paths at compile-time
+val namePath    = MongoPath.of[Person](_.name)            // "name"
+val zipPath     = MongoPath.of[Person](_.address.?.zipCode) // "address.zip"
 
 // Use in queries
 import org.mongodb.scala.model.Filters
 
 collection.find(
-  Filters.and(
-    Filters.eq(PersonFields.name, "Alice"),
-    Filters.eq(PersonFields.address.city, "Springfield")
-  )
+  Filters.eq(zipPath, 12345)
 ).toFuture()
-
-// Compile-time error for invalid fields
-// PersonFields.invalid  // ← Compilation error!
 ```
+
+**Rules:**
+- Use simple field-access chains, e.g. `_.a.b.c`
+- Import `MongoPath.syntax.?` to transparently traverse `Option` fields
+- Import `MongoPath.syntax.each` to traverse `Seq`/`List`/`Vector` for array queries
+- `@BsonProperty` overrides on constructor parameters are respected
 
 ---
 

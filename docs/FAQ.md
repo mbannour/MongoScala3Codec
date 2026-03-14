@@ -193,24 +193,6 @@ val registry = RegistryBuilder
 
 **See [Sealed Trait Support Guide](SEALED_TRAIT_SUPPORT.md) for comprehensive examples.**
 
-import org.bson.codecs.{Codec, IntegerCodec}
-
-given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
-
-val statusProvider = EnumValueCodecProvider[Status, Int](
-  toValue = _.code,
-  fromValue = code => Status.values.find(_.code == code).getOrElse(
-    throw new IllegalArgumentException(s"Invalid status code: $code")
-  )
-)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProviders(statusProvider)
-  .register[User]
-  .build
-```
-
 ---
 
 ### Error: "Diverging implicit expansion"

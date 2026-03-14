@@ -16,8 +16,8 @@ Prerequisites: JDK 17+, sbt, and enough heap for JMH (defaults are fine for smok
 Run a very short benchmark to verify everything compiles and runs:
 
 ```bash
-sbt benchmarks/jmh:compile
-sbt 'benchmarks/jmh:run -wi 0 -i 1 -f 1 -r 200ms .*'
+sbt "benchmarks/Jmh/compile"
+sbt "benchmarks/Jmh/run -wi 0 -i 1 -f 1 -r 200ms .*"
 ```
 
 - `-wi 0` — zero warmup iterations
@@ -29,15 +29,14 @@ sbt 'benchmarks/jmh:run -wi 0 -i 1 -f 1 -r 200ms .*'
 Increase iterations/forks for more stable numbers:
 
 ```bash
-sbt 'benchmarks/jmh:run -wi 3 -i 5 -f 2 -r 1s io.github.mbannour.bench.*'
+sbt "benchmarks/Jmh/run -wi 3 -i 5 -f 2 -r 1s io.github.mbannour.bench.*"
 ```
 
 ### Selecting specific benchmarks
 Use a regex to select:
 
 ```bash
-sbt 'benchmarks/jmh:run -wi 3 -i 5 -f 2 -r 1s \
-  .*CodecRoundTripBench.*roundTripNested.*'
+sbt "benchmarks/Jmh/run -wi 3 -i 5 -f 2 -r 1s .*CodecRoundTripBench.*roundTripNested.*"
 ```
 
 ## Adding new benchmarks

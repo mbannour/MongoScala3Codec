@@ -32,8 +32,8 @@ Complete reference for BSON type support in MongoScala3Codec.
 | `Set[T]` | Array | ✅ Full | Unordered (order not preserved) |
 | `Map[String, T]` | Document | ✅ Full | Embedded document |
 | `Map[K, V]` | Array of pairs | ✅ Full | For non-String keys |
-| `Either[L, R]` | Document | ✅ Full | Tagged union with discriminator |
-| `scala.util.Try[T]` | Document | ✅ Full | Success/Failure discriminated |
+| `Either[L, R]` | — | ❌ Not supported | Use sealed traits instead |
+| `scala.util.Try[T]` | — | ❌ Not supported | Use sealed traits instead |
 | Case Classes | Document | ✅ Full | Nested documents |
 | Enums (simple) | String/Int | ✅ Full | Via EnumValueCodecProvider |
 | Opaque Types | Underlying Type | ✅ Full | Zero-cost abstraction |
@@ -361,74 +361,6 @@ case class IntMap(
 }
 ```
 
-### Either Type
-
-```scala
-case class Result(
-  _id: ObjectId,
-  data: Either[String, Int]  // BSON: Document with discriminator
-)
-
-val leftResult = Result(new ObjectId(), Left("error"))
-val rightResult = Result(new ObjectId(), Right(42))
-```
-
-**BSON Storage:**
-```json
-// Left
-{
-  "_id": {"$oid": "..."},
-  "data": {
-    "_tag": "Left",
-    "value": "error"
-  }
-}
-
-// Right
-{
-  "_id": {"$oid": "..."},
-  "data": {
-    "_tag": "Right",
-    "value": 42
-  }
-}
-```
-
-### Try Type
-
-```scala
-import scala.util.{Try, Success, Failure}
-
-case class Computation(
-  _id: ObjectId,
-  result: Try[Int]       // BSON: Document with discriminator
-)
-
-val success = Computation(new ObjectId(), Success(42))
-val failure = Computation(new ObjectId(), Failure(new Exception("error")))
-```
-
-**BSON Storage:**
-```json
-// Success
-{
-  "_id": {"$oid": "..."},
-  "result": {
-    "_tag": "Success",
-    "value": 42
-  }
-}
-
-// Failure
-{
-  "_id": {"$oid": "..."},
-  "result": {
-    "_tag": "Failure",
-    "exception": "java.lang.Exception: error"
-  }
-}
-```
-
 ### Case Classes (Nested Documents)
 
 ```scala
@@ -467,7 +399,7 @@ import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[Priority]())  // String-based
+  .withProvider(EnumValueCodecProvider.forStringEnum[Priority])  // String-based
   .register[Task]
   .build
 ```
@@ -482,7 +414,7 @@ val registry = RegistryBuilder
 
 **BSON Storage (Ordinal-based):**
 ```scala
-.withProvider(EnumValueCodecProvider[Priority](useOrdinal = true))
+.withProvider(EnumValueCodecProvider.forOrdinalEnum[Priority])
 ```
 ```json
 {

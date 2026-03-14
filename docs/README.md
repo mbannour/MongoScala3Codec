@@ -79,7 +79,6 @@
 | Document | Audience |
 |----------|----------|
 | **[../CONTRIBUTING.md](../CONTRIBUTING.md)** | Contributors & maintainers |
-| **[INTERNAL_ANALYSIS.md](INTERNAL_ANALYSIS.md)** | Architecture deep-dive (internal) |
 
 ---
 
