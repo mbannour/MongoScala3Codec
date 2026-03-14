@@ -446,7 +446,7 @@ This implementation mirrors the Scala 2 macro approach from mongo-scala-driver:
 - Ensure subclass codecs are registered properly
 
 ### "BsonInvalidOperationException: Missing discriminator field '_type'" after Updates.set
-- This was a bug fixed in version 0.0.10
+- This was a bug fixed in version 0.0.10 (available from 0.0.10+)
 - Make sure you are using a version that includes the fix
 - Ensure the sealed hierarchy is registered with `registerSealed[T]` or `registerSealedAll[...]`, not just the individual subtypes with `register[T]`
 - The concrete subtype codecs produced by `registerSealed` / `registerSealedAll` automatically write the discriminator; codecs produced by a bare `register[T]` call do not

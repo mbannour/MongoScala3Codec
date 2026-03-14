@@ -232,7 +232,7 @@ val registry = RegistryBuilder
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.10",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 
@@ -433,7 +433,7 @@ import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[Status]())
+  .withProvider(EnumValueCodecProvider.forStringEnum[Status])
   .register[User]
   .build
 ```

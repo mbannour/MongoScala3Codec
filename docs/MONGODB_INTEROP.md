@@ -31,7 +31,7 @@ Complete guide to using MongoScala3Codec with MongoDB Scala and Java drivers.
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.10",
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
   "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
 )
 ```
@@ -102,7 +102,7 @@ enum Status:
 
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider[Status]())
+  .withProvider(EnumValueCodecProvider.forStringEnum[Status])
   .register[User]
   .build
 ```
@@ -278,13 +278,13 @@ val springfieldResidents = personCollection
   .find(Filters.eq("address.city", "Springfield"))
   .toFuture()
 
-// Query nested fields with type-safe helper
-import io.github.mbannour.fields.MongoFieldResolver
+// Query nested fields with type-safe MongoPath helper
+import io.github.mbannour.fields.MongoPath
 
-object PersonFields extends MongoFieldResolver[Person]
+val cityPath = MongoPath.of[Person](_.address.city)  // "address.city"
 
 val typeSafeQuery = personCollection
-  .find(Filters.eq(PersonFields.address.city, "Springfield"))
+  .find(Filters.eq(cityPath, "Springfield"))
   .toFuture()
 ```
 

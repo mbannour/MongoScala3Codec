@@ -337,11 +337,20 @@ case class Bad(var x: Int)  // Not supported
 class NotSupported(val x: Int)  // Not supported
 ```
 
-❌ **Scala 3 enums with parameters:**
+⚠️ **Scala 3 enums with parameters (require custom provider):**
 ```scala
-enum Complex(val code: Int):  // Not fully supported
+enum Complex(val code: Int):
   case A extends Complex(1)
   case B extends Complex(2)
+
+// Must use EnumValueCodecProvider with explicit encode/decode functions
+import org.bson.codecs.{Codec, IntegerCodec}
+given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
+
+val complexProvider = EnumValueCodecProvider[Complex, Int](
+  toValue = _.code,
+  fromValue = code => Complex.values.find(_.code == code).get
+)
 ```
 
 ### Supported Alternatives
