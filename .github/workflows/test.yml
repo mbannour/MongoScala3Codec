@@ -18,6 +18,69 @@ env:
   CI: true
 
 jobs:
+  # ── Metadata consistency (no sbt needed, runs fast) ─────────────────
+  metadata-check:
+    runs-on: ubuntu-latest
+    name: Metadata Consistency
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version and license consistency
+        run: |
+          set -euo pipefail
+
+          # --- Extract canonical values from build.sbt ---
+          SBT_VERSION=$(grep -oP 'version\s*:=\s*"\K[^"]+' build.sbt | head -1)
+          SBT_LICENSE=$(grep -oP 'licenses\s*\+=\s*\("\K[^"]+' build.sbt | head -1)
+
+          echo "build.sbt version : $SBT_VERSION"
+          echo "build.sbt license : $SBT_LICENSE"
+
+          ERRORS=0
+
+          # --- README badge version ---
+          README_BADGE_VER=$(grep -oP 'mongoScala3Codecs-\K[0-9]+\.[0-9]+\.[0-9]+' README.md | head -1)
+          if [[ "$README_BADGE_VER" != "$SBT_VERSION" ]]; then
+            echo "::error file=README.md::Version badge shows $README_BADGE_VER but build.sbt is $SBT_VERSION"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          # --- README dependency examples ---
+          while IFS= read -r readme_ver; do
+            if [[ "$readme_ver" != "$SBT_VERSION" ]]; then
+              echo "::error file=README.md::Dependency example shows $readme_ver but build.sbt is $SBT_VERSION"
+              ERRORS=$((ERRORS+1))
+            fi
+          done < <(grep -oP 'mongoscala3codec"\s*%\s*"\K[^"]+' README.md)
+
+          # --- LICENSE file must be Apache-2.0 ---
+          if ! grep -q "Apache License" LICENSE; then
+            echo "::error file=LICENSE::LICENSE file does not contain Apache License text"
+            ERRORS=$((ERRORS+1))
+          fi
+          if [[ "$SBT_LICENSE" != "Apache-2.0" ]]; then
+            echo "::error file=build.sbt::build.sbt declares license '$SBT_LICENSE' but LICENSE file is Apache-2.0"
+            ERRORS=$((ERRORS+1))
+          fi
+
+          # --- docs version references ---
+          while IFS= read -r docs_ver; do
+            if [[ "$docs_ver" != "$SBT_VERSION" ]]; then
+              echo "::error file=docs::Docs dependency example shows $docs_ver but build.sbt is $SBT_VERSION"
+              ERRORS=$((ERRORS+1))
+            fi
+          done < <(grep -rhoP 'mongoscala3codec"\s*%\s*"\K[^"]+' docs/ 2>/dev/null)
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo "::error::$ERRORS metadata inconsistency(ies) found — fix build.sbt, README.md, or docs/ before merging"
+            exit 1
+          fi
+
+          echo "All metadata checks passed (version=$SBT_VERSION, license=$SBT_LICENSE)"
+
   # ── Formatting (runs once, gates all other jobs) ────────────────────
   format:
     runs-on: ubuntu-latest
@@ -50,6 +113,10 @@ jobs:
 
     strategy:
       matrix:
+        # Published cross-versions (must match crossScalaVersions in build.sbt):
+        #   3.3.1, 3.4.2, 3.6.4, 3.7.1
+        # Forward-compat probe (not published, binary-compatible via _3 suffix):
+        #   3.8.0
         scala: [ "3.3.1", "3.4.2", "3.6.4", "3.7.1", "3.8.0" ]
         java: [ "11", "17", "19", "21" ]
       fail-fast: false
@@ -176,12 +243,13 @@ jobs:
     runs-on: ubuntu-latest
     name: All Tests Passed
     if: always()
-    needs: [ test, integration-test, benchmark-compile, coverage ]
+    needs: [ metadata-check, test, integration-test, benchmark-compile, coverage ]
 
     steps:
       - name: Check results
         run: |
           results=(
+            "${{ needs.metadata-check.result }}"
             "${{ needs.test.result }}"
             "${{ needs.integration-test.result }}"
             "${{ needs.benchmark-compile.result }}"
