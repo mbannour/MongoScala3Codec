@@ -1,11 +1,62 @@
 # MongoScala3Codec
 
-![mongoScala3Codec version](https://img.shields.io/badge/mongoScala3Codecs-0.0.11-brightgreen)
-![mongoScala3Codec compatibility](https://img.shields.io/badge/Scala-3.3.7%2B-blue)
+![version](https://img.shields.io/badge/version-0.0.11-brightgreen)
+![Scala](https://img.shields.io/badge/Scala-3.3%2B-blue)
+![MongoDB driver](https://img.shields.io/badge/mongo--scala--driver-5.7%2B-13aa52)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-**MongoScala3Codec – Compile‑time BSON codecs for Scala 3.** Auto-generates type-safe BSON codecs at compile time with zero runtime overhead and production-ready error handling.
+**Type-safe MongoDB for Scala 3 — without leaving the official driver.**
+
+In MongoDB, a mistyped field name or a wrong value type in a query *doesn't fail loudly* — it compiles,
+runs, and quietly returns the wrong data. MongoScala3Codec turns those silent runtime bugs into
+**compile errors**, while you keep using the official MongoDB Scala driver exactly as you do today.
+
+```scala
+// ❌ Official driver — everything is a string, nothing is checked
+collection.updateMany(
+  Filters.and(
+    Filters.eq("departmnet", "Engineering"),   // ← typo compiles & runs → silently matches 0 docs
+    Filters.gt("salary", "80000")              // ← String vs number → silently matches 0 docs
+  ),
+  Updates.mul("salary", 1.05)
+)
+
+// ✅ MongoScala3Codec — same driver, same `collection`, now the compiler has your back
+import io.github.mbannour.mongo.dsl.*
+
+collection.updateMany(
+  Filter.and(
+    field[Employee](_.department) === "Engineering",  // ← wrong field name → won't compile
+    field[Employee](_.salary) > 80_000.0              // ← wrong type → won't compile
+  ),
+  field[Employee](_.salary).mul(1.05)
+)
+```
+
+**No rewrite. No new driver. No effect system to adopt.** The DSL produces plain `Bson` and the codecs
+are standard `Codec`s, so it drops straight into your existing project — your `collection`, your queries,
+your stack stay the same. You just stop shipping field-name typos to production.
+
+### What you get
+
+- 🛡️ **Queries the compiler checks** — filters, updates, sorts, projections, and full aggregation
+  pipelines. Field typos and type mismatches fail at *compile time*, not at 2 a.m.
+- ⚡ **Zero-boilerplate codecs, zero runtime cost** — case classes derive straight to BSON at compile
+  time (no reflection, no JSON round-trip), preserving `ObjectId`, `Decimal128`, dates, and enums.
+- 🔌 **Drops onto the official 5.7+ driver** — add one dependency to an existing app and write typed
+  queries in minutes. Effect-agnostic: works with `Future`, ZIO, and more.
+- ✅ **Production-ready** — 300+ tests against live MongoDB, comprehensive compile-time error messages.
+
+```scala
+libraryDependencies ++= Seq(
+  "io.github.mbannour" %% "mongoscala3codec"     % "0.0.11",  // compile-time BSON codecs
+  "io.github.mbannour" %% "mongoscala3codec-dsl" % "0.0.11",  // type-safe query/update DSL
+  "org.mongodb.scala"  %% "mongo-scala-driver"   % "5.7.0"    // the official driver — unchanged
+)
+```
+
+👉 **Get running in 5 minutes:** [Quickstart](docs/QUICKSTART.md) · **See every operator:** [DSL Guide](docs/DSL.md)
 
 ---
 
@@ -21,6 +72,8 @@
   - [Sealed Traits](#sealed-traits)
   - [Enums](#enums)
   - [Type-Safe Field Paths](#type-safe-field-paths)
+  - [Type-Safe Query DSL](#type-safe-query-dsl)
+  - [Repository Abstraction](#repository-abstraction)
   - [Testing](#testing)
 - [Architecture](#-architecture)
 - [Performance](#-performance--benchmarks)
@@ -36,8 +89,9 @@
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
-  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+  "io.github.mbannour" %% "mongoscala3codec"     % "0.0.11",  // core codecs
+  "io.github.mbannour" %% "mongoscala3codec-dsl" % "0.0.11",  // type-safe DSL (optional)
+  "org.mongodb.scala"  %% "mongo-scala-driver"   % "5.7.0"
 )
 ```
 
@@ -73,58 +127,94 @@ people.insertOne(person).toFuture()
 
 ## 💡 Why MongoScala3Codec?
 
-### **The Core Problem: No Scala 3 Support**
+### **The Problem: the official driver stops at codecs**
 
-**This library was created to enable native MongoDB usage in Scala 3.** The official `mongo-scala-driver` **only supports Scala 2.11, 2.12, and 2.13** because it relies heavily on **Scala 2 macros** for automatic codec generation. Since Scala 3 completely redesigned the macro system, the official driver **requires a major rewrite** to support Scala 3.
+As of **5.7**, the official `mongo-scala-driver` finally derives BSON codecs natively on Scala 3 (via a new `scala.quoted` macro), closing the gap that originally motivated this library. But it stops there. With the official driver alone you still:
 
-**Your options without MongoScala3Codec:**
-- ⬇️ **Downgrade to Scala 2.13** (lose Scala 3 features)
-- ❌ **Wait indefinitely** for official Scala 3 support
-- ✍️ **Write manual codecs** for every type (100+ lines per case class)
+- 🔤 **Write string-based queries** — `Filters.eq("address.city", v)`. Typos compile fine and fail at runtime.
+- 🧬 **Get rigid polymorphism** — a hard-coded `_t` discriminator using the simple class name; no configurable field or strategy.
+- 🚫 **Hand-write enum codecs** — Scala 3 `enum` fields throw `CodecConfigurationException` at runtime unless you supply your own codec.
+- 🧱 **Register types verbosely** — `fromProviders(classOf[A], classOf[B], …)`, with no fluent builder.
 
-### **MongoScala3Codec Solves This**
+**MongoScala3Codec is the type-safe ergonomics layer on top of the official driver.** It emits plain `Bson` and standard `Codec`s, so it composes with the driver rather than replacing it.
 
-| Feature | MongoScala3Codec | mongo-scala-driver | ReactiveMongo |
-|---------|------------------|---------------------|---------------|
-| **Scala 3 Support** | ✅ **Native** | ❌ Scala 2 only¹ | ❌ Scala 2 only² |
-| **Macro System** | ✅ Scala 3 macros | ❌ Scala 2 macros³ | ⚠️ Scala 2 macros |
-| **Compile-Time Codecs** | ✅ Zero overhead | ✅ Scala 2 only | ⚠️ Mixed⁴ |
-| **Type-Safe Field Paths** | ✅ **MongoPath**⁵ | ❌ | ❌ |
-| **None Handling Options** | ✅ Ignore/Encode | ✅ Ignore/Encode | ✅ |
-| **Production Error Messages** | ✅ **Detailed**⁶ | ⚠️ Basic | ⚠️ Basic |
+### **What MongoScala3Codec adds over the official driver**
+
+| Capability | MongoScala3Codec | mongo-scala-driver 5.7+ | ReactiveMongo |
+|---|---|---|---|
+| **Scala 3 compile-time codecs** | ✅ | ✅ (since 5.7) | ⚠️ via 2.13 compat |
+| **Type-safe query/update DSL** | ✅ `field[T]` DSL | ❌ string-based | ❌ string-based |
+| **Type-safe field paths** | ✅ **MongoPath**¹ | ❌ string-based | ❌ string-based |
+| **Type-safe aggregation builders** | ✅ `Stage`/`Expr`/`Accumulator` | ❌ string-based | ❌ |
+| **Scala 3 enum codecs** | ✅ string/ordinal/custom | ❌ runtime failure² | ⚠️ |
+| **Configurable discriminator** | ✅ field name + SimpleName/FQN/Custom | ❌ fixed `_t`, simple name only | ⚠️ |
+| **None handling (omit vs null)** | ✅ | ✅ | ✅ |
+| **Fluent registry builder** | ✅ `RegistryBuilder` | ❌ manual providers | ⚠️ |
+| **Detailed error messages** | ✅ **Detailed**³ | ⚠️ Basic | ⚠️ Basic |
 
 **Footnotes:**
-1. mongo-scala-driver supports Scala 2.11, 2.12, 2.13 only - [Scaladex](https://index.scala-lang.org/mongodb/mongo-java-driver)
-2. ReactiveMongo v0.20.13 supports Scala 2.11, 2.12, 2.13 only - [Scaladex](https://index.scala-lang.org/reactivemongo/reactivemongo)
-3. mongo-scala-driver "heavily uses macros which were dropped in Scala 3" - [Stack Overflow](https://stackoverflow.com/q/69230300)
-4. ReactiveMongo uses both compile-time macros and runtime reflection components
-5. Compile-time safe field paths: `MongoPath.of[User](_.address.?.city)` respects `@BsonProperty`
-6. Enhanced macro errors with ❌/✅ examples, runtime errors with causes and suggestions
+1. Compile-time safe field paths: `MongoPath.of[User](_.address.?.city)` respects `@BsonProperty`
+2. Verified against `mongo-scala-driver` 5.7.0: a Scala 3 `enum` field encodes to `CodecConfigurationException: Can't find a codec for …` unless you register a hand-written codec. (Opaque types, by contrast, work in both — they erase to their underlying type.)
+3. Enhanced macro errors with ❌/✅ examples, runtime errors with causes and suggestions
 
-**Bottom line:** MongoScala3Codec is the **only library** that enables native MongoDB usage in Scala 3 with compile-time safety and BSON-native types.
+**Bottom line:** since 5.7 the official driver covers codecs — MongoScala3Codec adds the **type-safe query/update/aggregation DSL, Scala 3 enum codecs, configurable polymorphism, and ergonomic registration** that the driver still lacks.
 
 ---
 
 ## 📦 Installation
 
-Add to your `build.sbt`:
+**Requirements:** Scala 3.3.1 or higher · JDK 11 or higher
 
-```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.11"
-```
-
-For use with MongoDB Scala Driver:
+### Core codec library
 
 ```scala
 libraryDependencies ++= Seq(
   "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
-  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+  "org.mongodb.scala"  %% "mongo-scala-driver" % "5.7.0"
 )
 ```
 
-**Requirements:**
-- Scala 3.3.1 or higher
-- JDK 11 or higher
+### Core + type-safe query/update DSL
+
+Add the DSL artifact to get `field[T]`, `Filter`, `Update`, `Sort`, and `Projection`:
+
+```scala
+libraryDependencies ++= Seq(
+  "io.github.mbannour" %% "mongoscala3codec"     % "0.0.11",
+  "io.github.mbannour" %% "mongoscala3codec-dsl" % "0.0.11",
+  "org.mongodb.scala"  %% "mongo-scala-driver"   % "5.7.0"
+)
+```
+
+### Repository abstraction (optional)
+
+Add the repository artifact for a type-safe, effect-agnostic CRUD layer over a collection:
+
+```scala
+libraryDependencies ++= Seq(
+  "io.github.mbannour" %% "mongoscala3codec"            % "0.0.11",
+  "io.github.mbannour" %% "mongoscala3codec-dsl"        % "0.0.11",
+  "io.github.mbannour" %% "mongoscala3codec-repository" % "0.0.11",
+  "org.mongodb.scala"  %% "mongo-scala-driver"          % "5.7.0"
+)
+```
+
+### DSL testing utilities
+
+Add to your `Test` scope to get `DslTestKit` assertion helpers:
+
+```scala
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec-dsl-testkit" % "0.0.11" % Test
+```
+
+### Summary
+
+| Artifact | When to use |
+|----------|-------------|
+| `mongoscala3codec` | Core BSON codec generation (always required) |
+| `mongoscala3codec-dsl` | Type-safe filters, updates, sorts, projections |
+| `mongoscala3codec-repository` | Type-safe, effect-agnostic CRUD over a collection |
+| `mongoscala3codec-dsl-testkit` | DSL assertion helpers in tests |
 
 ---
 
@@ -136,6 +226,7 @@ libraryDependencies ++= Seq(
 - ✅ **Compile-Time Safe** - Catch errors before deployment, not in production
 - ✅ **Zero Runtime Overhead** - Codecs generated at compile time, no reflection
 - ✅ **Type-Safe Field Paths** - `MongoPath.of[User](_.address.?.city)` - unique in Scala
+- ✅ **Type-Safe Query DSL** - Compile-time filters, updates, sorts, projections with `field[T]`
 - ✅ **BSON-Native** - Preserves ObjectId, Binary, Decimal128, Dates
 - ✅ **Production-Ready** - Comprehensive error messages, 280+ tests, stress-tested
 
@@ -173,6 +264,8 @@ libraryDependencies ++= Seq(
 |--------------|---------------|
 | **Get started quickly** | [Quickstart Guide](docs/QUICKSTART.md) |
 | **Understand all features** | [Feature Overview](docs/FEATURES.md) |
+| **Build type-safe filters & updates** | [Query/Update DSL](docs/DSL.md) |
+| **Use a typed CRUD repository** | [Repository Guide](docs/REPOSITORY.md) |
 | **Work with sealed traits** | [Sealed Trait Support](docs/SEALED_TRAIT_SUPPORT.md) |
 | **Use Scala 3 enums** | [Enum Support](docs/ENUM_SUPPORT.md) |
 | **Understand BSON mapping** | [BSON Type Mapping](docs/BSON_TYPE_MAPPING.md) |
@@ -328,6 +421,79 @@ val reg = RegistryBuilder
 **Best practice:** Prefer string-based enums (`forStringEnum`) for schema stability and readability.
 
 👉 **See [Enum Support Guide](docs/ENUM_SUPPORT.md)** for advanced patterns.
+
+---
+
+### Type-Safe Query DSL
+
+Build filters, updates, sorts, and projections entirely at compile time — no string field names,
+no driver-specific imports:
+
+```scala
+import io.github.mbannour.mongo.dsl.*
+import io.github.mbannour.fields.MongoPath.syntax.?
+
+case class Address(city: String, @BsonProperty("zip") zipCode: Int)
+case class Employee(_id: ObjectId, name: String, salary: Double, active: Boolean, address: Option[Address], skills: List[String])
+
+// Filter: active employees in Paris earning above 80k
+val filter = Filter.and(
+  field[Employee](_.active) === true,
+  field[Employee](_.salary) > 80_000.0,
+  field[Employee](_.address.?.city) === "Paris"   // path = "address.city"
+)
+
+// Atomic update: 5% raise + add a skill
+val update = Update.combine(
+  field[Employee](_.salary).mul(1.05),
+  field[Employee](_.skills).addToSet("Scala 3")
+)
+
+// Sort by salary desc, then name asc
+val sort = Sort.combine(field[Employee](_.salary).desc, field[Employee](_.name).asc)
+
+collection.updateMany(filter, update).toFuture()
+collection.find(filter).sort(sort).toFuture()
+```
+
+Every operator is typed — `field[Employee](_.salary) === "wrong"` is a compilation error.
+
+👉 **See [Query/Update DSL Guide](docs/DSL.md)** for the complete API reference.
+
+---
+
+### Repository Abstraction
+
+For a higher-level CRUD layer, the optional `mongoscala3codec-repository` module wraps a collection
+in a type-safe, **effect-agnostic** `MongoRepository[F, Doc, Id]` driven entirely by the DSL:
+
+```scala
+import io.github.mbannour.mongo.dsl.*
+import io.github.mbannour.mongo.repository.*
+import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+// idField is just a DSL field reference — typically _._id
+val repo: MongoRepository[Future, Employee, ObjectId] =
+  MongoRepository(collection, field[Employee](_._id))
+
+repo.find(
+  filter = Filter.and(
+    field[Employee](_.department) === "Engineering",
+    field[Employee](_.salary) > 80_000.0
+  ),
+  sort  = Some(field[Employee](_.salary).desc),
+  limit = 10
+)                                            // Future[Seq[Employee]]
+
+repo.updateById(id, Update.combine(field[Employee](_.salary).mul(1.05)))  // Future[Long]
+repo.findById(id)                            // Future[Option[Employee]]
+```
+
+The effect type `F` is abstract: a `Future` instance ships in the module, and ZIO / cats-effect
+instances are a few lines each in a thin integration module.
+
+👉 **See [Repository Guide](docs/REPOSITORY.md)** for the full API.
 
 ---
 

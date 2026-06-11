@@ -416,14 +416,15 @@ case class CodecConfig(
 
 ## Comparison with mongo-scala-driver
 
-This implementation mirrors the Scala 2 macro approach from mongo-scala-driver:
+This implementation mirrors the official `mongo-scala-driver` macro approach, with a more flexible discriminator:
 
-| Feature | mongo-scala-driver | MongoScala3Codec |
+| Feature | mongo-scala-driver 5.7+ | MongoScala3Codec |
 |---------|-------------------|------------------|
+| Scala 3 codecs | ✅ since driver 5.7 (`scala.quoted` macro) | ✅ native |
 | Discriminator field | `_t` (hardcoded) | `_type` (configurable) |
+| Discriminator value | simple class name only | SimpleName / FullyQualifiedName / Custom |
 | Registration | `Macros.createCodecProvider` | `registerSealed[T]` |
 | Case objects | ❌ Not supported | ❌ Not supported |
-| Scala version | Scala 2 macros | Scala 3 metaprogramming |
 | Mark/reset pattern | ✅ Used | ✅ Used |
 | Subclass discovery | Compile-time | Compile-time |
 

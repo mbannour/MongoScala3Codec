@@ -4,12 +4,13 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 
 ## Why Use This Library?
 
-**MongoScala3Codec enables native MongoDB usage in Scala 3.** The official `mongo-scala-driver` only supports Scala 2 (2.11, 2.12, 2.13) because it uses Scala 2 macros. This library provides:
-- ✅ **Scala 3 native** - Uses modern Scala 3 macros
-- ✅ **Zero boilerplate** - One line registers any case class
-- ✅ **Compile-time safe** - Catch errors at compile time, not production
-- ✅ **BSON native** - Full support for ObjectId, Binary, Decimal128, etc.
-- ✅ **Scala 3 enum support** - String/ordinal/custom field encoding
+**MongoScala3Codec is the type-safe ergonomics layer on top of the official driver.** Since `mongo-scala-driver` 5.7 the official driver derives BSON codecs natively on Scala 3 — this library adds the type safety and ergonomics it still lacks:
+- ✅ **Zero boilerplate** — `RegistryBuilder` registers any case class in one line (vs manual `fromProviders(classOf[…])`)
+- ✅ **Compile-time safe** — Catch errors at compile time, not production
+- ✅ **BSON native** — Full support for ObjectId, Binary, Decimal128, etc.
+- ✅ **Type-safe query DSL** — `field[T](_.f) === value` instead of `Filters.eq("f", value)`
+- ✅ **Scala 3 enum support** — String/ordinal/custom field encoding (the official driver fails on `enum` fields at runtime)
+- ✅ **Configurable polymorphism** — discriminator field name + SimpleName/FQN/Custom strategy
 
 ## Prerequisites
 
@@ -17,14 +18,29 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 - MongoDB instance (local or cloud)
 - SBT or Mill build tool
 
-## Step 1: Add Dependency
+## Step 1: Add Dependencies
 
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.11"
-libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+// Required: core codec library + MongoDB driver
+libraryDependencies ++= Seq(
+  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
+  "org.mongodb.scala" %% "mongo-scala-driver" % "5.7.0"  // native Scala 3 since 5.7
+)
+
+// Optional but recommended: type-safe query/update DSL
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec-dsl" % "0.0.11"
+
+// Optional: DSL assertion helpers for your test suite
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec-dsl-testkit" % "0.0.11" % Test
 ```
+
+| Artifact | Purpose |
+|----------|---------|
+| `mongoscala3codec` | Compile-time BSON codecs — always required |
+| `mongoscala3codec-dsl` | `field[T]`, `Filter`, `Update`, `Sort`, `Projection` |
+| `mongoscala3codec-dsl-testkit` | `DslTestKit` assertions for testing query/update logic |
 
 ## Step 2: Define Your Domain Models
 
@@ -88,7 +104,6 @@ val customerCollection: MongoCollection[Customer] = database.getCollection[Custo
 ## Step 5: Insert and Query Data
 
 ```scala
-import org.mongodb.scala.model.Filters
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -101,18 +116,8 @@ val newUser = User(
   age = 28
 )
 
-val insertResult = Await.result(
-  userCollection.insertOne(newUser).toFuture(),
-  10.seconds
-)
+Await.result(userCollection.insertOne(newUser).toFuture(), 10.seconds)
 println(s"Inserted user with ID: ${newUser._id}")
-
-// QUERY: Find the user by email
-val foundUser = Await.result(
-  userCollection.find(Filters.eq("email", "alice@example.com")).first().toFuture(),
-  10.seconds
-)
-println(s"Found user: $foundUser")
 
 // INSERT: Nested case class with collections
 val customer = Customer(
@@ -121,87 +126,149 @@ val customer = Customer(
   address = Address("123 Main St", "Springfield", 12345),
   tags = List("premium", "verified", "active")
 )
-
 Await.result(customerCollection.insertOne(customer).toFuture(), 10.seconds)
+```
 
-// QUERY: Find customers by city
-val springfieldCustomers = Await.result(
-  customerCollection.find(Filters.eq("address.city", "Springfield")).toFuture(),
+## Step 6: Type-Safe Queries with the DSL
+
+Instead of writing field names as strings (which break silently on refactoring), use the DSL:
+
+```scala
+import io.github.mbannour.mongo.dsl.*
+```
+
+**Before — stringly typed, no compile-time safety:**
+
+```scala
+import org.mongodb.scala.model.{Filters, Updates}
+
+// Typo in "email" won't be caught until runtime
+userCollection.find(Filters.eq("email", "alice@example.com")).first().toFuture()
+
+// Wrong type for age won't be caught until runtime
+userCollection.updateOne(Filters.eq("_id", id), Updates.inc("age", "oops")).toFuture()
+```
+
+**After — type-safe, refactor-proof:**
+
+```scala
+// field path and value type are checked at compile time
+userCollection.find(field[User](_.email) === "alice@example.com").first().toFuture()
+
+// field[User](_.age).inc("oops") would not compile — age is Int, not String
+userCollection.updateOne(field[User](_._id) === id, field[User](_.age).inc(1)).toFuture()
+```
+
+**Combining filters, updates, sort, and projection:**
+
+```scala
+// Find adult customers in Springfield, sorted by name, showing only name + city
+val filter = Filter.and(
+  field[Customer](_.address.city) === "Springfield",
+  field[User](_.age) >= 18
+)
+val sort = field[Customer](_.name).asc
+val proj = Projection.combine(
+  field[Customer](_.name).include,
+  field[Customer](_.address.city).include,
+  Projection.excludeId
+)
+
+val results = Await.result(
+  customerCollection.find(filter).sort(sort).projection(proj).toFuture(),
   10.seconds
 )
-println(s"Customers in Springfield: ${springfieldCustomers.size}")
 
+// Atomic update: tag as verified and increment a counter
+val update = Update.combine(
+  field[Customer](_.tags).addToSet("verified"),
+  // field[Customer](_.loginCount).inc(1)   ← add loginCount to model to enable this
+)
 ```
+
+> **Tip:** Import `io.github.mbannour.fields.MongoPath.syntax.?` to navigate `Option` fields:
+> ```scala
+> import io.github.mbannour.fields.MongoPath.syntax.?
+> case class Order(customer: Option[Customer])
+> field[Order](_.customer.?.name) === "Alice"   // path = "customer.name"
+> ```
+
+See the **[full DSL reference](DSL.md)** for all operators and the complete API.
 
 ## Complete Working Example
 
-Here's a complete, runnable example you can paste into a Scala worksheet or main method:
+Here's a complete, runnable example that uses both the codec and the DSL:
 
 ```scala
 import org.bson.types.ObjectId
-import io.github.mbannour.mongo.codecs.{RegistryBuilder, CodecConfig, NoneHandling}
-import org.mongodb.scala._
-import org.mongodb.scala.model.Filters
+import io.github.mbannour.mongo.codecs.RegistryBuilder
+import io.github.mbannour.mongo.dsl.*
+import org.mongodb.scala.*
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Await
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
-// 1. Define models
 case class BlogPost(
   _id: ObjectId,
   title: String,
-  content: String,
   author: String,
   tags: List[String],
-  published: Boolean
+  published: Boolean,
+  views: Int
 )
 
 @main def quickstartExample(): Unit =
-  
-  val codecRegistry = RegistryBuilder
+  val registry = RegistryBuilder
     .from(MongoClient.DEFAULT_CODEC_REGISTRY)
     .ignoreNone
     .register[BlogPost]
     .build
-  
-  // 3. Connect to MongoDB
-  val mongoClient = MongoClient("mongodb://localhost:27017")
-  val database = mongoClient.getDatabase("blog_db").withCodecRegistry(codecRegistry)
-  val posts = database.getCollection[BlogPost]("posts")
-  
-  // 4. Create and insert a blog post
-  val post = BlogPost(
-    _id = new ObjectId(),
-    title = "Getting Started with MongoScala3Codec",
-    content = "This library makes MongoDB operations type-safe and effortless...",
-    author = "Alice",
-    tags = List("scala", "mongodb", "tutorial"),
-    published = true
-  )
-  
+
+  val client = MongoClient("mongodb://localhost:27017")
+  val posts  = client.getDatabase("blog_db").withCodecRegistry(registry)
+                     .getCollection[BlogPost]("posts")
+
+  // Insert
+  val post = BlogPost(new ObjectId(), "Getting Started", "Alice",
+                      List("scala", "mongodb"), published = true, views = 0)
   Await.result(posts.insertOne(post).toFuture(), 10.seconds)
-  println(s"✅ Inserted post: ${post.title}")
-  
-  // 5. Query the post
+  println(s"✅ Inserted: ${post.title}")
+
+  // Query with DSL — compile-time safe field references
   val found = Await.result(
-    posts.find(Filters.eq("author", "Alice")).first().toFuture(),
+    posts.find(field[BlogPost](_.author) === "Alice").first().toFuture(),
     10.seconds
   )
-  println(s"✅ Found post: ${found.title}")
-  
-  // 6. Update the post
-  import org.mongodb.scala.model.Updates
+  println(s"✅ Found: ${found.title}")
+
+  // Atomic update — add a tag and increment view count
   Await.result(
     posts.updateOne(
-      Filters.eq("_id", post._id),
-      Updates.push("tags", "beginner-friendly")
+      field[BlogPost](_._id) === post._id,
+      Update.combine(
+        field[BlogPost](_.tags).addToSet("beginner-friendly"),
+        field[BlogPost](_.views).inc(1)
+      )
     ).toFuture(),
     10.seconds
   )
-  println("✅ Updated post tags")
-  
-  // Cleanup
-  mongoClient.close()
+  println("✅ Updated tags and views")
+
+  // Sort published posts by views desc, project title + views only
+  val topPosts = Await.result(
+    posts.find(field[BlogPost](_.published) === true)
+         .sort(field[BlogPost](_.views).desc)
+         .projection(Projection.combine(
+           field[BlogPost](_.title).include,
+           field[BlogPost](_.views).include,
+           Projection.excludeId
+         ))
+         .toFuture(),
+    10.seconds
+  )
+  topPosts.foreach(p => println(s"  ${p.title} — ${p.views} views"))
+
+  client.close()
 ```
 
 ## What Just Happened?
@@ -216,10 +283,11 @@ case class BlogPost(
 
 ## Next Steps
 
-- 📖 Read the [Feature Overview](FEATURES.md) to learn about all capabilities
-- 🎯 Explore [Enum Support Guide](ENUM_SUPPORT.md) for Scala 3 enum handling
-- 🔧 Check out [How It Works](HOW_IT_WORKS.md) to understand the internals
-- ❓ Visit the [FAQ](FAQ.md) for common questions and troubleshooting
+- 🔍 **[DSL Reference](DSL.md)** — Full API for filters, updates, sort, projection, and `BsonEncoder`
+- 🧪 **[DSL Testing](DSL.md#testing-with-dsltestkit)** — Use `DslTestKit` to unit-test your query logic
+- 📖 **[Feature Overview](FEATURES.md)** — Sealed traits, enums, opaque types, and more
+- 🎯 **[Enum Support](ENUM_SUPPORT.md)** — Scala 3 enum handling
+- ❓ **[FAQ](FAQ.md)** — Common questions and troubleshooting
 
 ## Common Issues
 
@@ -244,10 +312,10 @@ given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
 
 ### Type mismatch with MongoDB Scala Driver
 
-**Solution:** Ensure you're using the correct cross-version:
+**Solution:** Use the native Scala 3 driver artifact (5.7.0+). No `CrossVersion.for3Use2_13` shim is needed anymore:
 
 ```scala
-"org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
+"org.mongodb.scala" %% "mongo-scala-driver" % "5.7.0"
 ```
 
 ---

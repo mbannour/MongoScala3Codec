@@ -17,6 +17,7 @@ MongoScala3Codec provides comprehensive BSON codec generation for Scala 3 applic
 - [Default Values](#default-values)
 - [Type-Safe Configuration](#type-safe-configuration)
 - [Type-Safe Field Path Resolution](#type-safe-field-path-resolution)
+- [Type-Safe Query/Update DSL](#type-safe-queryupdate-dsl)
 - [Testing Utilities](#testing-utilities)
 - [Limitations](#limitations)
 
@@ -540,6 +541,11 @@ case class User(
 
 Support for Scala 3 enums via `EnumValueCodecProvider`.
 
+> **Why this matters vs the official driver:** the `mongo-scala-driver` 5.7 codec macro has no built-in
+> Scala 3 `enum` handling — a field of `enum` type fails at runtime with
+> `CodecConfigurationException: Can't find a codec for …`. MongoScala3Codec encodes enums by name, ordinal,
+> or a custom field with no hand-written codec.
+
 ### String-Based Enum
 
 ```scala
@@ -699,6 +705,90 @@ collection.find(
 - Import `MongoPath.syntax.?` to transparently traverse `Option` fields
 - Import `MongoPath.syntax.each` to traverse `Seq`/`List`/`Vector` for array queries
 - `@BsonProperty` overrides on constructor parameters are respected
+
+---
+
+## Type-Safe Query/Update DSL
+
+The DSL builds MongoDB filters, updates, sorts, and projections at compile time using the same
+`MongoPath` macro that powers the codec. No strings, no driver-specific imports.
+
+### Import
+
+```scala
+import io.github.mbannour.mongo.dsl.*
+import io.github.mbannour.fields.MongoPath.syntax.?   // for Option navigation
+```
+
+### Filter
+
+```scala
+case class User(_id: ObjectId, name: String, age: Int, active: Boolean)
+
+// Equality / comparison
+field[User](_.age) > 18
+field[User](_.active) === true
+
+// Logical combinators
+Filter.and(
+  field[User](_.department) === "Engineering",
+  field[User](_.salary) > 80_000.0
+)
+Filter.or(
+  field[User](_.role) === "admin",
+  field[User](_.age) >= 65
+)
+Filter.not(field[User](_.active) === false)
+```
+
+### Update
+
+```scala
+// $set
+field[User](_.name) := "Alice"
+
+// $unset
+field[User](_.deletedAt).unset
+
+// $inc
+field[User](_.age).inc(1)
+
+// Array mutations — element type inferred from value
+field[User](_.skills).push("scala")
+field[User](_.skills).addToSet("functional")
+
+// Atomic multi-field update
+collection.updateOne(filter, Update.combine(
+  field[User](_.name)   := "Bob",
+  field[User](_.active) := false,
+  field[User](_.age).inc(1)
+))
+```
+
+### Sort and Projection
+
+```scala
+// Multi-field sort
+Sort.combine(field[User](_.age).desc, field[User](_.name).asc)
+
+// Select fields
+Projection.combine(
+  field[User](_.name).include,
+  field[User](_.age).include,
+  Projection.excludeId
+)
+```
+
+### Nested paths and @BsonProperty
+
+```scala
+case class Address(city: String, @BsonProperty("zip") zipCode: Int)
+case class User(name: String, address: Option[Address])
+
+field[User](_.address.?.zipCode) === 75001  // uses path "address.zip"
+```
+
+**See [Type-Safe Query/Update DSL Guide](DSL.md) for the complete API reference.**
 
 ---
 
