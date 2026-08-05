@@ -61,7 +61,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.2.20" % Test,
       "org.scalacheck" %% "scalacheck" % "1.19.0" % Test,
-      "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
+      "org.scalatestplus" %% "scalacheck-1-19" % "3.2.20.0" % Test,
       ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.5").cross(CrossVersion.for3Use2_13)
     ),
     Compile / scalacOptions ++= Seq(
@@ -113,7 +113,7 @@ lazy val integrationTests = project
       "org.scalatest" %% "scalatest" % "3.2.20" % Test,
       "org.scalactic" %% "scalactic" % "3.2.19" % Test,
       "org.scalacheck" %% "scalacheck" % "1.19.0" % Test,
-      "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
+      "org.scalatestplus" %% "scalacheck-1-19" % "3.2.20.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.44.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.44.0" % Test,
       ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
