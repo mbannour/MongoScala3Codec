@@ -61,14 +61,31 @@ Dimensions: C = compile/derive, E = encode, D = decode, R = round trip, G = exac
 
 `docs/BSON_TYPE_MAPPING.md` currently over-promises. Correct before v1.0:
 
-| Doc claim | Measured |
-|---|---|
-| `BigDecimal` → Decimal128, "✅ Full" | True for `java.math.BigDecimal`; `scala.math.BigDecimal` fails at encode |
-| `java.util.UUID` → Binary subtype 4, "✅ Full" | Written as a BSON **string** |
-| `Map[K, V]` non-String keys → "Array of pairs, ✅ Full" | Rejected at compile time |
-| `Array[Byte]` → Binary, "✅ Full" | Correct |
-| `List`/`Seq`/`Vector`/`Set`/`Map[String, T]` | Correct |
-| `Either[L, R]` → "❌ Not supported" | Correct |
+Every row below was measured with the driver's own providers registered, including
+`Jsr310CodecProvider`, so "fails" means unsupported rather than "no codec registered".
+
+| Doc claim | Measured | Verdict |
+|---|---|---|
+| `BigDecimal` → Decimal128, "✅ Full" | `java.math.BigDecimal` correct; **`scala.math.BigDecimal` fails at encode** | **BROKEN** |
+| `BigInt` → String, "✅ Full" | **Fails at encode**: `No codec found for type: scala.math.BigInt` | **BROKEN** |
+| `Char` → String, "✅ Full" | Written as **Int32** of the code point (`'x'`→`120`) | **WRONG FORMAT** |
+| `java.util.UUID` → Binary subtype 4, "✅ Full" | Written as a BSON **string** | **WRONG FORMAT** |
+| `Map[K, V]` non-String keys → "Array of pairs, ✅ Full" | Rejected at compile time | **WRONG** |
+| `Opaque Types` → underlying type, "✅ Full" | Not verified | UNKNOWN |
+| `java.util.Date`, `Instant`, `LocalDate`, `LocalDateTime` → Date | Correct, all encode as BSON Date | OK |
+| `Array[Byte]` → Binary, "✅ Full" | Correct | OK |
+| `List`/`Seq`/`Vector`/`Set`/`Map[String, T]` | Correct | OK |
+| Other primitives, `ObjectId`, `Option`, case classes, enums | Correct | OK |
+| `Either[L, R]`, `scala.util.Try[T]` → "❌ Not supported" | Correct; both fail at encode | OK |
+
+Two of these are correctness defects rather than documentation drift: a user writing
+`BigDecimal` or `BigInt` — the Scala spellings, which is what a Scala user writes — gets a
+clean compile and then an `IllegalArgumentException` on the first document saved.
+
+Note for any future unsupported-type compile-time guard: it must **not** be applied to
+`scala.math.BigDecimal` or `scala.math.BigInt`. Doing so would convert a documented, intended
+v1.0 type from "broken at runtime" into "officially unsupported", which is the opposite of
+the fix.
 
 ## Known diagnostic defects
 
