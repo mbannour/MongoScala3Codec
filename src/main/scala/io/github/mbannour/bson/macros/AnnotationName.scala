@@ -43,6 +43,22 @@ object AnnotationName:
     }
   end extractAnnotationMapImpl
 
+  /** Returns true if the constructor parameter named `fieldName` of type `T` is annotated with `@BsonIgnore`.
+    *
+    * This is a compile-time-only check (no runtime `Expr` involved) since it only decides which fields the write macro generates code
+    * for.
+    */
+  private[mbannour] def isIgnored[T: Type](using Quotes)(fieldName: String): Boolean =
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[T]
+    val bsonIgnoreSymbol = TypeRepr.of[BsonIgnore].typeSymbol
+
+    tpe.typeSymbol.primaryConstructor.paramSymss.flatten.exists { param =>
+      param.name == fieldName && param.hasAnnotation(bsonIgnoreSymbol)
+    }
+  end isIgnored
+
   /** Retrieves the value provided in the @BsonProperty annotation for a constructor parameter in type T.
     *
     * This method collects all constructor parameters of T annotated with @BsonProperty, builds a map from the parameter name to its

@@ -35,7 +35,9 @@ object CaseClassBsonWriter:
 
     if !typeSymbol.flags.is(Flags.Case) then report.errorAndAbort(s"${typeSymbol.name} is not a case class.")
 
-    val fieldWrites = typeSymbol.caseFields.map { field =>
+    val writableFields = typeSymbol.caseFields.filterNot(field => AnnotationName.isIgnored[T](field.name))
+
+    val fieldWrites = writableFields.map { field =>
 
       val res = AnnotationName.findAnnotationValue[T](Expr(field.name))
 
