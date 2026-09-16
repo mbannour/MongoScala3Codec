@@ -215,8 +215,10 @@ object CaseClassCodecGenerator:
         end writeValue
 
         override def decode(reader: BsonReader, decoderContext: DecoderContext): T =
-          val discriminator = caseClassesMap.head._1
-          val fieldTypeArgs: Map[String, List[Class[?]]] = fieldTypeArgsMapByClass.getOrElse(discriminator, Map.empty)
+          // Keyed by the type's own name, not by its discriminator: @BsonDiscriminator may move the
+          // discriminator away from the simple name, while this map is always keyed by the simple name.
+          val fieldTypeArgs: Map[String, List[Class[?]]] =
+            fieldTypeArgsMapByClass.getOrElse(${ Expr(tpeSym.name) }, Map.empty)
           val fieldsData = mutable.Map.empty[String, Any]
           reader.readStartDocument()
           while reader.readBsonType != BsonType.END_OF_DOCUMENT do

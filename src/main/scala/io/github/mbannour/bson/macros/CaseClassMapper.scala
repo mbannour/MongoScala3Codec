@@ -3,10 +3,8 @@ package io.github.mbannour.bson.macros
 import scala.quoted.*
 import scala.reflect.ClassTag
 
-import io.github.mbannour.bson.macros.AnnotationName.findAnnotationValue
-
-/** Provides macros for mapping a discriminator (simple class name) to the runtime Class of a case class. This is especially useful for
-  * sealed hierarchies where a custom annotation may override the default name.
+/** Provides macros for mapping a discriminator to the runtime Class of a case class. This is especially useful for sealed hierarchies,
+  * where `@BsonDiscriminator` may override the default name.
   */
 object CaseClassMapper:
 
@@ -91,16 +89,25 @@ object CaseClassMapper:
         .replaceAll("\\$\\d+", "")
         .replaceAll("\\$+", "")
 
-    // Build an expression for each case class entry: (name, runtimeClass)
+    val bsonDiscriminatorSymbol = TypeRepr.of[BsonDiscriminator].typeSymbol
+
+    /** The discriminator value for a concrete subtype: the `@BsonDiscriminator` value when annotated, its simple name otherwise.
+      *
+      * This is the only place the choice is made. Encoding reads the inverse of the map built here and decoding reads the map itself, so
+      * both directions necessarily agree on one value per subtype.
+      */
+    def effectiveDiscriminator(symbol: Symbol): String =
+      symbol.getAnnotation(bsonDiscriminatorSymbol) match
+        case Some(Apply(_, List(Literal(StringConstant(value))))) => value
+        case Some(other) =>
+          report.errorAndAbort(s"Unexpected @BsonDiscriminator annotation on '${symbol.name}': ${other.show}")
+        case None => simpleClassName(symbol.fullName)
+
+    // Build an expression for each case class entry: (discriminator, runtimeClass)
     val caseClassEntries: List[Expr[(String, Class[?])]] =
       caseClassSymbols.toList.collect {
         case symbol if symbol.typeRef.classSymbol.isDefined =>
-          // Compute the default simple name.
-          val defaultName = simpleClassName(symbol.fullName)
-          val nameExpr: Expr[String] =
-            findAnnotationValue[T](Expr(defaultName)) match
-              case '{ Some($annotatedName: String) } => annotatedName
-              case '{ None }                         => Expr(defaultName)
+          val nameExpr: Expr[String] = Expr(effectiveDiscriminator(symbol))
 
           symbol.typeRef.asType match
             case '[tType] =>
