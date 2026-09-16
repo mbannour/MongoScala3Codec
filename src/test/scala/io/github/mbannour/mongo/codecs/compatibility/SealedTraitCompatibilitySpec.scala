@@ -9,8 +9,8 @@ import org.scalatest.matchers.should.Matchers
 import io.github.mbannour.mongo.codecs.{CodecConfig, CodecTestKit, EnumValueCodecProvider, RegistryBuilder}
 import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 
-// Declared at the top level: the enum decoder resolves its companion by name at runtime, which only
-// works for enums that are not nested inside a class or object. See SealedTraitCompatibilitySpec.
+// Declared at the top level, which is the shape whose wire format these tests freeze. Enums nested in
+// an object or class encode and decode identically; see NestedEnumSpec.
 enum Colour:
   case Red, Green, Blue
 
