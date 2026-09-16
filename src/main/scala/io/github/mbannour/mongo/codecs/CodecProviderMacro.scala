@@ -7,6 +7,7 @@ import scala.reflect.ClassTag
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
+import io.github.mbannour.bson.macros.PathDependentTypes
 import io.github.mbannour.mongo.codecs.CaseClassCodecGenerator.generateCodec
 
 /** `CodecProviderMacro` is a utility object that provides inline macros for generating MongoDB `CodecProvider` instances for Scala case
@@ -113,6 +114,8 @@ object CodecProviderMacro:
       @unused codecRegistry: Expr[CodecRegistry]
   )(using Quotes) =
     import quotes.reflect.*
+
+    PathDependentTypes.rejectIfPathDependent[T]
 
     val mainType = TypeRepr.of[T]
     val mainTypeSymbol = mainType.typeSymbol

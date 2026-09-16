@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
 
-import io.github.mbannour.bson.macros.CaseClassMapper
+import io.github.mbannour.bson.macros.{CaseClassMapper, PathDependentTypes}
 
 /** Provides inline macros for generating `CodecProvider` instances for sealed traits and classes.
   *
@@ -89,6 +89,8 @@ object SealedCodecProviderMacro:
       @unused codecRegistry: Expr[CodecRegistry]
   )(using Quotes): Expr[CodecProvider] =
     import quotes.reflect.*
+
+    PathDependentTypes.rejectIfPathDependent[T]
 
     val mainType = TypeRepr.of[T]
     val mainTypeSymbol = mainType.typeSymbol

@@ -3,7 +3,7 @@ package io.github.mbannour.mongo.codecs
 import scala.quoted.*
 import scala.reflect.{ClassTag, Enum as ScalaEnum}
 
-import _root_.io.github.mbannour.bson.macros.EnumCodecGenerator
+import _root_.io.github.mbannour.bson.macros.{EnumCodecGenerator, PathDependentTypes}
 import org.bson.*
 import org.bson.codecs.*
 import org.bson.codecs.configuration.{CodecProvider, CodecRegistry}
@@ -35,6 +35,8 @@ object EnumValueCodecProvider:
     ${ forOrdinalEnumImpl[E]('{ summon[ClassTag[E]] }) }
 
   private def forStringEnumImpl[E <: ScalaEnum: Type](ct: Expr[ClassTag[E]])(using Quotes): Expr[CodecProvider] =
+    PathDependentTypes.rejectIfPathDependent[E]
+
     '{
       given ctGiven: ClassTag[E] = $ct
       given Codec[String] = new org.bson.codecs.StringCodec()
@@ -43,8 +45,11 @@ object EnumValueCodecProvider:
         str => EnumCodecGenerator.fromString[E](str, "")
       )
     }
+  end forStringEnumImpl
 
   private def forOrdinalEnumImpl[E <: ScalaEnum: Type](ct: Expr[ClassTag[E]])(using Quotes): Expr[CodecProvider] =
+    PathDependentTypes.rejectIfPathDependent[E]
+
     '{
       given ctGiven: ClassTag[E] = $ct
       given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
@@ -53,6 +58,7 @@ object EnumValueCodecProvider:
         ord => EnumCodecGenerator.fromInt[E](ord, "")
       )
     }
+  end forOrdinalEnumImpl
 
   /** Creates a [[org.bson.codecs.configuration.CodecProvider]] for a Scala 3 enum type `E` that can be encoded as a primitive type `V`
     * (e.g., `Int`, `String`).

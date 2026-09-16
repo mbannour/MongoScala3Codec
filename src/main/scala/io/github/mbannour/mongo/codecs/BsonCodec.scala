@@ -6,6 +6,8 @@ import scala.reflect.ClassTag
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.{BsonReader, BsonWriter}
 
+import io.github.mbannour.bson.macros.PathDependentTypes
+
 /** Type class for BSON encoding and decoding.
   *
   * This provides a more functional and composable alternative to directly working with MongoDB codecs. It allows for better type safety and
@@ -55,6 +57,8 @@ object BsonCodec:
 
   private def derivedImpl[T: Type](ct: Expr[ClassTag[T]], cfg: Expr[CodecConfig])(using Quotes): Expr[BsonCodec[T]] =
     import quotes.reflect.*
+
+    PathDependentTypes.rejectIfPathDependent[T]
 
     val tpeSym = TypeRepr.of[T].typeSymbol
     val typeName = tpeSym.name
