@@ -242,6 +242,7 @@ The project uses **Scalafmt** for consistent formatting. Configuration is in `.s
 - **Test everything:** New features must include tests
 - **Property-based tests:** Use ScalaCheck for codec round-trip tests
 - **Golden tests:** Verify BSON structure for critical types
+- **BSON compatibility tests:** Add to `src/test/scala/io/github/mbannour/mongo/codecs/compatibility/` when freezing the wire format for a supported model shape (simple/nested case classes, `Option`, defaults, ADTs, etc.) — a failure there signals a wire-format break, not a test to "fix" by updating the expected BSON
 - **Integration tests:** Add for MongoDB driver interactions
 
 **Test naming convention:**

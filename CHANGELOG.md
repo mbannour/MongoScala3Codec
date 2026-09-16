@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `CaseClassMapper` now emits a clear compile-time error for types that are neither case classes nor sealed traits/classes, instead of silently generating an empty discriminator map.
+
 ## [0.0.11] - 2026-03-14
 
 ### Changed
