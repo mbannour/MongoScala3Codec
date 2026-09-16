@@ -51,6 +51,31 @@ class RecursiveCompatibilitySpec extends AnyFlatSpec with Matchers:
     CodecTestKit.roundTrip(node) shouldBe node
   }
 
+  // Construction must stand on its own: a codec whose field type is the codec being built is the case
+  // most likely to recurse forever or hand out a half-built instance, and it would do so here rather
+  // than at the first encode.
+  it should "finish building its codec before any value is encoded" in {
+    val registry = RegistryBuilder.from(strings).register[Node].build
+
+    val codec = registry.get(classOf[Node])
+
+    codec.getEncoderClass shouldBe classOf[Node]
+    // The nested lookup resolves to the very codec being built, not to a second copy of it.
+    registry.get(classOf[Node]) should be theSameInstanceAs codec
+  }
+
+  // Recursion is a property of the type, not of every value: a chain that stops immediately is ordinary.
+  it should "encode a terminal value, where no recursion occurs at runtime" in {
+    val registry = RegistryBuilder.from(strings).register[Node].build
+
+    given codec: Codec[Node] = registry.get(classOf[Node])
+
+    val leaf = Node("leaf", None)
+
+    CodecTestKit.assertBsonStructure(leaf, BsonDocument.parse("""{"value": "leaf", "next": null}"""))
+    CodecTestKit.roundTrip(leaf) shouldBe leaf
+  }
+
   it should "nest as deeply as the value does, not to some fixed depth" in {
     val registry = RegistryBuilder.from(strings).register[Node].build
 
