@@ -73,4 +73,32 @@ class BsonIgnoreValidationSpec extends AnyFlatSpec with Matchers:
       message should include("@BsonIgnore internalNote: String = <default>")
     }
   }
+
+  it should "name only the offending field when another ignored field is valid" in {
+    val errors = typeCheckErrors("""
+      import org.bson.codecs.configuration.CodecRegistries
+      import io.github.mbannour.bson.macros.BsonIgnore
+      import io.github.mbannour.mongo.codecs.RegistryBuilder
+      import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
+
+      case class PartiallyInvalidUser(name: String, @BsonIgnore cache: String = "", @BsonIgnore runtimeState: Int)
+
+      RegistryBuilder
+        .from(CodecRegistries.fromCodecs(new org.bson.codecs.StringCodec(), new org.bson.codecs.IntegerCodec()))
+        .register[PartiallyInvalidUser]
+        .build
+    """)
+
+    errors should not be empty
+
+    val message = errors.map(_.message).mkString("\n")
+
+    withClue(s"diagnostic was:\n$message\n") {
+      message should include("@BsonIgnore")
+      message should include("runtimeState")
+      message should include("default")
+      // The field that does have a default must not be blamed.
+      message should not include "cache"
+    }
+  }
 end BsonIgnoreValidationSpec
