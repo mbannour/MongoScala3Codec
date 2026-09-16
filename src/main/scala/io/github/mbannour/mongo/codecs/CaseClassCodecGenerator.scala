@@ -103,6 +103,20 @@ object CaseClassCodecGenerator:
         )
       }
 
+    // Every @BsonId field maps to the same '_id' name, so more than one would silently overwrite the others.
+    val idFields = tpeSym.primaryConstructor.paramSymss.flatten.filter(_.hasAnnotation(TypeRepr.of[BsonId].typeSymbol))
+    if idFields.sizeIs > 1 then
+      val names = idFields.map(param => s"'${param.name}'").mkString(", ")
+
+      report.errorAndAbort(
+        s"Type '${tpeSym.name}' declares multiple @BsonId fields: $names." +
+          "\n\nA MongoDB document can have only one '_id' field, so only one field may be annotated with @BsonId." +
+          "\n\nSuggestions:" +
+          "\n  • Keep @BsonId on the single field that represents the document identifier" +
+          "\n  • Give the other field a distinct BSON name with @BsonProperty(\"...\")"
+      )
+    end if
+
     '{
       new Codec[T]:
         /** The runtime class for type T, used for reflection and type checks.
