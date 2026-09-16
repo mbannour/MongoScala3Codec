@@ -6,6 +6,7 @@ import org.bson.codecs.configuration.CodecRegistries
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import io.github.mbannour.bson.macros.BsonDiscriminator
 import io.github.mbannour.mongo.codecs.{CodecTestKit, RegistryBuilder}
 import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 
@@ -13,6 +14,15 @@ import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 sealed trait Shape
 case class Dot(label: String) extends Shape
 case class Pair(left: Shape, right: Shape) extends Shape
+
+// The same shape again, with Task 13's custom discriminator values, to check the two compose.
+sealed trait Labelled
+
+@BsonDiscriminator("leaf")
+case class LabelledLeaf(value: String) extends Labelled
+
+@BsonDiscriminator("branch")
+case class LabelledBranch(left: Labelled, right: Labelled) extends Labelled
 
 /** BSON compatibility tests for types that refer to themselves. See [[UserCompatibilitySpec]] for the package-level contract.
   *
@@ -103,6 +113,18 @@ class RecursiveCompatibilitySpec extends AnyFlatSpec with Matchers:
     CodecTestKit.fromBsonDocument[Node](golden) shouldBe Node("a", Some(Node("b", None)))
   }
 
+  // A sanity check that recursion is genuine rather than unrolled a fixed number of times. This is not a
+  // stress test, and no claim is made about arbitrary depth: deep BSON hits JVM and MongoDB limits anyway.
+  it should "round-trip a chain of ten nodes" in {
+    val registry = RegistryBuilder.from(strings).register[Node].build
+
+    given codec: Codec[Node] = registry.get(classOf[Node])
+
+    val chain = (1 to 10).foldRight(Option.empty[Node])((i, rest) => Some(Node(s"n$i", rest))).get
+
+    CodecTestKit.roundTrip(chain) shouldBe chain
+  }
+
   "A self-recursive type reached through List" should "encode to the frozen representation and round-trip to an equal value" in {
     val registry = RegistryBuilder.from(strings).register[Category].build
 
@@ -133,6 +155,33 @@ class RecursiveCompatibilitySpec extends AnyFlatSpec with Matchers:
       Category("root", List(Category("child-1", Nil), Category("child-2", Nil)))
   }
 
+  it should "nest through the collection as deeply as the value does" in {
+    val registry = RegistryBuilder.from(strings).register[Category].build
+
+    given codec: Codec[Category] = registry.get(classOf[Category])
+
+    val category = Category(
+      "root",
+      List(Category("child-1", Nil), Category("child-2", List(Category("grandchild", Nil))))
+    )
+
+    val golden = BsonDocument.parse(
+      """{"name": "root",
+         "children": [{"name": "child-1", "children": []},
+                      {"name": "child-2", "children": [{"name": "grandchild", "children": []}]}]}"""
+    )
+
+    CodecTestKit.assertBsonStructure(category, golden)
+    CodecTestKit.roundTrip(category) shouldBe category
+    CodecTestKit.fromBsonDocument[Category](golden) shouldBe category
+  }
+
+  it should "finish building its codec before any value is encoded" in {
+    val registry = RegistryBuilder.from(strings).register[Category].build
+
+    registry.get(classOf[Category]).getEncoderClass shouldBe classOf[Category]
+  }
+
   "Two mutually recursive types" should "encode to the frozen representation and round-trip to an equal value" in {
     val registry = RegistryBuilder.from(strings).register[Parent].register[Child].build
 
@@ -156,6 +205,15 @@ class RecursiveCompatibilitySpec extends AnyFlatSpec with Matchers:
     val golden = BsonDocument.parse("""{"name": "p", "child": {"name": "c", "parent": null}}""")
 
     CodecTestKit.fromBsonDocument[Parent](golden) shouldBe Parent("p", Some(Child("c", None)))
+  }
+
+  // Neither codec can be finished before the other exists, so construction of both has to complete
+  // without either one reaching for the other.
+  it should "finish building both codecs before any value is encoded" in {
+    val registry = RegistryBuilder.from(strings).register[Parent].register[Child].build
+
+    registry.get(classOf[Parent]).getEncoderClass shouldBe classOf[Parent]
+    registry.get(classOf[Child]).getEncoderClass shouldBe classOf[Child]
   }
 
   "A recursive sealed hierarchy" should "carry a discriminator at every level and round-trip to an equal value" in {
@@ -189,6 +247,37 @@ class RecursiveCompatibilitySpec extends AnyFlatSpec with Matchers:
     )
 
     CodecTestKit.fromBsonDocument[Shape](golden) shouldBe Pair(Dot("l"), Dot("r"))
+  }
+
+  it should "finish building its codec before any value is encoded" in {
+    val registry = RegistryBuilder.from(strings).registerSealed[Shape].build
+
+    registry.get(classOf[Shape]).getEncoderClass shouldBe classOf[Shape]
+  }
+
+  it should "use custom discriminator values at every level when the subtypes carry them" in {
+    val registry = RegistryBuilder.from(strings).registerSealed[Labelled].build
+
+    given codec: Codec[Labelled] = registry.get(classOf[Labelled])
+
+    val labelled: Labelled = LabelledBranch(LabelledLeaf("l"), LabelledBranch(LabelledLeaf("ml"), LabelledLeaf("mr")))
+
+    CodecTestKit.assertBsonStructure[Labelled](
+      labelled,
+      BsonDocument.parse(
+        """{"_type": "branch",
+           "left": {"_type": "leaf", "value": "l"},
+           "right": {"_type": "branch",
+                     "left": {"_type": "leaf", "value": "ml"},
+                     "right": {"_type": "leaf", "value": "mr"}}}"""
+      )
+    )
+
+    CodecTestKit.roundTrip[Labelled](labelled) shouldBe labelled
+
+    CodecTestKit.fromBsonDocument[Labelled](
+      BsonDocument.parse("""{"_type": "branch", "left": {"_type": "leaf", "value": "l"}, "right": {"_type": "leaf", "value": "r"}}""")
+    ) shouldBe LabelledBranch(LabelledLeaf("l"), LabelledLeaf("r"))
   }
 
   // Control: ordinary nesting is not recursion, and must keep working exactly as before.
