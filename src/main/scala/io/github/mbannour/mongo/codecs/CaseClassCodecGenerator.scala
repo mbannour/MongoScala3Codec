@@ -88,8 +88,24 @@ object CaseClassCodecGenerator:
       report.errorAndAbort(errorMessage)
     end if
 
+    val bsonIdSymbol = TypeRepr.of[BsonId].typeSymbol
+    val constructorParams = tpeSym.primaryConstructor.paramSymss.flatten
+
+    // Checked before the missing-default rule below: the two annotations contradict each other whether or not a default exists.
+    constructorParams
+      .filter(param => param.hasAnnotation(bsonIdSymbol) && AnnotationName.isIgnored[T](param.name))
+      .foreach { param =>
+        report.errorAndAbort(
+          s"Field '${tpeSym.name}.${param.name}' cannot be annotated with both @BsonId and @BsonIgnore." +
+            "\n\n@BsonId maps the field to MongoDB's '_id', while @BsonIgnore excludes the field from BSON entirely." +
+            "\n\nSuggestions:" +
+            s"\n  • Keep @BsonId to persist '${param.name}' as '_id'" +
+            s"\n  • Or keep @BsonIgnore to leave '${param.name}' out of BSON"
+        )
+      }
+
     // An @BsonIgnore field is never read from BSON, so decoding can only supply its constructor default.
-    tpeSym.primaryConstructor.paramSymss.flatten
+    constructorParams
       .filter(param => AnnotationName.isIgnored[T](param.name) && !param.flags.is(Flags.HasDefault))
       .foreach { param =>
         val fieldType = param.tree.asInstanceOf[ValDef].tpt.tpe.show(using Printer.TypeReprShortCode)
@@ -104,7 +120,7 @@ object CaseClassCodecGenerator:
       }
 
     // Every @BsonId field maps to the same '_id' name, so more than one would silently overwrite the others.
-    val idFields = tpeSym.primaryConstructor.paramSymss.flatten.filter(_.hasAnnotation(TypeRepr.of[BsonId].typeSymbol))
+    val idFields = constructorParams.filter(_.hasAnnotation(bsonIdSymbol))
     if idFields.sizeIs > 1 then
       val names = idFields.map(param => s"'${param.name}'").mkString(", ")
 
