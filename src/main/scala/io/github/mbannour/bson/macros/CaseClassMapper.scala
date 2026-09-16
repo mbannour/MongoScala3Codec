@@ -98,7 +98,20 @@ object CaseClassMapper:
       */
     def effectiveDiscriminator(symbol: Symbol): String =
       symbol.getAnnotation(bsonDiscriminatorSymbol) match
-        case Some(Apply(_, List(Literal(StringConstant(value))))) => value
+        case Some(Apply(_, List(Literal(StringConstant(value))))) =>
+          // An empty value reads as a missing discriminator in a stored document, and is never what the
+          // annotation was reached for. Only an explicit value can be empty; a simple name cannot.
+          if value.isEmpty then
+            report.errorAndAbort(
+              s"Empty @BsonDiscriminator value on '${symbol.name}'." +
+                "\n\nThe discriminator is what tells a stored document which subtype it holds, and an empty one is" +
+                " indistinguishable from no discriminator at all, so empty values are unsupported." +
+                "\n\nSuggestions:" +
+                s"\n  • Give '${symbol.name}' a non-empty, stable value: @BsonDiscriminator(\"...\")" +
+                s"\n  • Or drop the annotation to record '${symbol.name}' under its own name"
+            )
+          end if
+          value
         case Some(other) =>
           report.errorAndAbort(s"Unexpected @BsonDiscriminator annotation on '${symbol.name}': ${other.show}")
         case None => simpleClassName(symbol.fullName)
