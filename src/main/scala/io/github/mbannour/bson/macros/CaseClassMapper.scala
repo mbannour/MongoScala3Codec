@@ -103,6 +103,37 @@ object CaseClassMapper:
           report.errorAndAbort(s"Unexpected @BsonDiscriminator annotation on '${symbol.name}': ${other.show}")
         case None => simpleClassName(symbol.fullName)
 
+    // The subtypes are keyed by discriminator below, so two sharing a value would collapse into one
+    // map entry: one subtype would silently disappear, and a document holding it would decode as the
+    // other. Rejected here, where every concrete subtype of this hierarchy and its effective value are
+    // known. Values compare as exact strings, so 'dog' and 'Dog' are distinct.
+    val subtypesByDiscriminator: List[(String, List[Symbol])] =
+      caseClassSymbols.toList
+        .sortBy(_.name)
+        .groupBy(effectiveDiscriminator)
+        .toList
+        .sortBy(_._1)
+
+    // Sorted above, so the collision reported is deterministic when a hierarchy has more than one.
+    subtypesByDiscriminator.find(_._2.sizeIs > 1).foreach { (discriminator, symbols) =>
+      // Two subtypes can share a simple name through different objects, and then simple names would name
+      // neither of them; fall back to the full name for the whole group so the two read differently.
+      val simpleNamesAreDistinct = symbols.map(_.name).distinct.sizeIs == symbols.size
+      val names =
+        symbols.map(symbol => if simpleNamesAreDistinct then s"'${symbol.name}'" else s"'${symbol.fullName}'").mkString(", ")
+
+      report.errorAndAbort(
+        s"Duplicate BSON discriminator value '$discriminator' in '${mainSymbol.name}'." +
+          s"\n\nIt is the effective discriminator of ${symbols.size} subtypes: $names. A document records only the" +
+          " discriminator, so decoding could not tell these subtypes apart." +
+          "\n\nA subtype's effective discriminator is its @BsonDiscriminator value, or its simple name when it is not" +
+          " annotated, so a custom value can collide with another subtype's name." +
+          "\n\nSuggestions:" +
+          s"\n  • Give one of $names a distinct @BsonDiscriminator(\"...\") value" +
+          "\n  • Discriminator values are compared exactly, so they may differ only in case"
+      )
+    }
+
     // Build an expression for each case class entry: (discriminator, runtimeClass)
     val caseClassEntries: List[Expr[(String, Class[?])]] =
       caseClassSymbols.toList.collect {
