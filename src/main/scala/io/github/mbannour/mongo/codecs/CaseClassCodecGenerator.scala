@@ -88,6 +88,21 @@ object CaseClassCodecGenerator:
       report.errorAndAbort(errorMessage)
     end if
 
+    // An @BsonIgnore field is never read from BSON, so decoding can only supply its constructor default.
+    tpeSym.primaryConstructor.paramSymss.flatten
+      .filter(param => AnnotationName.isIgnored[T](param.name) && !param.flags.is(Flags.HasDefault))
+      .foreach { param =>
+        val fieldType = param.tree.asInstanceOf[ValDef].tpt.tpe.show(using Printer.TypeReprShortCode)
+
+        report.errorAndAbort(
+          s"@BsonIgnore field '${tpeSym.name}.${param.name}' requires a constructor default value." +
+            s"\n\nFields annotated with @BsonIgnore are never read from BSON, so decoding has no value to supply for '${param.name}'." +
+            "\n\nSuggestions:" +
+            s"\n  • Add a default value: @BsonIgnore ${param.name}: $fieldType = <default>" +
+            s"\n  • Or remove @BsonIgnore so '${param.name}' is stored in BSON and read back"
+        )
+      }
+
     '{
       new Codec[T]:
         /** The runtime class for type T, used for reflection and type checks.
