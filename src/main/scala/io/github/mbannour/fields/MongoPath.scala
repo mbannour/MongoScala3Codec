@@ -6,6 +6,8 @@ import scala.quoted.*
 
 import org.mongodb.scala.bson.annotations.BsonProperty
 
+import io.github.mbannour.bson.macros.{AnnotationName, BsonId}
+
 /** Macro-powered extractor for case-class field paths that map to MongoDB document keys.
   *
   * Core ideas:
@@ -84,6 +86,7 @@ object MongoPath:
     import quotes.reflect.*
 
     val bsonPropSym = TypeRepr.of[BsonProperty].typeSymbol
+    val bsonIdSym = TypeRepr.of[BsonId].typeSymbol
 
     @tailrec
     def strip(term: Term): Term = term match
@@ -146,11 +149,13 @@ object MongoPath:
     end collectSelects
 
     def annotationName(param: Symbol): Option[String] =
-      param.getAnnotation(bsonPropSym).map {
-        case Apply(_, List(Literal(StringConstant(v)))) => v
-        case other =>
-          report.errorAndAbort(s"Unexpected BsonProperty annotation on ${param.name}: ${other.show}")
-      }
+      if param.hasAnnotation(bsonIdSym) then Some(AnnotationName.MongoIdFieldName)
+      else
+        param.getAnnotation(bsonPropSym).map {
+          case Apply(_, List(Literal(StringConstant(v)))) => v
+          case other =>
+            report.errorAndAbort(s"Unexpected BsonProperty annotation on ${param.name}: ${other.show}")
+        }
 
     // Convert (owner, selectedSymbol) to displayed segment:
     // keep only real constructor params; prefer @BsonProperty override.

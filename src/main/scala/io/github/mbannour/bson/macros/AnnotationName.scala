@@ -6,6 +6,9 @@ import org.mongodb.scala.bson.annotations.BsonProperty
 
 object AnnotationName:
 
+  /** MongoDB's reserved primary key field name, used as the BSON name for `@BsonId` fields. */
+  private[mbannour] val MongoIdFieldName = "_id"
+
   /** Inline helper to retrieve the annotation value for a given field name of type T.
     *
     * @param fieldName
@@ -74,13 +77,16 @@ object AnnotationName:
   private[mbannour] def findAnnotationValue[T: Type](using Quotes)(fieldName: Expr[String]): Expr[Option[String]] =
     import quotes.reflect.*
 
-    // Obtain the type representation of T and the symbol for the BsonProperty annotation.
+    // Obtain the type representation of T and the symbols for the name-mapping annotations.
     val tpe = TypeRepr.of[T]
     val bsonPropertySymbol = TypeRepr.of[BsonProperty].typeSymbol
+    val bsonIdSymbol = TypeRepr.of[BsonId].typeSymbol
 
-    // Collect all constructor parameters annotated with @BsonProperty along with their annotation values.
+    // Collect all constructor parameters whose BSON name is overridden, along with the name to use.
     val annotatedParams: Seq[(String, String)] =
       tpe.typeSymbol.primaryConstructor.paramSymss.flatten.collect {
+        case param if param.hasAnnotation(bsonIdSymbol) =>
+          (param.name, MongoIdFieldName)
         case param if param.hasAnnotation(bsonPropertySymbol) =>
           val paramName = param.name
           val annotationTree = param.getAnnotation(bsonPropertySymbol).get
