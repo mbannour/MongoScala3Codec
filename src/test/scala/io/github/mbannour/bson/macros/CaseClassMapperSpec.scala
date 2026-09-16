@@ -41,11 +41,10 @@ class CaseClassMapperSpec extends AnyFlatSpec with Matchers:
     result should contain theSameElementsAs Map("Standalone" -> classOf[Standalone])
   }
 
-  it should "fail for non-case classes" ignore {
-    // FIXME this test has to be fixed
-    assertThrows[Exception] {
-      caseClassMap[NonCaseClass]
-    }
+  it should "fail to compile for non-case, non-sealed classes" in {
+    assertDoesNotCompile("""
+      CaseClassMapper.caseClassMap[NonCaseClass]
+    """)
   }
 
   it should "handle nested case classes" in {
