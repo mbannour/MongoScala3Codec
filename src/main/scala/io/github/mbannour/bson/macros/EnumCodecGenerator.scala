@@ -8,6 +8,24 @@ import scala.quoted.*
   */
 object EnumCodecGenerator:
 
+  /** Reference to the enum companion's generated `values` array.
+    *
+    * Resolved by the compiler from the enum's symbol rather than by looking the companion up by name at runtime: a Scala full name uses `.`
+    * between a nesting owner and its member, while the JVM binary name needs `$`, so a name-based lookup only happens to work for top-level
+    * enums.
+    */
+  private def enumValuesRef[E: Type](using Quotes): Expr[Array[E]] =
+    import quotes.reflect.*
+    Select.unique(Ref(TypeRepr.of[E].typeSymbol.companionModule), "values").asExprOf[Array[E]]
+
+  /** Reference to the enum companion's generated `valueOf`, applied to `name`. Resolved by the compiler, as for [[enumValuesRef]]. */
+  private def enumValueOfRef[E: Type](using Quotes)(name: Expr[String]): Expr[E] =
+    import quotes.reflect.*
+    Apply(
+      Select.unique(Ref(TypeRepr.of[E].typeSymbol.companionModule), "valueOf"),
+      List(name.asTerm)
+    ).asExprOf[E]
+
   /** Decodes an enum from a string value at compile time without reflection.
     *
     * @param value
@@ -76,16 +94,10 @@ object EnumCodecGenerator:
 
     val customField = customFieldExpr.valueOrAbort
 
-    // Get the companion class for runtime access
-    val companionName = Expr(enumSymbol.companionModule.fullName)
-
     if customField.isEmpty then
       // Use valueOf method for name-based lookup
       '{
-        try
-          val enumClass = Class.forName($companionName)
-          val method = enumClass.getMethod("valueOf", classOf[String])
-          method.invoke(enumClass, $value).asInstanceOf[E]
+        try ${ enumValueOfRef[E](value) }
         catch
           case ex: Exception =>
             throw new RuntimeException(s"No enum value found for: ${$value}", ex)
@@ -94,8 +106,7 @@ object EnumCodecGenerator:
       // Use custom field lookup
       '{
         try
-          val enumClass = Class.forName($companionName)
-          val enumValues = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
+          val enumValues = ${ enumValuesRef[E] }
           enumValues
             .find { v =>
               try
@@ -128,19 +139,15 @@ object EnumCodecGenerator:
 
     val customField = customFieldExpr.valueOrAbort
 
-    // Get the companion class for runtime access
-    val companionName = Expr(enumSymbol.companionModule.fullName)
-
     if customField.isEmpty then
       // Try ordinal first, then fallback to "code" field for backward compatibility
       '{
         try
-          val enumClass = Class.forName($companionName)
-          val enumValues = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
+          val enumValues = ${ enumValuesRef[E] }
           val intVal = $value
 
           // Try ordinal first
-          if intVal >= 0 && intVal < enumValues.length then enumValues(intVal).asInstanceOf[E]
+          if intVal >= 0 && intVal < enumValues.length then enumValues(intVal)
           else
             // Try custom "code" field as fallback for backward compatibility
             enumValues
@@ -165,12 +172,11 @@ object EnumCodecGenerator:
       // Try ordinal first, then custom field
       '{
         try
-          val enumClass = Class.forName($companionName)
-          val enumValues = enumClass.getMethod("values").invoke(enumClass).asInstanceOf[Array[Object]]
+          val enumValues = ${ enumValuesRef[E] }
           val intVal = $value
 
           // Try ordinal first
-          if intVal >= 0 && intVal < enumValues.length then enumValues(intVal).asInstanceOf[E]
+          if intVal >= 0 && intVal < enumValues.length then enumValues(intVal)
           else
             // Try custom field
             enumValues
