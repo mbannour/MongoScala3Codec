@@ -32,12 +32,55 @@ object ClassToCaseFlagMap:
       tpe.typeSymbol.isClassDef &&
         (tpe.typeSymbol.flags.is(Flags.Case) || tpe.typeSymbol.flags.is(Flags.Sealed))
 
+    /** Rejects a field whose type cannot be derived however the registry is configured.
+      *
+      * Only shapes that no codec could rescue are checked here. A field type that merely has no codec yet is left alone: the registry is a
+      * runtime value, so a user or driver codec can still supply one, and rejecting it at compile time would turn a missing codec into a
+      * permanent verdict. Without this, such a field reached the ClassTag lookup below and failed there, naming the field where a type
+      * belongs and mentioning neither the model nor the type.
+      */
+    def validateFieldType(owner: Symbol, field: Symbol): Unit =
+      val declaredType = field.tree match
+        case vd: ValDef => Some(vd.tpt.tpe)
+        case _          => None
+
+      declaredType.foreach { fieldType =>
+        val shownType = fieldType.show(using Printer.TypeReprShortCode)
+        val location = s"field '${owner.name}.${field.name}' of type '$shownType'"
+
+        if fieldType <:< TypeRepr.of[Tuple] then
+          report.errorAndAbort(
+            s"Tuple types are unsupported in BSON: $location." +
+              "\n\nA BSON document names its values, and a tuple's elements have no names to write them under." +
+              "\n\nSuggestions:" +
+              s"\n  • Replace the tuple with a case class, whose parameter names become the BSON field names" +
+              s"\n  • For a pair keyed by a string, Map[String, V] is encoded as an embedded document"
+          )
+        end if
+
+        fieldType.asType match
+          case '[f] =>
+            if Expr.summon[ClassTag[f]].isEmpty then
+              report.errorAndAbort(
+                s"Unsupported type in BSON: $location." +
+                  "\n\nEncoding needs the field's runtime class, and no ClassTag is available for this type, so it is not a concrete" +
+                  " type that can be written to a document. A type parameter of a generic model is the usual cause: derivation happens" +
+                  " per concrete model, and the parameter is still abstract at that point." +
+                  "\n\nSuggestions:" +
+                  s"\n  • Give '${field.name}' a concrete type" +
+                  s"\n  • Replace the generic model with a concrete one per field type it is used at"
+              )
+        end match
+      }
+    end validateFieldType
+
     /** Recursively collects field types from the primary constructor of the given type. If a field type is a case class or sealed, its
       * fields are also collected.
       */
     def collectFieldTypes(tpe: TypeRepr): List[TypeRepr] =
       val paramTypes = tpe.typeSymbol.primaryConstructor.paramSymss.flatten.collect {
         case sym if sym.isTerm && sym.isValDef =>
+          validateFieldType(tpe.typeSymbol, sym)
           sym.termRef.asType match
             case '[f] => TypeRepr.of[f]
       }

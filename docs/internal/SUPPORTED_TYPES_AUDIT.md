@@ -48,8 +48,8 @@ Dimensions: C = compile/derive, E = encode, D = decode, R = round trip, G = exac
 | Recursive `List[Self]` | SUPPORTED | ✓ | ✓ | ✓ | ✓ | ✓ | Same |
 | Mutual recursion | SUPPORTED | ✓ | ✓ | ✓ | ✓ | ✓ | Both types must be registered |
 | Recursive sealed ADT | SUPPORTED | ✓ | ✓ | ✓ | ✓ | ✓ | Composes with `@BsonDiscriminator` |
-| Generic case class, e.g. `Box[String]` | UNSUPPORTED | ✗ | - | - | - | - | Compile error, but it names the **field** (`value`), not the type |
-| Tuple field | UNSUPPORTED | ✗ | - | - | - | - | Compile error naming the field (`_1`). A well-worded tuple message exists in `CaseClassFieldMapper` but is unreachable. |
+| Generic case class, e.g. `Box[String]` | UNSUPPORTED | ✗ | - | - | - | - | Controlled compile error naming model, field and type |
+| Tuple field | UNSUPPORTED | ✗ | - | - | - | - | Controlled compile error naming model, field and type |
 | Unwrapped self-reference `X(next: X)` | UNSUPPORTED | ✗ | - | - | - | - | `StackOverflowError` in macro expansion. Type is uninhabitable in Scala. |
 | Path-dependent type `c.T` | UNSUPPORTED | ✗ | - | - | - | - | Controlled compile error; Task 12 |
 | `Either[L, R]` | NOT PART OF V1.0 CONTRACT | ✓ | ✗ | - | - | - | Compiles, then `No codec found for sealed trait: scala.util.Either` |
@@ -89,12 +89,12 @@ the fix.
 
 ## Known diagnostic defects
 
-1. `ClassToCaseFlagMap.collectFieldTypes` builds field types from `sym.termRef`, a **term**
-   reference, so `tpe.show` prints the field's name. Unsupported field types therefore report
-   `Cannot summon ClassTag for type: value` / `: _1` instead of naming the type.
-2. Because that walker aborts first, the deliberate tuple message in
-   `CaseClassFieldMapper.flattenTypeArgs` ("Tuple types are not supported in BSON
-   serialization", with a suggestion) is dead code.
+1. ~~`ClassToCaseFlagMap` reported `Cannot summon ClassTag for type: value` / `: _1`.~~ Fixed:
+   `validateFieldType` now rejects tuple fields and fields whose type has no `ClassTag`, naming
+   the model, the field and the type. It runs on every model the walker visits, so a field in a
+   nested model is named too.
+2. The deliberate tuple message in `CaseClassFieldMapper.flattenTypeArgs` remains dead code, since
+   the new check in `ClassToCaseFlagMap` still runs first. Harmless duplication, worth removing.
 3. A field type with no codec compiles and fails on first encode. Acceptable for genuinely
    pluggable types, since the registry is a runtime value, but it is why `scala.math.BigDecimal`
    and `Array[String]` surface late.

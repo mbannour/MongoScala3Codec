@@ -245,9 +245,7 @@ class SupportedTypeContractSpec extends AnyFlatSpec with Matchers:
     error.getMessage should include("Either")
   }
 
-  // The diagnostic names the field rather than its type, because the walker that raises it inspects
-  // the field's term reference. Pinned as-is; improving it would be a production change.
-  "A tuple field" should "fail to compile, though the message names the field rather than the type" in {
+  "A tuple field" should "fail to compile, naming the model, the field and the type" in {
     val errors = typeCheckErrors("""
       import org.bson.codecs.configuration.CodecRegistries
       import io.github.mbannour.mongo.codecs.RegistryBuilder
@@ -264,11 +262,13 @@ class SupportedTypeContractSpec extends AnyFlatSpec with Matchers:
     errors should not be empty
 
     withClue(s"diagnostic was:\n${messageOf(errors)}\n") {
-      messageOf(errors) should include("ClassTag")
+      messageOf(errors) should include("Tupled")
+      messageOf(errors) should include("pair")
+      messageOf(errors).toLowerCase should include("tuple")
     }
   }
 
-  "A generic case class" should "fail to compile, though the message names the field rather than the type" in {
+  "A generic case class" should "fail to compile, naming the model, the field and the type" in {
     val errors = typeCheckErrors("""
       import org.bson.codecs.configuration.CodecRegistries
       import io.github.mbannour.mongo.codecs.{GenericBox, RegistryBuilder}
@@ -283,7 +283,9 @@ class SupportedTypeContractSpec extends AnyFlatSpec with Matchers:
     errors should not be empty
 
     withClue(s"diagnostic was:\n${messageOf(errors)}\n") {
-      messageOf(errors) should include("ClassTag")
+      messageOf(errors) should include("GenericBox")
+      messageOf(errors) should include("value")
+      messageOf(errors).toLowerCase should include("unsupported")
     }
   }
 end SupportedTypeContractSpec
