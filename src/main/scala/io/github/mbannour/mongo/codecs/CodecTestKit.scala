@@ -7,18 +7,111 @@ import org.bson.codecs.configuration.CodecRegistry
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.{BsonDocument, BsonDocumentReader, BsonDocumentWriter, BsonValue}
 
-/** Testing utilities for BSON codecs.
+/** Checks one `Codec[T]` against documents you write by hand.
   *
-  * Provides helper methods for testing codec symmetry and round-trip encoding/decoding.
+  * Three questions are worth asking separately of a codec, and a passing round trip answers only the third:
   *
-  * Key features:
-  *   - Round-trip testing with customizable encoder/decoder contexts
-  *   - Flexible BSON comparison (ignoring field order, partial matching)
-  *   - Support for both document and scalar value encoding
-  *   - Property-based testing integration
-  *   - Enhanced error messages with BSON pretty-printing
+  *   - does a value encode to the document I expect? `assertBson`
+  *   - does a document already in my database decode to the value I expect? `assertDecode`
+  *   - does a value survive encoding and decoding? `assertRoundTrip`
+  *
+  * The first two are wire-compatibility questions, and they need a document written independently of the codec: an encoder and a decoder
+  * can share a mistake and still round-trip perfectly, so the round trip would not notice. The third is behavioural correctness, which is
+  * worth asserting on its own but proves nothing about what is stored.
+  *
+  * The kit derives nothing and knows nothing about `@BsonId`, `@BsonProperty`, discriminators, enums or recursion. It drives the same
+  * `Codec[T]` your application uses and compares the result, so whatever the codec does is what these assertions see.
+  *
+  * Assertions throw `AssertionError`, which every Scala test framework reports as a failure; no test framework is on the classpath of this
+  * library. `encode` and `decode` return values instead, for assertions you would rather write yourself.
+  *
+  * @example
+  *   {{{
+  *   case class User(name: String, age: Int)
+  *
+  *   val kit = CodecTestKit(registry.get(classOf[User]))
+  *
+  *   val expected = new BsonDocument()
+  *     .append("name", new BsonString("Alice"))
+  *     .append("age", new BsonInt32(37))
+  *
+  *   kit.assertBson(User("Alice", 37), expected)
+  *   kit.assertDecode(expected, User("Alice", 37))
+  *   kit.assertRoundTrip(User("Alice", 37))
+  *   }}}
+  */
+final class CodecTestKit[T] private (codec: Codec[T]):
+
+  /** Encodes `value` with the codec, for a caller that wants to inspect the document rather than match it whole. */
+  def encode(value: T): BsonDocument =
+    CodecTestKit.toBsonDocument(value)(using codec)
+
+  /** Decodes `document` with the codec. A decoding failure propagates unchanged: it is the codec's own report of what the document lacked,
+    * and is more useful than anything this kit could say about it.
+    */
+  def decode(document: BsonDocument): T =
+    CodecTestKit.fromBsonDocument(document)(using codec)
+
+  /** Asserts that `value` encodes exactly to `expected`.
+    *
+    * `expected` must be written by hand. Passing a document the codec produced would assert only that the codec agrees with itself.
+    */
+  def assertBson(value: T, expected: BsonDocument): Unit =
+    val actual = encode(value)
+    if actual != expected then
+      throw new AssertionError(
+        s"""Encoded BSON does not match the expected document.
+           |Expected: ${CodecTestKit.prettyPrint(expected)}
+           |Actual:   ${CodecTestKit.prettyPrint(actual)}""".stripMargin
+      )
+  end assertBson
+
+  /** Asserts that `document` decodes to `expected`.
+    *
+    * This is the one to reach for when documents are already stored: write the document as it exists in the collection and state what it
+    * should become.
+    */
+  def assertDecode(document: BsonDocument, expected: T): Unit =
+    val actual = decode(document)
+    if actual != expected then
+      throw new AssertionError(
+        s"""Decoded value does not match the expected value.
+           |Expected: $expected
+           |Actual:   $actual
+           |Document: ${CodecTestKit.prettyPrint(document)}""".stripMargin
+      )
+  end assertDecode
+
+  /** Asserts that `value` is unchanged by encoding and then decoding.
+    *
+    * Behavioural correctness only. It says nothing about which document was written, so it does not replace `assertBson`.
+    */
+  def assertRoundTrip(value: T): Unit =
+    val actual = decode(encode(value))
+    if actual != value then
+      throw new AssertionError(
+        s"""Value did not survive a round trip.
+           |Original: $value
+           |Decoded:  $actual
+           |BSON:     ${CodecTestKit.prettyPrint(encode(value))}""".stripMargin
+      )
+  end assertRoundTrip
+end CodecTestKit
+
+/** Builds a [[CodecTestKit]], and holds the library's own internal testing helpers.
+  *
+  * Only `apply` is published. Everything below it is `private[mbannour]`: it is what this library's own suite is written against, kept out
+  * of the public API because a helper nobody outside has asked for is not worth committing to for the whole of 1.x. The published surface
+  * is the kit itself, and it is deliberately four operations wide.
   */
 object CodecTestKit:
+
+  /** Builds a kit around one codec.
+    *
+    * The codec is passed rather than summoned, so the codec under test is visible at the call site and a type with two codecs - a string
+    * enum and an ordinal enum, say - can be tested both ways in the same scope.
+    */
+  def apply[T](codec: Codec[T]): CodecTestKit[T] = new CodecTestKit[T](codec)
 
   /** Perform a round-trip encode/decode operation.
     *
@@ -31,7 +124,7 @@ object CodecTestKit:
     * @return
     *   The decoded value after round-tripping
     */
-  def roundTrip[T](value: T)(using codec: Codec[T]): T =
+  private[mbannour] def roundTrip[T](value: T)(using codec: Codec[T]): T =
     val doc = toBsonDocument(value)
     fromBsonDocument[T](doc)
 
@@ -48,7 +141,7 @@ object CodecTestKit:
     * @return
     *   The decoded value after round-tripping
     */
-  def roundTripWithContext[T](
+  private[mbannour] def roundTripWithContext[T](
       value: T,
       encoderContext: EncoderContext = EncoderContext.builder().build(),
       decoderContext: DecoderContext = DecoderContext.builder().build()
@@ -65,7 +158,7 @@ object CodecTestKit:
     * @return
     *   The encoded BsonDocument
     */
-  def toBsonDocument[T](value: T)(using codec: Codec[T]): BsonDocument =
+  private[mbannour] def toBsonDocument[T](value: T)(using codec: Codec[T]): BsonDocument =
     toBsonDocument(value, EncoderContext.builder().build())
 
   /** Convert a value to a BsonDocument using the given codec and custom context.
@@ -79,7 +172,7 @@ object CodecTestKit:
     * @return
     *   The encoded BsonDocument
     */
-  def toBsonDocument[T](value: T, encoderContext: EncoderContext)(using codec: Codec[T]): BsonDocument =
+  private[mbannour] def toBsonDocument[T](value: T, encoderContext: EncoderContext)(using codec: Codec[T]): BsonDocument =
     val doc = new BsonDocument()
     val writer = new BsonDocumentWriter(doc)
     codec.encode(writer, value, encoderContext)
@@ -101,7 +194,7 @@ object CodecTestKit:
     *   {{{ case class User(name: String, age: Int) val user = User("Alice", 30) val nameValue: BsonValue = CodecTestKit.extractField(user,
     *   "name") // nameValue is BsonString("Alice") }}}
     */
-  def extractField[T](value: T, fieldName: String)(using codec: Codec[T]): BsonValue =
+  private[mbannour] def extractField[T](value: T, fieldName: String)(using codec: Codec[T]): BsonValue =
     toBsonDocument(value).get(fieldName)
 
   /** Decode a BsonDocument to a value using the given codec.
@@ -113,7 +206,7 @@ object CodecTestKit:
     * @return
     *   The decoded value
     */
-  def fromBsonDocument[T](doc: BsonDocument)(using codec: Codec[T]): T =
+  private[mbannour] def fromBsonDocument[T](doc: BsonDocument)(using codec: Codec[T]): T =
     fromBsonDocument(doc, DecoderContext.builder().build())
 
   /** Decode a BsonDocument to a value using the given codec and custom context.
@@ -127,7 +220,7 @@ object CodecTestKit:
     * @return
     *   The decoded value
     */
-  def fromBsonDocument[T](doc: BsonDocument, decoderContext: DecoderContext)(using codec: Codec[T]): T =
+  private[mbannour] def fromBsonDocument[T](doc: BsonDocument, decoderContext: DecoderContext)(using codec: Codec[T]): T =
     val reader = new BsonDocumentReader(doc)
     codec.decode(reader, decoderContext)
 
@@ -142,7 +235,7 @@ object CodecTestKit:
     * @throws java.lang.AssertionError
     *   if the round-trip does not preserve the value
     */
-  def assertCodecSymmetry[T](value: T)(using codec: Codec[T]): Unit =
+  private[mbannour] def assertCodecSymmetry[T](value: T)(using codec: Codec[T]): Unit =
     val bsonDoc = toBsonDocument(value)
     val result = roundTrip(value)
     assert(
@@ -168,7 +261,7 @@ object CodecTestKit:
     * @throws java.lang.AssertionError
     *   if the round-trip does not preserve the value
     */
-  def assertCodecSymmetryWithContext[T](
+  private[mbannour] def assertCodecSymmetryWithContext[T](
       value: T,
       encoderContext: EncoderContext = EncoderContext.builder().build(),
       decoderContext: DecoderContext = DecoderContext.builder().build()
@@ -194,7 +287,7 @@ object CodecTestKit:
     * @return
     *   Right(()) if symmetry holds, Left(error message) otherwise
     */
-  def checkCodecSymmetry[T](value: T)(using codec: Codec[T]): Either[String, Unit] =
+  private[mbannour] def checkCodecSymmetry[T](value: T)(using codec: Codec[T]): Either[String, Unit] =
     Try(roundTrip(value)) match
       case Success(result) if result == value => Right(())
       case Success(result) =>
@@ -218,7 +311,7 @@ object CodecTestKit:
     * @throws java.lang.AssertionError
     *   if the encoded value doesn't match expectations
     */
-  def assertBsonStructure[T](value: T, expectedBson: BsonDocument)(using codec: Codec[T]): Unit =
+  private[mbannour] def assertBsonStructure[T](value: T, expectedBson: BsonDocument)(using codec: Codec[T]): Unit =
     val actual = toBsonDocument(value)
     assert(
       actual == expectedBson,
@@ -243,7 +336,7 @@ object CodecTestKit:
     * @throws java.lang.AssertionError
     *   if any expected field is missing or has wrong value
     */
-  def assertBsonContains[T](value: T, expectedFields: Map[String, BsonValue])(using codec: Codec[T]): Unit =
+  private[mbannour] def assertBsonContains[T](value: T, expectedFields: Map[String, BsonValue])(using codec: Codec[T]): Unit =
     val actual = toBsonDocument(value)
     val missing = expectedFields.filterNot { case (key, expectedValue) =>
       actual.containsKey(key) && actual.get(key) == expectedValue
@@ -268,7 +361,7 @@ object CodecTestKit:
     * @return
     *   true if documents are equivalent, false otherwise
     */
-  def bsonEquivalent(doc1: BsonDocument, doc2: BsonDocument): Boolean =
+  private[mbannour] def bsonEquivalent(doc1: BsonDocument, doc2: BsonDocument): Boolean =
     if doc1.size() != doc2.size() then return false
 
     doc1.keySet().asScala.forall { key =>
@@ -289,7 +382,7 @@ object CodecTestKit:
     * @return
     *   true if values are equal
     */
-  def bsonValuesEqual(v1: BsonValue, v2: BsonValue): Boolean =
+  private[mbannour] def bsonValuesEqual(v1: BsonValue, v2: BsonValue): Boolean =
     (v1, v2) match
       case (d1: BsonDocument, d2: BsonDocument)             => bsonEquivalent(d1, d2)
       case (a1: org.bson.BsonArray, a2: org.bson.BsonArray) => bsonArraysEqual(a1, a2)
@@ -306,7 +399,7 @@ object CodecTestKit:
     * @return
     *   true if arrays are equal
     */
-  def bsonArraysEqual(arr1: org.bson.BsonArray, arr2: org.bson.BsonArray): Boolean =
+  private[mbannour] def bsonArraysEqual(arr1: org.bson.BsonArray, arr2: org.bson.BsonArray): Boolean =
     if arr1.size() != arr2.size() then return false
 
     arr1.asScala.zip(arr2.asScala).forall { case (v1, v2) =>
@@ -327,7 +420,7 @@ object CodecTestKit:
     * @return
     *   true if arrays contain the same elements regardless of order
     */
-  def bsonArraysEquivalent(arr1: org.bson.BsonArray, arr2: org.bson.BsonArray): Boolean =
+  private[mbannour] def bsonArraysEquivalent(arr1: org.bson.BsonArray, arr2: org.bson.BsonArray): Boolean =
     if arr1.size() != arr2.size() then return false
 
     val list1 = arr1.asScala.toList
@@ -354,7 +447,7 @@ object CodecTestKit:
     * @return
     *   true if all expected values are present
     */
-  def bsonDeepContains(actual: BsonDocument, expected: Map[String, BsonValue]): Boolean =
+  private[mbannour] def bsonDeepContains(actual: BsonDocument, expected: Map[String, BsonValue]): Boolean =
     expected.forall { case (path, expectedValue) =>
       val actualValue = getNestedField(actual, path)
       actualValue != null && bsonValuesEqual(actualValue, expectedValue)
@@ -393,7 +486,7 @@ object CodecTestKit:
     * @return
     *   A CodecRegistry containing only the specified codecs
     */
-  def testRegistry(codecs: Codec[?]*): CodecRegistry =
+  private[mbannour] def testRegistry(codecs: Codec[?]*): CodecRegistry =
     org.bson.codecs.configuration.CodecRegistries.fromCodecs(codecs*)
 
   // ===== Pretty-printing and Diff Helpers =====
@@ -405,7 +498,7 @@ object CodecTestKit:
     * @return
     *   A formatted string representation
     */
-  def prettyPrint(doc: BsonDocument): String =
+  private[mbannour] def prettyPrint(doc: BsonDocument): String =
     prettyPrintValue(doc, indent = 0)
 
   private def prettyPrintValue(value: BsonValue, indent: Int): String =
@@ -445,7 +538,7 @@ object CodecTestKit:
     * @return
     *   A string describing the differences
     */
-  def diff(expected: BsonDocument, actual: BsonDocument): String =
+  private[mbannour] def diff(expected: BsonDocument, actual: BsonDocument): String =
     val expectedKeys = expected.keySet().asScala.toSet
     val actualKeys = actual.keySet().asScala.toSet
 
@@ -488,7 +581,7 @@ object CodecTestKit:
     * @return
     *   List of difference descriptions
     */
-  def deepDiff(expected: BsonDocument, actual: BsonDocument, path: String = ""): List[String] =
+  private[mbannour] def deepDiff(expected: BsonDocument, actual: BsonDocument, path: String = ""): List[String] =
     deepDiffValues(expected, actual, path)
 
   private def deepDiffValues(expected: BsonValue, actual: BsonValue, path: String): List[String] =
@@ -538,7 +631,7 @@ object CodecTestKit:
     * @return
     *   true if symmetry holds
     */
-  def codecSymmetryProperty[T](value: T)(using codec: Codec[T]): Boolean =
+  private[mbannour] def codecSymmetryProperty[T](value: T)(using codec: Codec[T]): Boolean =
     checkCodecSymmetry(value).isRight
 
   /** Helper for ScalaCheck that returns detailed failure information.
@@ -550,7 +643,7 @@ object CodecTestKit:
     * @return
     *   Right(true) if symmetry holds, Left(error) otherwise
     */
-  def codecSymmetryPropertyVerbose[T](value: T)(using codec: Codec[T]): Either[String, Boolean] =
+  private[mbannour] def codecSymmetryPropertyVerbose[T](value: T)(using codec: Codec[T]): Either[String, Boolean] =
     checkCodecSymmetry(value).map(_ => true)
 
   /** Create a ScalaCheck property that tests codec symmetry.
@@ -562,7 +655,7 @@ object CodecTestKit:
     * @return
     *   true if all generated values maintain symmetry
     */
-  def forAllCodecs[T](f: => (T, Codec[T])): Boolean =
+  private[mbannour] def forAllCodecs[T](f: => (T, Codec[T])): Boolean =
     val (value, codec) = f
     given Codec[T] = codec
     codecSymmetryProperty(value)

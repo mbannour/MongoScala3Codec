@@ -307,10 +307,10 @@ import io.github.mbannour.mongo.codecs.CodecTestKit
 
 // Test codec symmetry
 val user = User("Alice", 30)
-CodecTestKit.assertCodecSymmetry(user)
+CodecTestKit(codec).assertRoundTrip(user)
 
 // Inspect BSON structure
-val bson = CodecTestKit.toBsonDocument(user)
+val bson = CodecTestKit(codec).encode(user)
 println(bson.toJson())
 ```
 

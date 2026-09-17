@@ -551,12 +551,12 @@ class UserCodecSpec extends AnyFlatSpec {
   
   "User codec" should "round-trip correctly" in {
     val user = User("Alice", "alice@example.com")
-    CodecTestKit.assertCodecSymmetry(user)
+    CodecTestKit(codec).assertRoundTrip(user)
   }
   
   it should "encode to correct BSON structure" in {
     val user = User("Bob", "bob@example.com")
-    val bson = CodecTestKit.toBsonDocument(user)
+    val bson = CodecTestKit(codec).encode(user)
     
     assert(bson.getString("name").getValue == "Bob")
     assert(bson.getString("email").getValue == "bob@example.com")
@@ -590,7 +590,7 @@ Inspect what's actually being written to MongoDB:
 import io.github.mbannour.mongo.codecs.CodecTestKit
 
 val user = User("Alice", 30)
-val bson = CodecTestKit.toBsonDocument(user)
+val bson = CodecTestKit(codec).encode(user)
 println(bson.toJson())  // See exact BSON structure
 ```
 

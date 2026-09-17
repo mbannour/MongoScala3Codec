@@ -529,10 +529,10 @@ given codec: Codec[MyType] = registry.get(classOf[MyType])
 val instance = MyType(new ObjectId(), YourType(...))
 
 // Test round-trip
-CodecTestKit.assertCodecSymmetry(instance)
+CodecTestKit(codec).assertRoundTrip(instance)
 
 // Inspect BSON structure
-val bson = CodecTestKit.toBsonDocument(instance)
+val bson = CodecTestKit(codec).encode(instance)
 println(bson.toJson())
 ```
 

@@ -718,18 +718,30 @@ val registry = RegistryBuilder
   .register[User]
   .build
 
-given codec: Codec[User] = registry.get(classOf[User])
+val kit = CodecTestKit(registry.get(classOf[User]))
 
-val user = User(new ObjectId(), "Alice", 30)
+val user = User(fixedId, "Alice", 30)
+
+// Assert the exact stored document, written independently of the codec
+kit.assertBson(
+  user,
+  new BsonDocument()
+    .append("_id", new BsonObjectId(fixedId))
+    .append("name", new BsonString("Alice"))
+    .append("age", new BsonInt32(30))
+)
+
+// Assert that a document already in your database decodes as expected
+kit.assertDecode(storedDocument, user)
 
 // Assert encode/decode symmetry
-CodecTestKit.assertCodecSymmetry(user)  // ✅ Pass if codec works correctly
+kit.assertRoundTrip(user)  // ✅ Pass if codec works correctly
 ```
 
 ### BSON Structure Inspection
 
 ```scala
-val bsonDoc = CodecTestKit.toBsonDocument(user)
+val bsonDoc = kit.encode(user)
 println(bsonDoc.toJson())
 // Output: {"_id": {"$oid": "..."}, "name": "Alice", "age": 30}
 
@@ -740,8 +752,7 @@ assert(bsonDoc.getString("name").getValue == "Alice")
 ### Round-Trip with Assertion
 
 ```scala
-val roundTripped = CodecTestKit.roundTrip(user)
-assert(roundTripped == user)
+kit.assertRoundTrip(user)
 ```
 ---
 ### Summary

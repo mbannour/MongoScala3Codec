@@ -402,13 +402,25 @@ val reg = RegistryBuilder
   .register[User]
   .build
 
-given Codec[User] = reg.get(classOf[User])
+val kit = CodecTestKit(reg.get(classOf[User]))
 
-// Round-trip symmetry
-CodecTestKit.assertCodecSymmetry(User(new ObjectId(), "Alice", Some("a@x.com")))
+// Assert the exact document, written by hand
+kit.assertBson(
+  User(fixedId, "Alice", Some("a@x.com")),
+  new BsonDocument()
+    .append("_id", new BsonObjectId(fixedId))
+    .append("name", new BsonString("Alice"))
+    .append("email", new BsonString("a@x.com"))
+)
 
-// Inspect BSON
-val bson = CodecTestKit.toBsonDocument(User(new ObjectId(), "Bob", None))
+// Assert that a document already in your database still decodes
+kit.assertDecode(storedDocument, User(fixedId, "Alice", Some("a@x.com")))
+
+// Assert that a value survives encode/decode
+kit.assertRoundTrip(User(fixedId, "Alice", Some("a@x.com")))
+
+// Or inspect the document yourself
+val bson = kit.encode(User(fixedId, "Bob", None))
 println(bson.toJson())  // email omitted due to Ignore
 ```
 

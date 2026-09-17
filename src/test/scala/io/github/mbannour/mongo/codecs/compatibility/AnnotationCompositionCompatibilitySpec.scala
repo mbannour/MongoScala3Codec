@@ -1,6 +1,5 @@
 package io.github.mbannour.mongo.codecs.compatibility
 
-import org.bson.codecs.Codec
 import org.bson.codecs.configuration.CodecRegistries
 import org.bson.types.ObjectId
 import org.bson.{BsonDocument, BsonObjectId, BsonString}
@@ -35,7 +34,9 @@ class AnnotationCompositionCompatibilitySpec extends AnyFlatSpec with Matchers:
     .register[Profile]
     .build
 
-  given codec: Codec[Profile] = registry.get(classOf[Profile])
+  // Written through the published CodecTestKit: the kit knows nothing about these annotations and simply
+  // drives the codec, so what it asserts is whatever the codec does.
+  private val kit = CodecTestKit(registry.get(classOf[Profile]))
 
   private val fixedId = new ObjectId("507f1f77bcf86cd799439011")
 
@@ -50,11 +51,11 @@ class AnnotationCompositionCompatibilitySpec extends AnyFlatSpec with Matchers:
     .append("email", new BsonString("alice@example.com"))
 
   "Profile codec" should "apply every annotation to its own field and leave the rest untouched" in {
-    CodecTestKit.assertBsonStructure(profile, frozenBson)
+    kit.assertBson(profile, frozenBson)
   }
 
   it should "write neither the Scala names that were remapped nor the ignored field" in {
-    val encoded = CodecTestKit.toBsonDocument(profile)
+    val encoded = kit.encode(profile)
 
     encoded.containsKey("id") shouldBe false
     encoded.containsKey("name") shouldBe false
@@ -63,11 +64,10 @@ class AnnotationCompositionCompatibilitySpec extends AnyFlatSpec with Matchers:
   }
 
   it should "decode a hand-written document that was never produced by encode" in {
-    CodecTestKit.fromBsonDocument[Profile](frozenBson) shouldBe
-      Profile(fixedId, "Alice", "none", "alice@example.com")
+    kit.assertDecode(frozenBson, Profile(fixedId, "Alice", "none", "alice@example.com"))
   }
 
   it should "round-trip, with the ignored field reset to its constructor default" in {
-    CodecTestKit.roundTrip(profile) shouldBe Profile(fixedId, "Alice", "none", "alice@example.com")
+    kit.decode(kit.encode(profile)) shouldBe Profile(fixedId, "Alice", "none", "alice@example.com")
   }
 end AnnotationCompositionCompatibilitySpec

@@ -216,7 +216,7 @@ Example:
 @Benchmark 
 def roundTripNewModel(bh: Blackhole): Unit =
   given Codec[NewModel] = newModelCodec
-  bh.consume(CodecTestKit.roundTrip(newModel))
+  bh.consume(kit.decode(kit.encode(newModel)))
 ```
 
 ## Performance Considerations

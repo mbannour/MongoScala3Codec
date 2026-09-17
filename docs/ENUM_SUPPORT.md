@@ -870,17 +870,17 @@ val categoryProvider = EnumValueCodecProvider[Category, String](
 Always test that enums serialize and deserialize correctly:
 
 ```scala
-import io.github.mbannour.mongo.codecs.CodecTestKit.*
+import io.github.mbannour.mongo.codecs.CodecTestKit
 
 test("Priority enum roundtrip") {
-  val task = Task(new ObjectId(), "Test", Priority.High)
+  val kit = CodecTestKit(registry.get(classOf[Task]))
+  val task = Task(fixedId, "Test", Priority.High)
 
   // Test roundtrip
-  val roundtripped = roundTrip(task)
-  roundtripped shouldBe task
+  kit.assertRoundTrip(task)
 
   // Test BSON structure
-  val bsonDoc = toBsonDocument(task)
+  val bsonDoc = kit.encode(task)
   bsonDoc.getString("priority").getValue shouldBe "High"
 }
 ```
