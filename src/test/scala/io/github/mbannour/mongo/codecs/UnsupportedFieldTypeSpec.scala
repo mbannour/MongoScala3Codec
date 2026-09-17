@@ -68,4 +68,33 @@ class UnsupportedFieldTypeSpec extends AnyFlatSpec with Matchers:
       message should not include "Cannot summon ClassTag"
     }
   }
+
+  "A tuple inside a collection field" should "fail to compile with the same information as a bare tuple field" in {
+    // A tuple reached through a type argument is rejected on a different code path than a bare tuple
+    // field, so the two are asserted separately: both are the same mistake and must read the same way.
+    val errors = typeCheckErrors("""
+      import org.bson.codecs.configuration.CodecRegistries
+      import io.github.mbannour.mongo.codecs.RegistryBuilder
+      import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
+
+      case class Track(label: String, points: List[(String, Int)])
+
+      RegistryBuilder
+        .from(CodecRegistries.fromCodecs(new org.bson.codecs.StringCodec()))
+        .register[Track]
+        .build
+    """)
+
+    errors should not be empty
+
+    val message = messageOf(errors)
+
+    withClue(s"diagnostic was:\n$message\n") {
+      message should include("Track")
+      message should include("points")
+      message.toLowerCase should include("tuple")
+      message.toLowerCase should include("unsupported")
+      message should include("MongoScala3Codec")
+    }
+  }
 end UnsupportedFieldTypeSpec

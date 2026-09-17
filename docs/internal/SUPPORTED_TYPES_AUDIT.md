@@ -93,8 +93,17 @@ the fix.
    `validateFieldType` now rejects tuple fields and fields whose type has no `ClassTag`, naming
    the model, the field and the type. It runs on every model the walker visits, so a field in a
    nested model is named too.
-2. The deliberate tuple message in `CaseClassFieldMapper.flattenTypeArgs` remains dead code, since
-   the new check in `ClassToCaseFlagMap` still runs first. Harmless duplication, worth removing.
+2. ~~The deliberate tuple message in `CaseClassFieldMapper.flattenTypeArgs` remains dead code.~~
+   **Wrong, corrected in Task 21.** The two checks cover different shapes and both are reachable:
+   `ClassToCaseFlagMap` tests the *declared* field type, so it catches `pt: (Int, Int)`, while
+   `CaseClassFieldMapper` recurses into type arguments, so it catches the tuple in
+   `pts: List[(String, Int)]`, which is not itself `<:< Tuple`. The two messages now read alike
+   rather than being deduplicated.
 3. A field type with no codec compiles and fails on first encode. Acceptable for genuinely
    pluggable types, since the registry is a runtime value, but it is why `scala.math.BigDecimal`
    and `Array[String]` surface late.
+4. An annotation error inside a model that is reachable only as a *field* of a registered model is
+   not reported, because derivation only validates the models actually registered. `@BsonIgnore`
+   without a default on a nested, unregistered model compiles clean and fails at runtime with
+   `No codec found` for the nested class - which is the same failure an unregistered nested model
+   gives anyway. Measured in Task 21; not a wording defect, so not fixed there.

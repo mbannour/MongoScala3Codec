@@ -105,8 +105,9 @@ object SealedCodecProviderMacro:
         else "type"
 
       report.errorAndAbort(
-        s"Cannot create sealed codec provider for '$typeName'" +
-          s"\n\n'$typeName' is a $typeKind, not a sealed type." +
+        s"MongoScala3Codec cannot derive a sealed-hierarchy codec for '$typeName': it is a $typeKind, not a sealed type." +
+          "\n\nA sealed hierarchy is what makes the set of subtypes known at compile time, which is what the discriminator" +
+          " is written from." +
           "\n\n" +
           "Suggestions:" +
           s"\n  • If '$typeName' is a sealed trait, ensure it's declared as: sealed trait $typeName" +

@@ -76,14 +76,13 @@ object CaseClassCodecGenerator:
         else "type"
 
       val errorMessage =
-        s"Cannot generate BSON codec for '$typeName'" +
-          s"\n\n'$typeName' is a $typeKind, but BSON codecs can only be generated for case classes or sealed types." +
-          "\n\n" +
-          "Suggestions:" +
+        s"MongoScala3Codec cannot derive a codec for '$typeName': it is a $typeKind, not a case class or a sealed type." +
+          "\n\nDerivation reads a case class's primary constructor, or a sealed type's subtypes, to decide what to write." +
+          "\n\nSuggestions:" +
           s"\n  • Convert '$typeName' to a case class: case class $typeName(...)" +
-          "\n  • For sealed traits/classes, use registerSealed[$typeName] instead of register[$typeName]" +
-          "\n  • For regular classes, create a case class wrapper" +
-          "\n  • For abstract classes, use sealed trait + case class subtypes instead"
+          s"\n  • For a sealed trait or class, use registerSealed[$typeName] instead of register[$typeName]" +
+          "\n  • For a regular class, wrap it in a case class" +
+          "\n  • For an abstract class, use a sealed trait with case class subtypes instead"
 
       report.errorAndAbort(errorMessage)
     end if
@@ -96,7 +95,8 @@ object CaseClassCodecGenerator:
       .filter(param => param.hasAnnotation(bsonIdSymbol) && AnnotationName.isIgnored[T](param.name))
       .foreach { param =>
         report.errorAndAbort(
-          s"Field '${tpeSym.name}.${param.name}' cannot be annotated with both @BsonId and @BsonIgnore." +
+          s"MongoScala3Codec cannot derive a codec for '${tpeSym.name}': field '${param.name}' cannot be annotated with both" +
+            " @BsonId and @BsonIgnore." +
             "\n\n@BsonId maps the field to MongoDB's '_id', while @BsonIgnore excludes the field from BSON entirely." +
             "\n\nSuggestions:" +
             s"\n  • Keep @BsonId to persist '${param.name}' as '_id'" +
@@ -111,7 +111,8 @@ object CaseClassCodecGenerator:
         val fieldType = param.tree.asInstanceOf[ValDef].tpt.tpe.show(using Printer.TypeReprShortCode)
 
         report.errorAndAbort(
-          s"@BsonIgnore field '${tpeSym.name}.${param.name}' requires a constructor default value." +
+          s"MongoScala3Codec cannot derive a codec for '${tpeSym.name}': @BsonIgnore field '${param.name}' requires a" +
+            " constructor default value." +
             s"\n\nFields annotated with @BsonIgnore are never read from BSON, so decoding has no value to supply for '${param.name}'." +
             "\n\nSuggestions:" +
             s"\n  • Add a default value: @BsonIgnore ${param.name}: $fieldType = <default>" +
@@ -125,7 +126,7 @@ object CaseClassCodecGenerator:
       val names = idFields.map(param => s"'${param.name}'").mkString(", ")
 
       report.errorAndAbort(
-        s"Type '${tpeSym.name}' declares multiple @BsonId fields: $names." +
+        s"MongoScala3Codec cannot derive a codec for '${tpeSym.name}': it declares multiple @BsonId fields: $names." +
           "\n\nA MongoDB document can have only one '_id' field, so only one field may be annotated with @BsonId." +
           "\n\nSuggestions:" +
           "\n  • Keep @BsonId on the single field that represents the document identifier" +

@@ -54,9 +54,9 @@ object CaseClassMapper:
         else "\n\nNo subclasses found at all."
 
         report.errorAndAbort(
-          s"Cannot generate codec for sealed $kind '$typeName'" +
+          s"MongoScala3Codec cannot derive a codec for the sealed $kind '$typeName': it has no case class subtypes." +
             subclassInfo +
-            "\n\nSuggestion:" +
+            "\n\nSuggestions:" +
             s"\n  • Ensure all subclasses of '$typeName' are case classes" +
             s"\n  • Example:\n" +
             s"      sealed trait $typeName\n" +
@@ -67,7 +67,7 @@ object CaseClassMapper:
         val typeName = mainSymbol.name
 
         report.errorAndAbort(
-          s"Cannot generate codec for '$typeName': it is neither a case class nor a sealed trait/class." +
+          s"MongoScala3Codec cannot derive a codec for '$typeName': it is neither a case class nor a sealed trait/class." +
             "\n\nSuggestion:" +
             s"\n  • Make '$typeName' a case class:\n" +
             s"      case class $typeName(...)" +
@@ -103,7 +103,7 @@ object CaseClassMapper:
           // annotation was reached for. Only an explicit value can be empty; a simple name cannot.
           if value.isEmpty then
             report.errorAndAbort(
-              s"Empty @BsonDiscriminator value on '${symbol.name}'." +
+              s"MongoScala3Codec cannot derive a codec for '${symbol.name}': its @BsonDiscriminator value is empty." +
                 "\n\nThe discriminator is what tells a stored document which subtype it holds, and an empty one is" +
                 " indistinguishable from no discriminator at all, so empty values are unsupported." +
                 "\n\nSuggestions:" +
@@ -136,7 +136,7 @@ object CaseClassMapper:
         symbols.map(symbol => if simpleNamesAreDistinct then s"'${symbol.name}'" else s"'${symbol.fullName}'").mkString(", ")
 
       report.errorAndAbort(
-        s"Duplicate BSON discriminator value '$discriminator' in '${mainSymbol.name}'." +
+        s"MongoScala3Codec cannot derive a codec for '${mainSymbol.name}': duplicate discriminator value '$discriminator'." +
           s"\n\nIt is the effective discriminator of ${symbols.size} subtypes: $names. A document records only the" +
           " discriminator, so decoding could not tell these subtypes apart." +
           "\n\nA subtype's effective discriminator is its @BsonDiscriminator value, or its simple name when it is not" +

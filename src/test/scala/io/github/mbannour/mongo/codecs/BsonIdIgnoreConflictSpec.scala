@@ -12,8 +12,8 @@ import org.scalatest.matchers.should.Matchers
 import io.github.mbannour.bson.macros.{BsonId, BsonIgnore}
 import io.github.mbannour.mongo.codecs.RegistryBuilder$package.RegistryBuilder.*
 
-/** Compile-time contract for combining `@BsonId` and `@BsonIgnore`: `@BsonId` says the field is persisted as `_id`, `@BsonIgnore` says it is
-  * not persisted at all. The two cannot apply to the same field, and derivation must say so rather than pick a winner.
+/** Compile-time contract for combining `@BsonId` and `@BsonIgnore`: `@BsonId` says the field is persisted as `_id`, `@BsonIgnore` says it
+  * is not persisted at all. The two cannot apply to the same field, and derivation must say so rather than pick a winner.
   */
 class BsonIdIgnoreConflictSpec extends AnyFlatSpec with Matchers:
 

@@ -48,8 +48,7 @@ object AnnotationName:
 
   /** Returns true if the constructor parameter named `fieldName` of type `T` is annotated with `@BsonIgnore`.
     *
-    * This is a compile-time-only check (no runtime `Expr` involved) since it only decides which fields the write macro generates code
-    * for.
+    * This is a compile-time-only check (no runtime `Expr` involved) since it only decides which fields the write macro generates code for.
     */
   private[mbannour] def isIgnored[T: Type](using Quotes)(fieldName: String): Boolean =
     import quotes.reflect.*

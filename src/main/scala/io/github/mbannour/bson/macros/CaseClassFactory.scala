@@ -22,9 +22,9 @@ object CaseClassFactory:
         else if mainTypeSymbol.isClassDef then "class"
         else "type"
       report.errorAndAbort(
-        s"'$typeName' is a $typeKind, not a case class." +
-          "\n\nBSON codec generation only works with case classes." +
-          "\n\nSuggestion: Convert '$typeName' to a case class:" +
+        s"MongoScala3Codec cannot derive a codec for '$typeName': it is a $typeKind, not a case class." +
+          "\n\nDecoding reads a case class's primary constructor to build the value from a document." +
+          s"\n\nSuggestion: Convert '$typeName' to a case class:" +
           s"\n  case class $typeName(...)"
       )
     end if

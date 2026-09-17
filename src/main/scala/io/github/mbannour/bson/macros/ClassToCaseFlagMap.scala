@@ -46,11 +46,12 @@ object ClassToCaseFlagMap:
 
       declaredType.foreach { fieldType =>
         val shownType = fieldType.show(using Printer.TypeReprShortCode)
-        val location = s"field '${owner.name}.${field.name}' of type '$shownType'"
+        val location = s"field '${field.name}' has unsupported type '$shownType'"
+        val preamble = s"MongoScala3Codec cannot derive a codec for '${owner.name}': $location"
 
         if fieldType <:< TypeRepr.of[Tuple] then
           report.errorAndAbort(
-            s"Tuple types are unsupported in BSON: $location." +
+            s"$preamble." +
               "\n\nA BSON document names its values, and a tuple's elements have no names to write them under." +
               "\n\nSuggestions:" +
               s"\n  • Replace the tuple with a case class, whose parameter names become the BSON field names" +
@@ -62,8 +63,8 @@ object ClassToCaseFlagMap:
           case '[f] =>
             if Expr.summon[ClassTag[f]].isEmpty then
               report.errorAndAbort(
-                s"Unsupported type in BSON: $location." +
-                  "\n\nEncoding needs the field's runtime class, and no ClassTag is available for this type, so it is not a concrete" +
+                s"$preamble." +
+                  "\n\nEncoding needs the field's runtime class, and this type does not have one, so it is not a concrete" +
                   " type that can be written to a document. A type parameter of a generic model is the usual cause: derivation happens" +
                   " per concrete model, and the parameter is still abstract at that point." +
                   "\n\nSuggestions:" +

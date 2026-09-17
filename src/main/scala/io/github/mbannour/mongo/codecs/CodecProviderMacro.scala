@@ -120,40 +120,46 @@ object CodecProviderMacro:
     val mainType = TypeRepr.of[T]
     val mainTypeSymbol = mainType.typeSymbol
 
-    // Validate that T is a case class
     val typeName = mainTypeSymbol.name
-    if !mainTypeSymbol.flags.is(Flags.Case) then
-      report.errorAndAbort(
-        s"Cannot create codec provider for '$typeName'" +
-          "\n\n'$typeName' is not a case class." +
-          "\n\nSuggestion: Declare it as a case class:" +
-          s"\n  case class $typeName(...)"
-      )
 
-    // Warn if the type is abstract or a trait
-    if mainTypeSymbol.flags.is(Flags.Trait) then
+    // `register` derives a codec from a case class's primary constructor, so anything else is refused here.
+    // What the user should do instead depends entirely on what they passed: a sealed trait has its subtypes
+    // registered, an enum has its own provider, and only a plain class is really being asked to become a
+    // case class. One check, so the kind that is reported is the kind that was found.
+    if !mainTypeSymbol.flags.is(Flags.Case) then
+      val remediation =
+        if mainTypeSymbol.flags.is(Flags.Enum) then
+          "\n\nA Scala 3 enum is encoded by its own provider rather than by deriving one:" +
+            s"\n  CodecRegistries.fromProviders(EnumValueCodecProvider.forStringEnum[$typeName])" +
+            s"\n  CodecRegistries.fromProviders(EnumValueCodecProvider.forOrdinalEnum[$typeName])"
+        else if mainTypeSymbol.flags.is(Flags.Sealed) then
+          s"\n\nSuggestion: a sealed hierarchy is registered as a whole, which records each subtype under a discriminator:" +
+            s"\n  RegistryBuilder.from(...).registerSealed[$typeName].build"
+        else if mainTypeSymbol.flags.is(Flags.Trait) || mainTypeSymbol.flags.is(Flags.Abstract) then
+          "\n\nSuggestions:" +
+            s"\n  • Seal '$typeName' and register the hierarchy: sealed trait $typeName, then .registerSealed[$typeName]" +
+            "\n  • Or register each concrete case class that implements it, one by one"
+        else
+          "\n\nSuggestions:" +
+            s"\n  • Declare it as a case class: case class $typeName(...)" +
+            s"\n  • Or supply a codec for it yourself: CodecRegistries.fromCodecs(new MyCodec)"
+
+      val kind =
+        if mainTypeSymbol.flags.is(Flags.Enum) then "an enum"
+        else if mainTypeSymbol.flags.is(Flags.Sealed) && mainTypeSymbol.flags.is(Flags.Trait) then "a sealed trait"
+        else if mainTypeSymbol.flags.is(Flags.Sealed) then "a sealed class"
+        else if mainTypeSymbol.flags.is(Flags.Trait) then "a trait"
+        else if mainTypeSymbol.flags.is(Flags.Abstract) then "an abstract class"
+        else if mainTypeSymbol.isClassDef then "a class"
+        else "a type"
+
       report.errorAndAbort(
-        s"Cannot create codec provider for '$typeName'" +
-          "\n\n'$typeName' is a trait. Only concrete case classes can have codec providers." +
-          "\n\nSuggestion: For sealed trait hierarchies, register each concrete case class implementation:" +
-          s"\n  sealed trait $typeName" +
-          s"\n  case class SubType1(...) extends $typeName" +
-          s"\n  case class SubType2(...) extends $typeName" +
-          "\n\n  // Then register each:" +
-          "\n  val registry = RegistryBuilder" +
-          "\n    .from(...)" +
-          "\n    .register[SubType1]" +
-          "\n    .register[SubType2]" +
-          "\n    .build"
+        s"MongoScala3Codec cannot derive a codec for '$typeName': it is $kind, not a case class." +
+          "\n\nDerivation reads a case class's primary constructor to decide which fields to write, and" +
+          s" '$typeName' has no such constructor to read." +
+          remediation
       )
     end if
-
-    if mainTypeSymbol.flags.is(Flags.Abstract) then
-      report.errorAndAbort(
-        s"Cannot create codec provider for '$typeName'" +
-          "\n\n'$typeName' is an abstract class. Only concrete case classes are supported." +
-          "\n\nSuggestion: Make it a concrete case class or create codec providers for its concrete subclasses."
-      )
 
     // Note: we intentionally use the runtime `registry` passed to `get` for nested lookups,
     // so multiple providers registered together can resolve each other.

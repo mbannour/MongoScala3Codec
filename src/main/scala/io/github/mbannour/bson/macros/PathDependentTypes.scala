@@ -47,7 +47,7 @@ object PathDependentTypes:
       val ownerName = tpe.typeSymbol.maybeOwner.name
 
       report.errorAndAbort(
-        s"Cannot derive a codec for path-dependent type '$shownType'." +
+        s"MongoScala3Codec cannot derive a codec for the path-dependent type '$shownType'." +
           s"\n\n'$memberName' is a member of the class '$ownerName', so naming it through the instance '$termName' makes its type" +
           s" depend on that instance. Derivation can only refer to '$memberName' as '$ownerName.this.$memberName', which is a" +
           " different type, so path-dependent types are unsupported." +

@@ -68,9 +68,8 @@ object BsonCodec:
         else if tpeSym.flags.is(Flags.Abstract) then "abstract class"
         else "class"
       report.errorAndAbort(
-        s"BsonCodec.derived cannot be used with '$typeName'" +
-          s"\n\n'$typeName' is a $typeKind, but BsonCodec.derived only works with case classes." +
-          "\n\nSuggestion:" +
+        s"MongoScala3Codec cannot derive a codec for '$typeName': it is a $typeKind, but BsonCodec.derived only works with case classes." +
+          "\n\nSuggestions:" +
           s"\n  • Convert to a case class: case class $typeName(...)" +
           "\n  • Or use RegistryBuilder to register codecs instead of BsonCodec.derived"
       )

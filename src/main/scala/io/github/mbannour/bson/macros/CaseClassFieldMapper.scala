@@ -43,20 +43,31 @@ object CaseClassFieldMapper:
       *   - Filters out Option types.
       *   - Converts primitive types to their boxed versions.
       */
+    /** The shared opening of this file's two rejections: which library refused the model, which model, and which field.
+      *
+      * A field reaches here through its type arguments, so the type named in the rest of the message is the offending part - the map's key,
+      * the tuple nested in a collection - rather than the field's declared type, which would be misleading.
+      *
+      * The context is absent only when a type is flattened outside a field walk, and then there is no field to name.
+      */
+    def rejection(fieldContext: Option[(String, String)]): String =
+      fieldContext match
+        case Some((className, fieldName)) =>
+          s"MongoScala3Codec cannot derive a codec for '$className': field '$fieldName' has an unsupported type"
+        case None =>
+          "MongoScala3Codec cannot derive a codec: unsupported type"
+
     def flattenTypeArgs(tpe: TypeRepr, fieldContext: Option[(String, String)] = None): List[TypeRepr] =
       val dealiased = tpe.dealias
       val typeArgs = dealiased match
         case AppliedType(_, args) if isMap(dealiased) && !(args.head =:= TypeRepr.of[String]) =>
-          val keyType = args.head.show
-          val contextMsg = fieldContext match
-            case Some((className, fieldName)) =>
-              s"\n\nField '$fieldName' in case class '$className' has type: ${tpe.show}"
-            case None =>
-              s"\n\nFound map type: ${tpe.show}"
+          val keyType = args.head.show(using Printer.TypeReprShortCode)
           report.errorAndAbort(
-            s"Map keys must be String type, but found: $keyType" + contextMsg +
-              "\n\nSuggestion: Change the map type to Map[String, V] where V is your value type." +
-              "\nExample: Map[String, Int] instead of Map[Int, String]"
+            s"${rejection(fieldContext)}: Map keys must be String, but the key type is '$keyType'." +
+              "\n\nA Map is written as an embedded document, and a BSON document's keys are strings." +
+              "\n\nSuggestions:" +
+              "\n  • Change the field to Map[String, V], for example Map[String, Int] instead of Map[Int, String]" +
+              "\n  • Or key the map by a string form of the key and convert it back after decoding"
           )
         case AppliedType(_, _ :: tail) if isMap(dealiased) => tail
         case AppliedType(_, args)                          => args
@@ -64,16 +75,13 @@ object CaseClassFieldMapper:
 
       val allTypes = dealiased :: typeArgs.flatMap(t => flattenTypeArgs(t, fieldContext))
       if allTypes.exists(isTuple) then
-        val tupleType = allTypes.find(isTuple).get.show
-        val contextMsg = fieldContext match
-          case Some((className, fieldName)) =>
-            s"\n\nField '$fieldName' in case class '$className' uses tuple type: $tupleType"
-          case None =>
-            s"\n\nFound tuple type: $tupleType"
+        val tupleType = allTypes.find(isTuple).get.show(using Printer.TypeReprShortCode)
         report.errorAndAbort(
-          s"Tuple types are not supported in BSON serialization" + contextMsg +
-            "\n\nSuggestion: Wrap the tuple data in a case class instead." +
-            "\nExample: Instead of (String, Int), create case class Data(field1: String, field2: Int)"
+          s"${rejection(fieldContext)}: it contains the tuple '$tupleType', and tuples are unsupported in BSON." +
+            "\n\nA BSON document names its values, and a tuple's elements have no names to write them under." +
+            "\n\nSuggestions:" +
+            "\n  • Replace the tuple with a case class, whose parameter names become the BSON field names" +
+            "\n  • For a pair keyed by a string, Map[String, V] is encoded as an embedded document"
         )
       end if
       allTypes.filterNot(isOption).map(t => primitiveTypesMap.getOrElse(t, t))
