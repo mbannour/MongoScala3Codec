@@ -59,6 +59,26 @@ class SealedTraitCompatibilitySpec extends AnyFlatSpec with Matchers:
     CodecTestKit.toBsonDocument[Animal](Dog("Rex", "Labrador")).getString("_type").getValue shouldBe "Dog"
   }
 
+  /** Key order is deliberately *not* part of the contract: `BsonDocument` equality is `Map` equality, so every golden in this package
+    * compares structurally and a future change to field order would not fail them.
+    *
+    * Discriminator placement is the one exception, asserted here on its own rather than left to ride on document equality that would never
+    * have caught it. A reader that streams a document decides which subtype to build before it consumes the payload, so the discriminator
+    * arriving first is a property of what this library writes - even though our own decoder does not require it, as the test below shows.
+    */
+  it should "write the discriminator as the first key, at the root and inside a nested document" in {
+    import scala.jdk.CollectionConverters.*
+
+    CodecTestKit.toBsonDocument[Animal](Dog("Rex", "Labrador")).keySet().asScala.head shouldBe "_type"
+
+    val registry = RegistryBuilder.from(primitives).registerSealed[Animal].register[Household].build
+    val householdCodec: Codec[Household] = registry.get(classOf[Household])
+
+    val nested = CodecTestKit.toBsonDocument(Household("Ann", Dog("Rex", "Labrador")))(using householdCodec)
+
+    nested.getDocument("pet").keySet().asScala.head shouldBe "_type"
+  }
+
   it should "round-trip through the root codec" in {
     CodecTestKit.roundTrip[Animal](Dog("Rex", "Labrador")) shouldBe Dog("Rex", "Labrador")
     CodecTestKit.roundTrip[Animal](Cat("Tom", 9)) shouldBe Cat("Tom", 9)
