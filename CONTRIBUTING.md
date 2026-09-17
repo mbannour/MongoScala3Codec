@@ -115,6 +115,37 @@ sbt "testOnly io.github.mbannour.mongo.codecs.PropertyBasedCodecSpec"
 sbt "testOnly *CodecSpec"
 ```
 
+### Check Binary Compatibility
+
+The library is checked against a published baseline so a release cannot accidentally remove or
+change a public JVM symbol that existing applications are already linked against:
+
+```bash
+# Check the current build against the published baseline
+sbt mimaReportBinaryIssues
+```
+
+The baseline is the single `binaryCompatibilityBaseline` value at the top of `build.sbt`, and CI
+runs this check on every pull request.
+
+**Before 1.0.0:** the baseline is the latest 0.x release, and the check is an engineering guard
+only - 0.x makes no compatibility promise.
+
+**After 1.0.0 is published:** set `binaryCompatibilityBaseline` to `"1.0.0"` and leave it there for
+the whole 1.x line, so every later release is checked against 1.0.0 rather than against its
+immediate predecessor. A symbol dropped in 1.2 would otherwise never be reported again.
+
+If a change genuinely has to break binary compatibility, add a narrow entry to
+`mimaBinaryIssueFilters` naming the exact symbol, with a comment saying why - never a package-wide
+or problem-class-wide filter, which would silence unrelated breakage for good.
+
+Note what this check does *not* cover: MiMa reasons about JVM symbols, so it says nothing about
+`inline` and macro entry points (`register[T]`, `MongoPath.of`, `EnumValueCodecProvider.forStringEnum`
+and friends compile away at the call site and leave no symbol to compare), nor about given/implicit
+resolution or type inference. Source compatibility needs its own tests.
+
+---
+
 ### Code Coverage
 
 ```bash

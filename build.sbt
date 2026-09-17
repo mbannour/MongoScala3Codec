@@ -4,6 +4,16 @@ import scoverage.ScoverageKeys.*
 
 val scala3Version = "3.7.4"
 
+/** The published artifact every build is checked against for binary compatibility.
+  *
+  * Pre-1.0 this is the latest release, and the check is an engineering guard only: 0.x carries no compatibility promise, and the 10
+  * problems MiMa reports against 0.0.6 are the deliberate API evolution that got us here.
+  *
+  * The promise starts at 1.0.0. Once 1.0.0 is published, change this one value to "1.0.0" and leave it there for the whole 1.x line, so
+  * that 1.3.0 is checked against 1.0.0 rather than against 1.2.0 - otherwise a symbol dropped in 1.2 would never be noticed again.
+  */
+val binaryCompatibilityBaseline = "0.0.11"
+
 ThisBuild / semanticdbEnabled := true
 ThisBuild / semanticdbVersion := scalafixSemanticdb.revision
 
@@ -97,9 +107,13 @@ lazy val root = project
     credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials"),
     Test / publishArtifact := false,
     mimaPreviousArtifacts := Set(
-      organization.value %% moduleName.value % "0.0.6"
+      organization.value %% moduleName.value % binaryCompatibilityBaseline
     ),
-    mimaFailOnNoPrevious := false
+    // A missing baseline is a broken check, not a passing one.
+    mimaFailOnNoPrevious := true,
+    // Deliberately empty. An exclusion here silences a real report, so each one must name the symbol it
+    // covers and say why the break is acceptable - never a package-wide or problem-class-wide filter.
+    mimaBinaryIssueFilters := Seq.empty
   )
 
 lazy val integrationTests = project
@@ -122,7 +136,8 @@ lazy val integrationTests = project
     fork := true,
     Test / parallelExecution := false,
     publish / skip := true,
-    mimaPreviousArtifacts := Set.empty
+    mimaPreviousArtifacts := Set.empty,
+    mimaFailOnNoPrevious := false
   )
 
 lazy val benchmarks = project
@@ -135,7 +150,8 @@ lazy val benchmarks = project
     publish / skip := true,
     Test / skip := true,
     fork := true,
-    mimaPreviousArtifacts := Set.empty
+    mimaPreviousArtifacts := Set.empty,
+    mimaFailOnNoPrevious := false
   )
 
 lazy val examples = project
@@ -151,5 +167,6 @@ lazy val examples = project
     ),
     publish / skip := true,
     mimaPreviousArtifacts := Set.empty,
+    mimaFailOnNoPrevious := false,
     Compile / run / fork := true
   )
