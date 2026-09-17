@@ -38,6 +38,7 @@ class BsonIdCompatibilitySpec extends AnyFlatSpec with Matchers:
       .append("name", new BsonString("Alice"))
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[User](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
   }
 
@@ -56,6 +57,7 @@ class BsonIdCompatibilitySpec extends AnyFlatSpec with Matchers:
       .append("name", new BsonString("Alice"))
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[OrdinaryUser](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
   }
 end BsonIdCompatibilitySpec

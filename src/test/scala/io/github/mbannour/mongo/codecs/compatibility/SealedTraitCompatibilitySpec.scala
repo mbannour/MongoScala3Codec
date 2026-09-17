@@ -1,6 +1,6 @@
 package io.github.mbannour.mongo.codecs.compatibility
 
-import org.bson.{BsonDocument, BsonInvalidOperationException}
+import org.bson.{BsonDocument, BsonInt32, BsonInvalidOperationException, BsonString, BsonType}
 import org.bson.codecs.Codec
 import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -123,6 +123,12 @@ class SealedTraitCompatibilitySpec extends AnyFlatSpec with Matchers:
       Dog("Rex", "Labrador"),
       BsonDocument.parse("""{"_class": "Dog", "name": "Rex", "breed": "Labrador"}""")
     )
+
+    CodecTestKit.fromBsonDocument[Animal](
+      BsonDocument.parse("""{"_class": "Dog", "name": "Rex", "breed": "Labrador"}""")
+    ) shouldBe Dog("Rex", "Labrador")
+
+    CodecTestKit.roundTrip[Animal](Dog("Rex", "Labrador")) shouldBe Dog("Rex", "Labrador")
   }
 
   "A document with no discriminator" should "fail to decode with a message naming the missing field" in {
@@ -156,8 +162,31 @@ class SealedTraitCompatibilitySpec extends AnyFlatSpec with Matchers:
 
     given codec: Codec[Paint] = registry.get(classOf[Paint])
 
-    CodecTestKit.assertBsonStructure(Paint("wall", Colour.Green), BsonDocument.parse("""{"name": "wall", "colour": "Green"}"""))
+    val expected = new BsonDocument()
+      .append("name", new BsonString("wall"))
+      .append("colour", new BsonString("Green"))
+
+    CodecTestKit.assertBsonStructure(Paint("wall", Colour.Green), expected)
+    CodecTestKit.fromBsonDocument[Paint](expected) shouldBe Paint("wall", Colour.Green)
     CodecTestKit.roundTrip(Paint("wall", Colour.Green)) shouldBe Paint("wall", Colour.Green)
+  }
+
+  it should "reject a stored value that names no case of the enum" in {
+    val base = CodecRegistries.fromRegistries(
+      CodecRegistries.fromProviders(EnumValueCodecProvider.forStringEnum[Colour]),
+      primitives
+    )
+    val registry = RegistryBuilder.from(base).register[Paint].build
+
+    given codec: Codec[Paint] = registry.get(classOf[Paint])
+
+    val error = intercept[RuntimeException] {
+      CodecTestKit.fromBsonDocument[Paint](
+        new BsonDocument().append("name", new BsonString("wall")).append("colour", new BsonString("Puce"))
+      )
+    }
+
+    error.getMessage should include("Puce")
   }
 
   "A Scala 3 enum registered as an ordinal enum" should "encode as its ordinal" in {
@@ -169,7 +198,36 @@ class SealedTraitCompatibilitySpec extends AnyFlatSpec with Matchers:
 
     given codec: Codec[Paint] = registry.get(classOf[Paint])
 
-    CodecTestKit.assertBsonStructure(Paint("wall", Colour.Green), BsonDocument.parse("""{"name": "wall", "colour": 1}"""))
+    // Written as Int32, not Int64: the ordinal is stated as a typed value rather than left to a JSON
+    // literal, because the numeric type is part of what a stored document commits to.
+    val expected = new BsonDocument()
+      .append("name", new BsonString("wall"))
+      .append("colour", new BsonInt32(1))
+
+    CodecTestKit.assertBsonStructure(Paint("wall", Colour.Green), expected)
+    CodecTestKit.toBsonDocument(Paint("wall", Colour.Green)).get("colour").getBsonType shouldBe BsonType.INT32
+    CodecTestKit.fromBsonDocument[Paint](expected) shouldBe Paint("wall", Colour.Green)
     CodecTestKit.roundTrip(Paint("wall", Colour.Green)) shouldBe Paint("wall", Colour.Green)
+  }
+
+  // An ordinal is a position, not a name, so reordering or inserting enum cases silently changes what every
+  // stored document means. Recorded here because it is the one enum representation with no self-describing
+  // value to fall back on; the library offers no migration for it.
+  it should "read an ordinal back by position, which is what makes case order part of the stored contract" in {
+    val base = CodecRegistries.fromRegistries(
+      CodecRegistries.fromProviders(EnumValueCodecProvider.forOrdinalEnum[Colour]),
+      primitives
+    )
+    val registry = RegistryBuilder.from(base).register[Paint].build
+
+    given codec: Codec[Paint] = registry.get(classOf[Paint])
+
+    CodecTestKit.fromBsonDocument[Paint](
+      new BsonDocument().append("name", new BsonString("wall")).append("colour", new BsonInt32(0))
+    ) shouldBe Paint("wall", Colour.Red)
+
+    CodecTestKit.fromBsonDocument[Paint](
+      new BsonDocument().append("name", new BsonString("wall")).append("colour", new BsonInt32(2))
+    ) shouldBe Paint("wall", Colour.Blue)
   }
 end SealedTraitCompatibilitySpec

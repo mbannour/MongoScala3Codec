@@ -41,6 +41,12 @@ class BsonIgnoreCompatibilitySpec extends AnyFlatSpec with Matchers:
     CodecTestKit.roundTrip(user) shouldBe User("Alice", "")
   }
 
+  it should "decode a hand-written document that never carried the ignored field" in {
+    val storedDocument = new BsonDocument().append("name", new BsonString("Alice"))
+
+    CodecTestKit.fromBsonDocument[User](storedDocument) shouldBe User("Alice", "")
+  }
+
   case class Settings(
       name: String,
       @BsonIgnore retryCount: Int = 5,

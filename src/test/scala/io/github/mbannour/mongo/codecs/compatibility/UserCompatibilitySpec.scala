@@ -43,6 +43,7 @@ class UserCompatibilitySpec extends AnyFlatSpec with Matchers:
       .append("active", new BsonBoolean(true))
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[User](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
   }
 end UserCompatibilitySpec

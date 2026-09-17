@@ -31,6 +31,7 @@ class OptionCompatibilitySpec extends AnyFlatSpec with Matchers:
       .append("email", new BsonString("alice@example.com"))
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[UserWithEmail](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
   }
 
@@ -42,6 +43,16 @@ class OptionCompatibilitySpec extends AnyFlatSpec with Matchers:
       .append("email", new BsonNull())
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[UserWithEmail](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
+  }
+
+  // An absent key and an explicit null both mean None on the way in, so documents written under
+  // NoneHandling.Ignore stay readable by a reader configured with the default NoneHandling.Encode.
+  it should "also decode None from a document that omits the field entirely" in {
+    val writtenWithNoneHandlingIgnore = new BsonDocument()
+      .append("name", new BsonString("Alice"))
+
+    CodecTestKit.fromBsonDocument[UserWithEmail](writtenWithNoneHandlingIgnore) shouldBe UserWithEmail("Alice", None)
   }
 end OptionCompatibilitySpec

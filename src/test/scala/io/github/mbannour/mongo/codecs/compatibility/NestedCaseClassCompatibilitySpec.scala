@@ -40,6 +40,7 @@ class NestedCaseClassCompatibilitySpec extends AnyFlatSpec with Matchers:
       )
 
     CodecTestKit.assertBsonStructure(user, expectedBson)
+    CodecTestKit.fromBsonDocument[User](expectedBson) shouldBe user
     CodecTestKit.roundTrip(user) shouldBe user
   }
 end NestedCaseClassCompatibilitySpec
