@@ -4,7 +4,7 @@ This directory contains comprehensive, runnable examples demonstrating all the f
 
 ## Prerequisites
 
-- **Scala 3.7.1** (or compatible 3.3+)
+- **Scala 3.7.4** (the project default; 3.3.1 or later is supported — see [../README.md](../README.md#supported-scala-versions))
 - **MongoDB** running on `localhost:27017`
 - **sbt** build tool
 

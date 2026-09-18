@@ -4,16 +4,22 @@ Get started with MongoScala3Codec in just a few minutes. This guide will have yo
 
 ## Why Use This Library?
 
-**MongoScala3Codec enables native MongoDB usage in Scala 3.** The official `mongo-scala-driver` only supports Scala 2 (2.11, 2.12, 2.13) because it uses Scala 2 macros. This library provides:
-- ✅ **Scala 3 native** - Uses modern Scala 3 macros
-- ✅ **Zero boilerplate** - One line registers any case class
-- ✅ **Compile-time safe** - Catch errors at compile time, not production
-- ✅ **BSON native** - Full support for ObjectId, Binary, Decimal128, etc.
-- ✅ **Scala 3 enum support** - String/ordinal/custom field encoding
+MongoScala3Codec derives native MongoDB `Codec[T]` instances for your Scala 3 models, on top of the
+official MongoDB BSON and codec APIs. It does not replace the MongoDB driver — you keep using
+`MongoClient`, `MongoCollection` and `Filters` as you do today.
+
+- **Zero boilerplate** — one call registers a case class
+- **Compile-time checked mapping** — unsupported shapes and conflicting annotations are compile errors
+- **An explicit stored shape** — every supported feature has a documented, frozen BSON representation
+- **No JSON step** — `case class` → `Codec[T]` → BSON → driver
+- **Scala 3 enum support** — string or ordinal mode
+
+See [../README.md](../README.md) for the full picture, including the supported-type contract and the
+compatibility matrices.
 
 ## Prerequisites
 
-- Scala 3.3+ project
+- Scala 3.3.1 or later (see the tested matrix in [../README.md](../README.md#supported-scala-versions))
 - MongoDB instance (local or cloud)
 - SBT or Mill build tool
 
@@ -69,7 +75,11 @@ val codecRegistry: CodecRegistry = RegistryBuilder
 given CodecRegistry = codecRegistry
 ```
 
-**New in 0.0.7:** The `registerAll[(Type1, Type2, ...)]` method is more efficient than chaining multiple `register[T]` calls, and `ignoreNone` is a cleaner alternative to `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)`.
+**Tip:** `registerAll[(Type1, Type2, ...)]` expands in one macro pass and compiles faster than a chain of `register[T]` calls.
+
+`ignoreNone` and `encodeNone` are called **on the builder**, as above. A `given CodecConfig` in
+scope is *not* picked up by `RegistryBuilder` on its own — to use one, pass it explicitly with
+`withConfig(summon[CodecConfig])`.
 
 
 ## Step 4: Connect to MongoDB
@@ -236,11 +246,22 @@ val registry = RegistryBuilder
 
 ### None values appearing as null in MongoDB
 
-**Solution:** Use `NoneHandling.Ignore` to omit None fields:
+That is the default (`encodeNone`). To omit `None` fields instead, call `ignoreNone` **on the
+builder**:
 
 ```scala
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
+val registry = RegistryBuilder
+  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .ignoreNone
+  .registerAll[(User, Address)]
+  .build
 ```
+
+Declaring `given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)` and nothing else
+has **no effect** — `RegistryBuilder` does not summon it. If you tried that and still see nulls,
+this is why. To use a `given`, pass it: `.withConfig(summon[CodecConfig])`.
+
+Either way, decoding accepts both shapes: a missing field and a stored `null` both read as `None`.
 
 ### Type mismatch with MongoDB Scala Driver
 

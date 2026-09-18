@@ -20,7 +20,7 @@ It's people like you that make MongoScala3Codec a great tool for the Scala commu
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [med.ali.bennour@gmail.com](mailto:med.ali.bennour@gmail.com).
+This project and everyone participating in it is governed by a code of conduct. By participating, you are expected to uphold it: be respectful, assume good faith, and keep discussion technical. Please report unacceptable behavior to [med.ali.bennour@gmail.com](mailto:med.ali.bennour@gmail.com).
 
 ---
 
@@ -114,6 +114,29 @@ sbt "testOnly io.github.mbannour.mongo.codecs.PropertyBasedCodecSpec"
 # Run tests matching a pattern
 sbt "testOnly *CodecSpec"
 ```
+
+### Check MongoDB Driver Compatibility
+
+The library depends only on the BSON codec layer, so it should work across a range of MongoDB
+driver versions. `-Dmongodb.version` overrides the single pair of version literals at the top of
+`build.sbt` to prove it:
+
+```bash
+# The default driver version - no property needed
+sbt test
+
+# One cell of the driver matrix
+sbt -Dmongodb.version=5.12.0 clean test
+sbt -Dmongodb.version=5.12.0 integrationTests/test
+
+# Confirm what actually resolved
+sbt -Dmongodb.version=5.12.0 "show libraryDependencies"
+```
+
+CI runs this on the default Scala version only, over the minimum supported, default and newest
+validated driver versions. It is deliberately **not** crossed with the Scala matrix: the two stay
+additive rather than multiplicative. The tested versions are listed in
+[README.md](README.md#supported-mongodb-driver-versions).
 
 ### Check Binary Compatibility
 

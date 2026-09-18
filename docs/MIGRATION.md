@@ -74,10 +74,9 @@ import io.github.mbannour.mongo.codecs.{RegistryBuilder, CodecConfig, NoneHandli
 
 case class Person(_id: ObjectId, name: String, age: Int, email: Option[String])
 
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-
 val registry = RegistryBuilder
   .from(MongoClient.DEFAULT_CODEC_REGISTRY)
+  .ignoreNone                       // omit None fields; .encodeNone writes null instead
   .register[Person]
   .build
 ```

@@ -5,10 +5,61 @@ All notable changes to MongoScala3Codec will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — towards 1.0.0
+
+1.0.0 is **not released yet**. This section records the work done towards it. The 1.x compatibility
+promises described below take effect when 1.0.0 is published, not before.
+
+### Added
+- `@BsonId` maps a constructor parameter to MongoDB's `_id` field. At most one per model; combining
+  it with `@BsonIgnore` is a compile error.
+- `@BsonIgnore` leaves a field out of the document. The field must have a constructor default, or it
+  is a compile error. The mapping is deliberately lossy: decoding restores the default.
+- `@BsonDiscriminator("value")` sets a sealed subtype's persisted discriminator value. Duplicate
+  effective values and empty values are compile errors.
+- Recursive models: a self-referential case class whose recursion passes through `Option` derives,
+  encodes and decodes.
+- `CodecTestKit` — `encode`, `decode`, `assertBson`, `assertDecode`, `assertRoundTrip` — for
+  asserting a codec against documents you write by hand, with no database and no test-framework
+  dependency.
+- Golden BSON fixtures freezing the exact document for every supported model feature.
+- Property-based tests over generated values, including `Double` NaN, signed zero and the `Int64`
+  boundaries.
+- Schema-evolution fixtures: documents written by one model version, read by the next.
+- A MongoDB driver compatibility matrix in CI, and `-Dmongodb.version=X` to run the suite against
+  another driver version locally.
+- A Scala compiler compatibility matrix in CI.
+- MiMa binary-compatibility checking on every build.
+
+### Changed
+- Documentation rewritten for the 1.0 product identity, and corrected against the test suite. The
+  BSON type mapping, the supported-type contract, the schema-evolution guidance and both
+  compatibility matrices now reflect measured behaviour. Notable corrections: `UUID` is stored as a
+  **String** (not Binary subtype 4), `Char` as an **Int32** code point (not a string), and
+  `Map` keys must be `String` (there is no array-of-pairs fallback).
+- The obsolete positioning — that the official MongoDB Scala driver has no Scala 3 support — has
+  been removed. MongoDB publishes a native Scala 3 driver build as of 5.7.0; MongoScala3Codec is a
+  compile-time safety layer on the official BSON/codec APIs, not a replacement for the driver.
 
 ### Fixed
 - `CaseClassMapper` now emits a clear compile-time error for types that are neither case classes nor sealed traits/classes, instead of silently generating an empty discriminator map.
+- Decoding of Scala 3 enums nested in an `object` or class.
+- Sealed-trait discriminator placement is now asserted as the first key, at the root and inside
+  nested documents.
+
+### Not in 1.0
+- `Either[L, R]` — outside the supported-type contract. Use a sealed trait.
+- Typed filters and updates (`MongoFilter`, `MongoUpdate`) — planned for 1.1.
+- `CodecTestKit` as a separate published artifact — it ships in the main artifact for 1.0.
+
+### Known issues
+- `CodecConfig.discriminatorStrategy` / `DiscriminatorStrategy` is accepted but has no effect; the
+  discriminator value always comes from the simple type name or `@BsonDiscriminator`.
+- A `given CodecConfig` is not summoned by `RegistryBuilder`. Configure the builder directly
+  (`ignoreNone`, `encodeNone`, `configure`) or pass the config with `withConfig`.
+- Depending on MongoScala3Codec together with the native `mongo-scala-driver_3` (5.7.0+) fails
+  dependency resolution with conflicting cross-version suffixes for `org.mongodb.scala:mongo-scala-bson`.
+  The library itself is compatible with the native artifact; see the README for the exclusion.
 
 ## [0.0.11] - 2026-03-14
 

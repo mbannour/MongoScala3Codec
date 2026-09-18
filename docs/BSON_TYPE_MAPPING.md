@@ -1,544 +1,252 @@
-# BSON Type Coverage
+# BSON type mapping
 
-Complete reference for BSON type support in MongoScala3Codec.
+What each Scala type becomes in the stored document.
 
-## Quick Reference Table
+Every mapping on this page is asserted in the test suite against a fixed expected document. The
+representations of the **supported** types are frozen for the 1.x line: see
+[Wire compatibility](../README.md#bson-wire-compatibility).
 
-| Scala Type | BSON Type | Support Status | Notes |
-|------------|-----------|----------------|-------|
-| `String` | String | ✅ Full | UTF-8 encoded |
-| `Int` | Int32 | ✅ Full | 32-bit signed integer |
-| `Long` | Int64 | ✅ Full | 64-bit signed integer |
-| `Double` | Double | ✅ Full | 64-bit IEEE 754 floating point |
-| `Float` | Double | ✅ Full | Converted to Double |
-| `Boolean` | Boolean | ✅ Full | true/false |
-| `Byte` | Int32 | ✅ Full | Stored as Int32 |
-| `Short` | Int32 | ✅ Full | Stored as Int32 |
-| `Char` | String | ✅ Full | Single character string |
-| `BigDecimal` | Decimal128 | ✅ Full | High-precision decimal |
-| `BigInt` | String | ✅ Full | Arbitrary precision integer as string |
-| `ObjectId` | ObjectId | ✅ Full | MongoDB ObjectId |
-| `java.util.UUID` | Binary | ✅ Full | UUID subtype |
-| `java.util.Date` | Date | ✅ Full | UTC milliseconds |
-| `java.time.Instant` | Date | ✅ Full | UTC milliseconds |
-| `java.time.LocalDate` | Date | ✅ Full | Midnight UTC |
-| `java.time.LocalDateTime` | Date | ✅ Full | Converted to UTC |
-| `java.time.ZonedDateTime` | Date | ✅ Full | Converted to UTC |
-| `Array[Byte]` | Binary | ✅ Full | Binary data |
-| `Option[T]` | T or null | ✅ Full | Configurable null handling |
-| `List[T]` | Array | ✅ Full | Ordered collection |
-| `Seq[T]` | Array | ✅ Full | Ordered collection |
-| `Vector[T]` | Array | ✅ Full | Ordered collection |
-| `Set[T]` | Array | ✅ Full | Unordered (order not preserved) |
-| `Map[String, T]` | Document | ✅ Full | Embedded document |
-| `Map[K, V]` | Array of pairs | ✅ Full | For non-String keys |
-| `Either[L, R]` | — | ❌ Not supported | Use sealed traits instead |
-| `scala.util.Try[T]` | — | ❌ Not supported | Use sealed traits instead |
-| Case Classes | Document | ✅ Full | Nested documents |
-| Enums (simple) | String/Int | ✅ Full | Via EnumValueCodecProvider |
-| Opaque Types | Underlying Type | ✅ Full | Zero-cost abstraction |
+Three groups matter, and the difference between them is the difference between "this is our
+contract" and "this happens to work":
 
-## Detailed Type Documentation
+- **Derived** — this library writes the value itself. The representation is ours, and it is frozen.
+- **Delegated** — this library hands the field to whatever `Codec` your registry holds for that
+  class. It works, the shape belongs to that codec, and we do not freeze it.
+- **No codec** — nothing in the registry covers the type. It **compiles** and then throws on the
+  first encode.
 
-### Primitive Types
+That last group exists because derivation does not reject unknown field types: it defers to the
+registry, which is exactly how MongoDB's own codecs and yours plug in. The price is that an
+unsupported field type is a runtime failure rather than a compile error.
 
-#### Numeric Types
+---
+
+## Derived — frozen representations
+
+| Scala type | BSON type | Example document |
+|---|---|---|
+| `String` | String | `{"s": "s"}` |
+| `Boolean` | Boolean | `{"b": true}` |
+| `Int` | Int32 | `{"i": 1}` |
+| `Short` | Int32 | `{"sh": 6}` |
+| `Byte` | Int32 | `{"by": 5}` |
+| `Long` | Int64 | `{"l": {"$numberLong": "2"}}` |
+| `Double` | Double | `{"d": 3.5}` |
+| `Float` | Double | `{"f": 4.5}` |
+| `Char` | **Int32 of the code point** | `{"ch": 120}` for `'x'` |
+| `java.util.UUID` | **String** | `{"uuid": "00000000-0000-0000-0000-000000000001"}` |
+| `org.bson.types.ObjectId` | ObjectId | `{"oid": {"$oid": "507f1f77bcf86cd799439011"}}` |
+| `Option[T]` | `T`, or null / absent | see [Option](#option) |
+| `List[T]`, `Seq[T]`, `Vector[T]`, `Set[T]` | Array | `{"list": ["a", "b"]}` |
+| `Map[String, V]` | embedded document | `{"m": {"k": "v"}}` |
+| case class | embedded document | `{"inner": {"city": "Paris", "zip": 75001}}` |
+| sealed trait / class | document with a discriminator | `{"_type": "Dog", "name": "Rex"}` |
+| Scala 3 `enum` | String or Int32 | see [Enums](#enums) |
+| self-recursive case class | nested documents | `{"value": "a", "next": {"value": "b", "next": null}}` |
+
+Two of these surprise people, so they are called out:
+
+- **`Char` is an Int32**, not a one-character string. `'x'` is stored as `120`.
+- **`UUID` is a String**, not Binary. Derivation writes the UUID itself rather than deferring to
+  the driver's `UuidCodec`, which would write Binary subtype 4. If you need the Binary form, supply
+  your own `Codec[UUID]` — but be aware that changes the stored shape of existing documents.
+
+### Numeric types
 
 ```scala
-case class Numbers(
-  byteVal: Byte,        // BSON: Int32 (-128 to 127)
-  shortVal: Short,      // BSON: Int32 (-32768 to 32767)
-  intVal: Int,          // BSON: Int32 (-2^31 to 2^31-1)
-  longVal: Long,        // BSON: Int64 (-2^63 to 2^63-1)
-  floatVal: Float,      // BSON: Double (converted, may lose precision)
-  doubleVal: Double     // BSON: Double (IEEE 754)
-)
+case class Scalars(i: Int, l: Long, d: Double, f: Float, b: Boolean, by: Byte, sh: Short, ch: Char, s: String)
 ```
 
-**BSON Storage:**
 ```json
-{
-  "byteVal": 42,
-  "shortVal": 1000,
-  "intVal": 100000,
-  "longVal": {"$numberLong": "9223372036854775807"},
-  "floatVal": 3.14,
-  "doubleVal": 3.141592653589793
-}
+{"i": 1, "l": {"$numberLong": "2"}, "d": 3.5, "f": 4.5, "b": true,
+ "by": 5, "sh": 6, "ch": 120, "s": "s"}
 ```
 
-#### String and Character Types
+`Int`, `Short` and `Byte` all land on Int32; `Long` on Int64; `Float` widens to Double. Reading is
+slightly more forgiving than writing: a stored Int32 decodes into a `Long` field, and a stored
+Int64 decodes into an `Int` field **if the value fits** — if it does not, decoding fails rather
+than truncating.
+
+`Double` keeps the awkward values: NaN, both infinities and negative zero all survive a round trip.
+
+### Option
+
+`Some(v)` writes `v`. What `None` writes is chosen on the builder:
 
 ```scala
-case class TextData(
-  string: String,       // BSON: String (UTF-8)
-  char: Char           // BSON: String (single character)
-)
+RegistryBuilder.from(base).encodeNone.register[User].build   // default
+RegistryBuilder.from(base).ignoreNone.register[User].build
 ```
 
-**BSON Storage:**
+| Setting | `None` on the wire |
+|---|---|
+| `encodeNone` (default) | `{"name": "n", "nickname": null}` |
+| `ignoreNone` | `{"name": "n"}` |
+
+Decoding accepts **both**: a missing field and a stored `null` both become `None`. Changing this
+setting is therefore safe for readers and changes only new writes.
+
+> Configuration goes on the builder. A `given CodecConfig` in scope is **not** summoned by
+> `RegistryBuilder` — pass it explicitly with `withConfig(summon[CodecConfig])` if you keep one.
+
+### Collections
+
+```scala
+case class Collections(list: List[String], seq: Seq[Int], vector: Vector[String], set: Set[Int])
+```
+
 ```json
-{
-  "string": "Hello, MongoDB!",
-  "char": "A"
-}
+{"list": ["a", "b"], "seq": [1, 2], "vector": ["v"], "set": [3]}
 ```
 
-#### Boolean Type
+Empty collections are empty arrays, not null or absent:
 
-```scala
-case class Flags(
-  active: Boolean,      // BSON: Boolean
-  verified: Boolean
-)
-```
-
-**BSON Storage:**
 ```json
-{
-  "active": true,
-  "verified": false
-}
+{"list": [], "seq": [], "vector": [], "set": []}
 ```
 
-### High-Precision Numeric Types
+`Set` is stored as an array, so element order is not meaningful on the way back.
 
-#### BigDecimal (Decimal128)
+### Maps
+
+`Map[String, V]` becomes an embedded document:
 
 ```scala
-case class FinancialRecord(
-  _id: ObjectId,
-  amount: BigDecimal    // BSON: Decimal128 (128-bit IEEE 754)
-)
-
-val record = FinancialRecord(
-  new ObjectId(),
-  BigDecimal("12345.67890123456789")  // Full precision preserved
-)
+case class Maps(strings: Map[String, String], ints: Map[String, Int])
 ```
 
-**BSON Storage:**
 ```json
-{
-  "_id": {"$oid": "..."},
-  "amount": {"$numberDecimal": "12345.67890123456789"}
-}
+{"strings": {"k": "v"}, "ints": {"n": 1}}
 ```
 
-**Use Cases:**
-- Financial calculations requiring exact decimal arithmetic
-- Currency amounts
-- Tax calculations
-- Any scenario where floating-point errors are unacceptable
-
-#### BigInt (Arbitrary Precision)
-
-```scala
-case class LargeNumber(
-  _id: ObjectId,
-  value: BigInt         // BSON: String (arbitrary precision)
-)
-
-val large = LargeNumber(
-  new ObjectId(),
-  BigInt("12345678901234567890123456789")
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "value": "12345678901234567890123456789"
-}
-```
-
-**Note:** BigInt is stored as a string to preserve arbitrary precision beyond Int64 limits.
-
-### MongoDB Types
-
-#### ObjectId
-
-```scala
-case class Document(
-  _id: ObjectId         // BSON: ObjectId (12-byte identifier)
-)
-
-val doc = Document(new ObjectId())
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "507f1f77bcf86cd799439011"}
-}
-```
-
-#### UUID
-
-```scala
-import java.util.UUID
-
-case class User(
-  _id: ObjectId,
-  uuid: UUID            // BSON: Binary (subtype 4)
-)
-
-val user = User(new ObjectId(), UUID.randomUUID())
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "uuid": {"$binary": {"base64": "...", "subType": "04"}}
-}
-```
-
-### Date and Time Types
-
-```scala
-import java.util.Date
-import java.time.{Instant, LocalDate, LocalDateTime, ZonedDateTime}
-
-case class TimeData(
-  _id: ObjectId,
-  javaDate: Date,              // BSON: Date (UTC milliseconds)
-  instant: Instant,            // BSON: Date (UTC milliseconds)
-  localDate: LocalDate,        // BSON: Date (midnight UTC)
-  localDateTime: LocalDateTime, // BSON: Date (converted to UTC)
-  zonedDateTime: ZonedDateTime  // BSON: Date (converted to UTC)
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "javaDate": {"$date": 1634567890000},
-  "instant": {"$date": 1634567890000},
-  "localDate": {"$date": 1634515200000},
-  "localDateTime": {"$date": 1634567890000},
-  "zonedDateTime": {"$date": 1634567890000}
-}
-```
-
-**Important Notes:**
-- All date/time types are stored as UTC milliseconds since epoch
-- `LocalDate` is stored as midnight UTC (time component is 00:00:00)
-- `LocalDateTime` assumes system default timezone for conversion
-- `ZonedDateTime` preserves timezone info during conversion but stores as UTC
-
-### Binary Data
-
-```scala
-case class BinaryData(
-  _id: ObjectId,
-  data: Array[Byte]     // BSON: Binary (generic binary)
-)
-
-val binary = BinaryData(
-  new ObjectId(),
-  "Hello".getBytes("UTF-8")
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "data": {"$binary": {"base64": "SGVsbG8=", "subType": "00"}}
-}
-```
-
-### Option Types
-
-```scala
-case class OptionalFields(
-  _id: ObjectId,
-  requiredField: String,
-  optionalField: Option[String]
-)
-
-// With NoneHandling.Encode (default)
-val withNull = OptionalFields(new ObjectId(), "required", None)
-// BSON: {"_id": ..., "requiredField": "required", "optionalField": null}
-
-// With NoneHandling.Ignore
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-val withoutField = OptionalFields(new ObjectId(), "required", None)
-// BSON: {"_id": ..., "requiredField": "required"}
-```
-
-**Configuration:**
-```scala
-// Encode None as null (default)
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Encode)
-
-// Omit None fields from document
-given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
-```
-
-### Collection Types
-
-#### List, Seq, Vector
-
-```scala
-case class Collections(
-  _id: ObjectId,
-  list: List[String],
-  seq: Seq[Int],
-  vector: Vector[Double]
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "list": ["item1", "item2", "item3"],
-  "seq": [1, 2, 3],
-  "vector": [1.1, 2.2, 3.3]
-}
-```
-
-#### Set
-
-```scala
-case class Tags(
-  _id: ObjectId,
-  tags: Set[String]     // BSON: Array (order not preserved)
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "tags": ["scala", "mongodb", "functional"]
-}
-```
-
-**Note:** Set ordering is not preserved in BSON. When decoded, elements may be in different order.
-
-#### Map with String Keys
-
-```scala
-case class Attributes(
-  _id: ObjectId,
-  metadata: Map[String, String]  // BSON: Document
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "metadata": {
-    "key1": "value1",
-    "key2": "value2"
-  }
-}
-```
-
-#### Map with Non-String Keys
-
-```scala
-case class IntMap(
-  _id: ObjectId,
-  scores: Map[Int, String]  // BSON: Array of [key, value] pairs
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "scores": [
-    [1, "value1"],
-    [2, "value2"]
-  ]
-}
-```
-
-### Case Classes (Nested Documents)
-
-```scala
-case class Address(street: String, city: String, zipCode: Int)
-case class Person(_id: ObjectId, name: String, address: Address)
-
-val person = Person(
-  new ObjectId(),
-  "Alice",
-  Address("123 Main St", "Springfield", 12345)
-)
-```
-
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "name": "Alice",
-  "address": {
-    "street": "123 Main St",
-    "city": "Springfield",
-    "zipCode": 12345
-  }
-}
-```
+**Non-`String` keys are a compile error**, naming the model and the requirement. There is no
+array-of-pairs fallback.
 
 ### Enums
 
+Via `EnumValueCodecProvider`, in one of two modes:
+
 ```scala
-enum Priority:
-  case Low, Medium, High
+enum Colour:
+  case Red, Green, Blue
 
-case class Task(_id: ObjectId, priority: Priority)
-
-import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProvider(EnumValueCodecProvider.forStringEnum[Priority])  // String-based
-  .register[Task]
-  .build
+case class Paint(name: String, colour: Colour)
 ```
 
-**BSON Storage (String-based):**
+| Provider | BSON | Document |
+|---|---|---|
+| `forStringEnum[Colour]` | String | `{"name": "wall", "colour": "Green"}` |
+| `forOrdinalEnum[Colour]` | Int32 | `{"name": "wall", "colour": 2}` |
+
+Enums nested in an `object` encode identically to top-level ones.
+
+**Ordinal mode stores a position.** Inserting or reordering cases silently changes what historical
+documents mean — see the warning in [the README](../README.md#ordinal-enums-and-the-order-of-your-cases).
+
+### Discriminators
+
 ```json
-{
-  "_id": {"$oid": "..."},
-  "priority": "High"
-}
+{"_type": "Dog", "name": "Rex", "breed": "Labrador"}
 ```
 
-**BSON Storage (Ordinal-based):**
+The field is `_type` by default and is written **first**; the value is the simple type name unless
+`@BsonDiscriminator` overrides it. Full detail in
+[SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md).
+
+---
+
+## Delegated — your registry decides
+
+These are not written by derivation. They reach a codec the registry already holds, that codec
+decides the shape, and this library does not freeze it.
+
+| Scala type | BSON type | Provided by | Example |
+|---|---|---|---|
+| `Array[Byte]` | Binary, subtype 0 | the driver's byte-array codec | `{"data": {"$binary": {"base64": "AQID", "subType": "00"}}}` |
+| `java.math.BigDecimal` | Decimal128 | the driver's decimal codec | `{"amount": {"$numberDecimal": "12.34"}}` |
+| `java.util.Date` | UTC datetime | `ValueCodecProvider` | `{"date": {"$date": "1970-01-01T00:00:00Z"}}` |
+| `java.time.Instant` | UTC datetime | `Jsr310CodecProvider` | `{"instant": {"$date": "1970-01-01T00:00:00Z"}}` |
+| `java.time.LocalDate` | UTC datetime | `Jsr310CodecProvider` | `{"localDate": {"$date": "2026-01-01T00:00:00Z"}}` |
+| `java.time.LocalDateTime` | UTC datetime | `Jsr310CodecProvider` | `{"localDateTime": {"$date": "2026-01-01T00:00:00Z"}}` |
+| opaque type alias | as the underlying type | the underlying type's codec | `opaque type UserId = String` → `{"userId": "u-1"}` |
+| any type you have a `Codec` for | whatever your codec writes | your codec | see below |
+
+The JSR-310 provider has to actually be in your base registry.
+`MongoClient.DEFAULT_CODEC_REGISTRY` includes it; a registry you assemble by hand from individual
+providers may not.
+
+### Your own codec wins, even over a case class
+
 ```scala
-.withProvider(EnumValueCodecProvider.forOrdinalEnum[Priority])
+final case class Money(cents: Long)
+
+class MoneyCodec extends Codec[Money]:
+  def encode(writer: BsonWriter, value: Money, ctx: EncoderContext): Unit = writer.writeInt64(value.cents)
+  def decode(reader: BsonReader, ctx: DecoderContext): Money = Money(reader.readInt64())
+  def getEncoderClass: Class[Money] = classOf[Money]
+
+case class Priced(name: String, price: Money)
+
+RegistryBuilder.from(base).withCodec(new MoneyCodec()).register[Priced].build
 ```
+
+`Money` is a case class and is still stored as the Int64 its own codec writes:
+
 ```json
-{
-  "_id": {"$oid": "..."},
-  "priority": 2
-}
+{"name": "widget", "price": {"$numberLong": "500"}}
 ```
 
-### Opaque Types
+Whatever happens inside your codec — including how it copes with change — is yours. This library
+cannot promise anything about it.
 
-```scala
-opaque type UserId = String
-object UserId:
-  def apply(value: String): UserId = value
-  extension (id: UserId) def value: String = id
+---
 
-case class User(_id: ObjectId, userId: UserId)
-```
+## No codec — compiles, then throws
 
-**BSON Storage:**
-```json
-{
-  "_id": {"$oid": "..."},
-  "userId": "user_12345"
-}
-```
+| Scala type | What you get |
+|---|---|
+| `scala.math.BigDecimal` | `IllegalArgumentException: No codec found for type: scala.math.BigDecimal` — use `java.math.BigDecimal` |
+| `scala.math.BigInt` | `IllegalArgumentException: No codec found for type: scala.math.BigInt` |
+| `java.time.ZonedDateTime` | `IllegalArgumentException: No codec found for type: java.time.ZonedDateTime` — the driver's JSR-310 provider does not cover it; supply your own `Codec[ZonedDateTime]` |
+| `Array[T]`, `T` ≠ `Byte` | `IllegalArgumentException: No codec found` |
+| `Either[L, R]` | throws, naming `Either` — **not part of the v1.0 contract**; model the choice as a sealed trait |
 
-**Zero Runtime Overhead:** Opaque types are erased at compile time and stored as their underlying type.
+These are characterized in the test suite so a change in behaviour shows up as a failing test. They
+are recorded, not endorsed.
 
-## Type Limitations and Workarounds
+---
 
-### ❌ Not Supported
+## Rejected at compile time
 
-| Type | Status | Workaround |
-|------|--------|------------|
-| Mutable `var` fields | ❌ Not supported | Use immutable case classes |
-| Non-case classes | ❌ Not supported | Convert to case classes |
-| Enums with parameters | ❌ Limited support | Use sealed traits |
-| Recursive types | ❌ Limited support | Use `Option` to break cycle |
-| Generic type parameters | ❌ Limited support | Register concrete types |
+| Shape | The diagnostic names |
+|---|---|
+| `Map` with non-`String` keys | the model, and that keys must be `String` |
+| a tuple field | the model, the field and the type |
+| a field type that can neither be derived nor delegated | the model, the field and the type |
+| a model declared inside a method (unstable path) | the model, and why |
+| two `@BsonId` fields | the conflict |
+| `@BsonId` and `@BsonIgnore` on one field | the conflict |
+| `@BsonIgnore` on a field with no constructor default | the field |
+| duplicate `@BsonDiscriminator` values | the subtypes |
+| an empty `@BsonDiscriminator` value | the subtype |
 
-### Workaround Examples
+---
 
-#### Self-Referential Types
-```scala
-// ❌ Not supported
-case class Node(value: Int, next: Node)
+## Not supported
 
-// ✅ Workaround
-case class Node(value: Int, next: Option[Node])
-```
+- `scala.util.Try[T]` — use a sealed trait.
+- `Either[L, R]` — not in the v1.0 contract.
+- Case objects as sealed subtypes — use case classes or a Scala 3 `enum`.
+- Generic / type-parameterised case classes and sealed hierarchies.
+- Cyclic runtime object graphs. BSON documents are trees; a cycle has no finite document, and
+  nothing detects it for you.
 
-#### Enums with Parameters
-```scala
-// ✅ Supported with custom codec provider
-enum Status(val code: Int):
-  case Active extends Status(1)
-  case Inactive extends Status(0)
+---
 
-// Create custom codec provider
-import io.github.mbannour.mongo.codecs.EnumValueCodecProvider
-import org.bson.codecs.{Codec, IntegerCodec}
+## See also
 
-given Codec[Int] = new IntegerCodec().asInstanceOf[Codec[Int]]
-
-val statusProvider = EnumValueCodecProvider[Status, Int](
-  toValue = _.code,
-  fromValue = code => Status.values.find(_.code == code).getOrElse(
-    throw new IllegalArgumentException(s"Invalid status code: $code")
-  )
-)
-
-// Register in codec registry
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .withProviders(statusProvider)
-  .register[YourCaseClass]
-  .build
-```
-
-See [Enum Support Guide](ENUM_SUPPORT.md) for complete documentation.
-
-## Performance Characteristics
-
-| Operation | Time Complexity | Notes |
-|-----------|-----------------|-------|
-| Primitive encode | O(1) | Direct BSON write |
-| Primitive decode | O(1) | Direct BSON read |
-| Collection encode | O(n) | Linear in collection size |
-| Collection decode | O(n) | Linear in collection size |
-| Nested document encode | O(fields) | Linear in field count |
-| Nested document decode | O(fields) | Linear in field count |
-
-**Memory Overhead:** Minimal - only allocations are for the decoded objects themselves.
-
-## Testing Your Types
-
-Use `CodecTestKit` to verify type support:
-
-```scala
-import io.github.mbannour.mongo.codecs.CodecTestKit
-
-case class MyType(_id: ObjectId, data: YourType)
-
-val registry = RegistryBuilder
-  .from(MongoClient.DEFAULT_CODEC_REGISTRY)
-  .register[MyType]
-  .build
-
-given codec: Codec[MyType] = registry.get(classOf[MyType])
-
-val instance = MyType(new ObjectId(), YourType(...))
-
-// Test round-trip
-CodecTestKit(codec).assertRoundTrip(instance)
-
-// Inspect BSON structure
-val bson = CodecTestKit(codec).encode(instance)
-println(bson.toJson())
-```
-
-## Next Steps
-
-- 📖 [Feature Overview](FEATURES.md) - Complete feature guide
-- 🎯 [Enum Support](ENUM_SUPPORT.md) - Scala 3 enum handling
-- ❓ [FAQ](FAQ.md) - Type-related troubleshooting
-
+- [../README.md](../README.md) — the supported-type contract and the compatibility matrices
+- [../README.md#schema-evolution](../README.md#schema-evolution) — what happens to stored documents
+  when the model changes
+- [ENUM_SUPPORT.md](ENUM_SUPPORT.md) — enums in depth
+- [SEALED_TRAIT_SUPPORT.md](SEALED_TRAIT_SUPPORT.md) — discriminators in depth
