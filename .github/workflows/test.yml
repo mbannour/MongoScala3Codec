@@ -72,6 +72,58 @@ jobs:
       - name: Run unit tests
         run: sbt ++${{ matrix.scala }} test
 
+  # ── MongoDB driver compatibility (default Scala only) ──────────────
+  # Deliberately NOT crossed with the Scala matrix above. The two matrices are
+  # additive: `test` varies Scala on the default driver, this varies the driver
+  # on the default Scala. -Dmongodb.version overrides the single pair of version
+  # literals in build.sbt; the empty value is the default build, which must keep
+  # working with no property set.
+  #
+  # The three cells are the v1.0 support statement: oldest intentionally
+  # supported, the compiled-against default, and the newest validated release.
+  driver-compatibility:
+    runs-on: ubuntu-latest
+    name: MongoDB Driver ${{ matrix.mongodb || 'default' }}
+    needs: [ format ]
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        mongodb: [ "5.0.0", "", "5.12.0" ]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Run unit tests
+        run: |
+          if [[ -n "${{ matrix.mongodb }}" ]]; then
+            sbt -Dmongodb.version=${{ matrix.mongodb }} clean test
+          else
+            sbt clean test
+          fi
+
+      # The same fixed MongoDB server (mongo:6.0.19, pinned in the integration
+      # specs) for every cell: this matrix varies the driver, never the server.
+      - name: Run integration tests
+        run: |
+          if [[ -n "${{ matrix.mongodb }}" ]]; then
+            sbt -Dmongodb.version=${{ matrix.mongodb }} integrationTests/test
+          else
+            sbt integrationTests/test
+          fi
+
   # ── Integration tests (primary Scala version only, LTS JDKs) ───────
   # integrationTests subproject is pinned to the primary Scala version
   # (see crossScalaVersions in build.sbt), so no ++ version switch here.
@@ -203,7 +255,7 @@ jobs:
     runs-on: ubuntu-latest
     name: All Tests Passed
     if: always()
-    needs: [ test, integration-test, benchmark-compile, coverage, binary-compatibility ]
+    needs: [ test, integration-test, driver-compatibility, benchmark-compile, coverage, binary-compatibility ]
 
     steps:
       - name: Check results
@@ -211,6 +263,7 @@ jobs:
           results=(
             "${{ needs.test.result }}"
             "${{ needs.integration-test.result }}"
+            "${{ needs.driver-compatibility.result }}"
             "${{ needs.benchmark-compile.result }}"
             "${{ needs.coverage.result }}"
             "${{ needs.binary-compatibility.result }}"

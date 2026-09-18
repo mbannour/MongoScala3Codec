@@ -4,6 +4,24 @@ import scoverage.ScoverageKeys.*
 
 val scala3Version = "3.7.4"
 
+/** The MongoDB driver version this build compiles, tests and publishes against.
+  *
+  * Two defaults rather than one, because the library and the integration suite do not depend on the same artifact and never have: the
+  * library needs only `mongo-scala-bson` (and, through it, `org.mongodb:bson`), while the integration suite needs the full
+  * `mongo-scala-driver` to talk to a server. Keeping both literals here makes the normal build's resolution explicit.
+  *
+  * `-Dmongodb.version=X` moves both to X, for the driver compatibility matrix only. A plain `sbt test` needs no properties and no
+  * environment variables. Never a range, a `+` or `latest.release`: what gets published must resolve deterministically.
+  *
+  * {{{
+  *   sbt test                                  // the defaults below
+  *   sbt -Dmongodb.version=5.12.0 test         // one matrix cell
+  * }}}
+  */
+val mongoDbVersionOverride = sys.props.get("mongodb.version")
+val mongoScalaBsonVersion = mongoDbVersionOverride.getOrElse("5.6.5")
+val mongoScalaDriverVersion = mongoDbVersionOverride.getOrElse("5.6.0")
+
 /** The published artifact every build is checked against for binary compatibility.
   *
   * Pre-1.0 this is the latest release, and the check is an engineering guard only: 0.x carries no compatibility promise, and the 10
@@ -72,7 +90,7 @@ lazy val root = project
       "org.scalatest" %% "scalatest" % "3.2.20" % Test,
       "org.scalacheck" %% "scalacheck" % "1.19.0" % Test,
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % "5.6.5").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-bson" % mongoScalaBsonVersion).cross(CrossVersion.for3Use2_13)
     ),
     Compile / scalacOptions ++= Seq(
       "-encoding",
@@ -90,14 +108,13 @@ lazy val root = project
       "-Wconf:msg=unused local definition:s"
     ),
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
+    // No "-rewrite" here. It edits the test sources in place during compilation, which makes a
+    // cross-build unsafe to run: `+test` would rewrite the sources under one compiler and then fail
+    // to compile them under the next. It was silently deleting `scala.compiletime.testing.typeCheckErrors`
+    // imports - the import every negative-compile spec needs - on 3.7.1 but not on 3.7.4.
     Test / scalacOptions ++= Seq(
       "-Wconf:cat=unused:s"
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, minor)) if minor >= 4 =>
-        Seq("-rewrite", "-source", "3.4-migration")
-      case _ =>
-        Seq.empty
-    }),
+    ),
     Test / scalacOptions ~= (_.filterNot(Set("-Werror", "-Xfatal-warnings"))),
     Compile / doc / scalacOptions ++= Seq(
       "-nowarn",
@@ -130,7 +147,7 @@ lazy val integrationTests = project
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.44.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.44.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion).cross(CrossVersion.for3Use2_13)
     ),
     testFrameworks += new TestFramework("org.scalatest.tools.Framework"),
     fork := true,
@@ -163,7 +180,7 @@ lazy val examples = project
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % "1.5.21",
       "org.slf4j" % "slf4j-api" % "2.0.17",
-      ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+      ("org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion).cross(CrossVersion.for3Use2_13)
     ),
     publish / skip := true,
     mimaPreviousArtifacts := Set.empty,
