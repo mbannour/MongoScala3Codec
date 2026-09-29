@@ -8,7 +8,7 @@ at compile time, the stored BSON written down explicitly, and no JSON step in be
 Built on the official MongoDB BSON and codec APIs. **It does not replace the MongoDB driver** — you
 keep using `MongoClient`, `MongoCollection`, `Filters` and the rest exactly as you do today.
 
-![version](https://img.shields.io/badge/release-0.0.11-brightgreen)
+![version](https://img.shields.io/badge/release-1.0.0-brightgreen)
 ![Scala](https://img.shields.io/badge/Scala-3.3.1%2B-blue)
 ![Build Status](https://github.com/mbannour/MongoScala3Codec/workflows/Test%20Scala%20Library/badge.svg)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -71,18 +71,18 @@ MongoDB codecs; they compose with codecs MongoDB ships and with codecs you write
 
 ## Quick start
 
-**1.0.0 is not released yet.** The latest published release is `0.0.11`:
+Add the library:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.11"
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "1.0.0"
 ```
 
 Together with the official MongoDB Scala driver, which you use for everything else:
 
 ```scala
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
-  ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+  "io.github.mbannour" %% "mongoscala3codec" % "1.0.0",
+  "org.mongodb.scala" %% "mongo-scala-driver" % "5.12.0"
 )
 ```
 
@@ -203,10 +203,9 @@ On the way back in, **both** shapes decode to `None`: a missing field and a stor
 read as `None`. So switching this setting is safe for readers; it changes only what new writes look
 like.
 
-> Configuration must reach the **builder**. A `given CodecConfig` sitting in scope does nothing on
-> its own — `RegistryBuilder` does not summon it. Either call `ignoreNone`/`encodeNone`/`configure`
-> on the builder, or pass the config explicitly with `withConfig(summon[CodecConfig])`. (The
-> `given` is summoned implicitly only by `BsonCodec.derived[T]`.)
+> A `given CodecConfig` in scope configures `RegistryBuilder.from` and `newBuilder` (since 1.0.0;
+> before that it was silently ignored). `ignoreNone`/`encodeNone`/`configure`/`withConfig` on the
+> builder still override it.
 
 ---
 
@@ -711,7 +710,7 @@ Tested in CI across JDK 11, 17, 19 and 21:
 |---|---|
 | 3.3.1 | tested |
 | 3.4.2 | tested |
-| 3.6.4 | tested |
+| 3.6.3 | tested |
 | 3.7.1 | tested |
 | 3.7.4 | default |
 | 3.8.0 | tested |
@@ -723,67 +722,34 @@ listed are tested — we do not claim "all Scala 3 versions".
 
 ## Supported MongoDB driver versions
 
-**Compiled and published against `mongo-scala-bson` 5.6.5** (`org.mongodb:bson` 5.6.5).
+**Compiled and published against the native Scala 3 `mongo-scala-bson_3` 5.12.0** (`org.mongodb:bson` 5.12.0).
 
 The library uses only the BSON codec layer plus MongoDB's own `@BsonProperty` annotation. It needs
 no part of `mongodb-driver-core`, `mongodb-driver-sync`, `mongodb-driver-reactivestreams` or
 `mongo-scala-driver`, and imports nothing from `com.mongodb`.
 
-Verified on Scala 3.7.4 — each of these compiles the library, passes the full suite, and produces
-**byte-identical BSON**:
+Verified on Scala 3.7.4. Each of these versions compiles the library and passes the full suite,
+including the golden BSON fixtures, so the encoded bytes are identical:
 
 | Driver version | Status |
 |---|---|
-| 5.0.0 | minimum supported |
-| 5.3.1 | tested |
-| 5.6.5 | default |
+| 5.7.0 | minimum supported |
 | 5.9.2 | tested |
-| 5.12.0 | newest validated |
+| 5.12.0 | default |
 
-**Minimum: 5.0.0.** The 4.x line is not supported — 4.11.5 was its last release and receives no
-upstream fixes.
+**Minimum: 5.7.0.** That is the first release MongoDB published as a native Scala 3 (`_3`)
+artifact, and since 1.0.0 the library depends on the `_3` artifact directly. Before 1.0.0 it
+depended on the Scala 2.13 artifact through `CrossVersion.for3Use2_13`. That clashed with the
+native driver ("conflicting cross-version suffixes"), and the 1.0.0 packaging removes the clash:
+use the official native driver and no exclusion is needed.
 
-If your application depends on a newer driver in this range, your build's dependency resolution
-selects it and the library works unchanged — no override or exclusion needed. This was verified
-end-to-end, including against a live server, with the library compiled against 5.6.5 and running
-against 5.12.0.
-
-Versions between the tested ones are expected to work. **We do not claim "all 5.x versions are
-supported"** — the five above are the tested ones.
+If your application depends on a newer driver, dependency resolution selects it and the library
+works unchanged. **We do not claim "all 5.x versions are supported"**: the tested versions are the
+ones listed above.
 
 *MongoDB **server** compatibility is a separate question that this project has not established a
 matrix for. The integration suite runs against one pinned server version; it is not a support
 statement.*
-
-### If you use the native Scala 3 driver (`mongo-scala-driver_3`)
-
-Since driver 5.7.0 MongoDB also publishes a native Scala 3 build. MongoScala3Codec currently
-declares `mongo-scala-bson` as the Scala 2.13 artifact via `CrossVersion.for3Use2_13`, so putting
-the two together makes **sbt fail the build**:
-
-```
-[error] Modules were resolved with conflicting cross-version suffixes:
-[error]    org.mongodb.scala:mongo-scala-bson _2.13, _3
-```
-
-This is a packaging clash, not an incompatibility. The library's code is fine against the native
-artifact: compiled against `mongo-scala-bson_3` 5.12.0, the whole suite passes unchanged. Exclude
-the 2.13 artifact and let the native driver supply it:
-
-```scala
-libraryDependencies ++= Seq(
-  ("io.github.mbannour" %% "mongoscala3codec" % "0.0.11")
-    .exclude("org.mongodb.scala", "mongo-scala-bson_2.13"),
-  "org.mongodb.scala" %% "mongo-scala-driver" % "5.12.0"   // native _3 build
-)
-```
-
-`@BsonProperty` resolves from whichever of the two artifacts is present — the fully-qualified name
-is the same in both — so your annotations keep working either way.
-
-This combination is **not yet part of the tested matrix above**, and which artifact the library
-should declare is an open question for 1.0. If you hit the error, this is why.
-
 
 ---
 
@@ -808,8 +774,6 @@ Known and deliberate, rather than hypothetical:
   principle have come from the registry. This is the cost of letting any registry codec plug in.
 - **Evolution inside a custom codec is that codec's business**, not something this library can
   promise anything about.
-- **`CodecConfig.discriminatorStrategy` currently has no effect** — the discriminator value comes
-  from the simple type name or `@BsonDiscriminator`. Do not rely on it.
 
 ---
 

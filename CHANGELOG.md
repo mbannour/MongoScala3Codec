@@ -5,10 +5,10 @@ All notable changes to MongoScala3Codec will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — towards 1.0.0
+## [1.0.0] - 2026-09-29
 
-1.0.0 is **not released yet**. This section records the work done towards it. The 1.x compatibility
-promises described below take effect when 1.0.0 is published, not before.
+The first stable release. The 1.x compatibility promises described below take effect from this
+version: MiMa checks every 1.x release against 1.0.0.
 
 ### Added
 - `@BsonId` maps a constructor parameter to MongoDB's `_id` field. At most one per model; combining
@@ -41,7 +41,26 @@ promises described below take effect when 1.0.0 is published, not before.
   been removed. MongoDB publishes a native Scala 3 driver build as of 5.7.0; MongoScala3Codec is a
   compile-time safety layer on the official BSON/codec APIs, not a replacement for the driver.
 
+### Breaking
+- **Depends on the native Scala 3 `mongo-scala-bson_3`** (5.12.0) instead of the Scala 2.13 artifact
+  through `CrossVersion.for3Use2_13`. Combining the library with the native `mongo-scala-driver_3`
+  no longer fails resolution with conflicting cross-version suffixes. The minimum driver is now
+  **5.7.0**, the first release with a `_3` artifact.
+- The published license metadata is now **Apache-2.0**, matching the `LICENSE` file. 0.x
+  releases declared MIT in their POM.
+- Scala 3.6.4 is no longer in the tested matrix (a `typeCheckErrors` compiler quirk, not a codec
+  defect; 3.6.3 covers the 3.6 line). 3.7.4 and 3.8.0 were added.
+- `RegistryBuilder.from` and `newBuilder` take a `(using CodecConfig)` clause. This is source-compatible
+  but binary-incompatible with 0.0.11.
+
 ### Fixed
+- `CodecConfig.discriminatorStrategy` now takes effect. `SimpleName`, `FullyQualifiedName` and
+  `Custom(map)` control the discriminator value written and read by both the sealed-hierarchy
+  codec and a subtype codec. `@BsonDiscriminator` still overrides it per subtype. The default
+  (`SimpleName`) output is byte-identical to before.
+- A `given CodecConfig` in scope now configures `RegistryBuilder.from` and `newBuilder`. It was
+  silently ignored before, so `None` was written as `null` despite a declared
+  `NoneHandling.Ignore`. `configure` and `withConfig` still override it.
 - `CaseClassMapper` now emits a clear compile-time error for types that are neither case classes nor sealed traits/classes, instead of silently generating an empty discriminator map.
 - Decoding of Scala 3 enums nested in an `object` or class.
 - Sealed-trait discriminator placement is now asserted as the first key, at the root and inside
@@ -51,15 +70,6 @@ promises described below take effect when 1.0.0 is published, not before.
 - `Either[L, R]` — outside the supported-type contract. Use a sealed trait.
 - Typed filters and updates (`MongoFilter`, `MongoUpdate`) — planned for 1.1.
 - `CodecTestKit` as a separate published artifact — it ships in the main artifact for 1.0.
-
-### Known issues
-- `CodecConfig.discriminatorStrategy` / `DiscriminatorStrategy` is accepted but has no effect; the
-  discriminator value always comes from the simple type name or `@BsonDiscriminator`.
-- A `given CodecConfig` is not summoned by `RegistryBuilder`. Configure the builder directly
-  (`ignoreNone`, `encodeNone`, `configure`) or pass the config with `withConfig`.
-- Depending on MongoScala3Codec together with the native `mongo-scala-driver_3` (5.7.0+) fails
-  dependency resolution with conflicting cross-version suffixes for `org.mongodb.scala:mongo-scala-bson`.
-  The library itself is compatible with the native artifact; see the README for the exclusion.
 
 ## [0.0.11] - 2026-03-14
 

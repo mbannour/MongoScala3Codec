@@ -28,8 +28,8 @@ compatibility matrices.
 Add to your `build.sbt`:
 
 ```scala
-libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "0.0.11"
-libraryDependencies += ("org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0").cross(CrossVersion.for3Use2_13)
+libraryDependencies += "io.github.mbannour" %% "mongoscala3codec" % "1.0.0"
+libraryDependencies += "org.mongodb.scala" %% "mongo-scala-driver" % "5.12.0"
 ```
 
 ## Step 2: Define Your Domain Models
@@ -265,10 +265,10 @@ Either way, decoding accepts both shapes: a missing field and a stored `null` bo
 
 ### Type mismatch with MongoDB Scala Driver
 
-**Solution:** Ensure you're using the correct cross-version:
+**Solution:** Use the native Scala 3 driver, 5.7.0 or later. No `CrossVersion` setting is needed:
 
 ```scala
-"org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
+"org.mongodb.scala" %% "mongo-scala-driver" % "5.12.0"
 ```
 
 ---

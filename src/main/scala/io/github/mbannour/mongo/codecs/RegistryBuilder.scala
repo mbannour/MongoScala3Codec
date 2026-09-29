@@ -112,8 +112,22 @@ object RegistryBuilder:
       cachedRegistry: Option[CodecRegistry] = None
   )
 
-  /** Create builder from base registry with default configuration */
-  def from(base: CodecRegistry): RegistryBuilder = State(base)
+  /** Create builder from base registry, honouring an in-scope `given CodecConfig`.
+    *
+    * The configuration is resolved as a `using` parameter so that
+    *
+    * {{{
+    *   given CodecConfig = CodecConfig(noneHandling = NoneHandling.Ignore)
+    *   val registry = base.newBuilder.register[Person].build
+    * }}}
+    *
+    * derives under that configuration. Before 1.0 the given was never summoned here, so a builder silently derived under the defaults and
+    * wrote `None` as `null` despite the declaration - the configuration only took effect when passed explicitly. When no `CodecConfig` is in
+    * scope the default argument applies, so existing call sites keep their behaviour.
+    *
+    * `configure` and `withConfig` still override whatever was resolved here.
+    */
+  def from(base: CodecRegistry)(using config: CodecConfig = CodecConfig()): RegistryBuilder = State(base, config)
 
   /** Create builder from base registry with custom configuration */
   def apply(base: CodecRegistry, config: CodecConfig): RegistryBuilder =
@@ -552,8 +566,8 @@ object RegistryBuilder:
 
   /** Extension methods for CodecRegistry to create builders */
   extension (registry: CodecRegistry)
-    /** Create a new builder from this registry */
-    def newBuilder: RegistryBuilder = from(registry)
+    /** Create a new builder from this registry, honouring an in-scope `given CodecConfig`. */
+    def newBuilder(using config: CodecConfig = CodecConfig()): RegistryBuilder = from(registry)(using config)
 
     /** Create a new builder with custom configuration */
     def builderWith(config: CodecConfig): RegistryBuilder = apply(registry, config)

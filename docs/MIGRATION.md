@@ -231,8 +231,8 @@ val registry = RegistryBuilder
 ```scala
 // build.sbt
 libraryDependencies ++= Seq(
-  "io.github.mbannour" %% "mongoscala3codec" % "0.0.11",
-  "org.mongodb.scala" %% "mongo-scala-driver" % "5.6.0" cross CrossVersion.for3Use2_13
+  "io.github.mbannour" %% "mongoscala3codec" % "1.0.0",
+  "org.mongodb.scala" %% "mongo-scala-driver" % "5.12.0"
 )
 
 // Remove old dependencies:

@@ -1,3 +1,5 @@
+import com.typesafe.tools.mima.core.*
+
 import xerial.sbt.Sonatype.*
 import sbt.ClassLoaderLayeringStrategy
 import scoverage.ScoverageKeys.*
@@ -13,14 +15,18 @@ val scala3Version = "3.7.4"
   * `-Dmongodb.version=X` moves both to X, for the driver compatibility matrix only. A plain `sbt test` needs no properties and no
   * environment variables. Never a range, a `+` or `latest.release`: what gets published must resolve deterministically.
   *
+  * Both artifacts are the native Scala 3 builds (`_3`), which MongoDB has published since 5.7.0. That is the floor: no override below
+  * 5.7.0 can resolve, because no `_3` artifact exists for it. The previous `CrossVersion.for3Use2_13` shim was removed in 1.0.0 - it
+  * made sbt fail hard ("conflicting cross-version suffixes") for anyone who also depended on the official native Scala 3 driver.
+  *
   * {{{
   *   sbt test                                  // the defaults below
   *   sbt -Dmongodb.version=5.12.0 test         // one matrix cell
   * }}}
   */
 val mongoDbVersionOverride = sys.props.get("mongodb.version")
-val mongoScalaBsonVersion = mongoDbVersionOverride.getOrElse("5.6.5")
-val mongoScalaDriverVersion = mongoDbVersionOverride.getOrElse("5.6.0")
+val mongoScalaBsonVersion = mongoDbVersionOverride.getOrElse("5.12.0")
+val mongoScalaDriverVersion = mongoDbVersionOverride.getOrElse("5.12.0")
 
 /** The published artifact every build is checked against for binary compatibility.
   *
@@ -42,8 +48,9 @@ ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
   "3.4.2",
   "3.6.3",
-  "3.6.4",
-  "3.7.1"
+  "3.7.1",
+  "3.7.4",
+  "3.8.0"
 )
 
 ThisBuild / conflictManager := ConflictManager.default
@@ -68,10 +75,9 @@ lazy val root = project
   .settings(
     name := "MongoScala3Codec",
     organization := "io.github.mbannour",
-    version := "0.0.11",
     description := "A library for MongoDB BSON codec generation using Scala 3 macros.",
     homepage := Some(url("https://github.com/mbannour/MongoScala3Codec")),
-    licenses += ("MIT", url("https://opensource.org/licenses/MIT")),
+    licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
     scmInfo := Some(
       ScmInfo(
         url("https://github.com/mbannour/MongoScala3Codec"),
@@ -90,7 +96,7 @@ lazy val root = project
       "org.scalatest" %% "scalatest" % "3.2.20" % Test,
       "org.scalacheck" %% "scalacheck" % "1.19.0" % Test,
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-bson" % mongoScalaBsonVersion).cross(CrossVersion.for3Use2_13)
+      "org.mongodb.scala" %% "mongo-scala-bson" % mongoScalaBsonVersion
     ),
     Compile / scalacOptions ++= Seq(
       "-encoding",
@@ -130,7 +136,13 @@ lazy val root = project
     mimaFailOnNoPrevious := true,
     // Deliberately empty. An exclusion here silences a real report, so each one must name the symbol it
     // covers and say why the break is acceptable - never a package-wide or problem-class-wide filter.
-    mimaBinaryIssueFilters := Seq.empty
+    mimaBinaryIssueFilters := Seq(
+      // 1.0.0: `from` and `newBuilder` gained a `(using CodecConfig)` clause so an in-scope `given CodecConfig` is honoured instead of
+      // silently dropped. Source-compatible (the default argument keeps existing call sites working); binary-breaking against 0.0.11,
+      // which carries no compatibility promise. Remove both once the baseline moves to 1.0.0.
+      ProblemFilters.exclude[DirectMissingMethodProblem]("io.github.mbannour.mongo.codecs.RegistryBuilder#package#RegistryBuilder.from"),
+      ProblemFilters.exclude[DirectMissingMethodProblem]("io.github.mbannour.mongo.codecs.RegistryBuilder#package#RegistryBuilder.newBuilder")
+    )
   )
 
 lazy val integrationTests = project
@@ -147,7 +159,7 @@ lazy val integrationTests = project
       "org.scalatestplus" %% "scalacheck-1-18" % "3.2.19.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-scalatest" % "0.44.0" % Test,
       "com.dimafeng" %% "testcontainers-scala-mongodb" % "0.44.0" % Test,
-      ("org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion).cross(CrossVersion.for3Use2_13)
+      "org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion
     ),
     testFrameworks += new TestFramework("org.scalatest.tools.Framework"),
     fork := true,
@@ -180,7 +192,7 @@ lazy val examples = project
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % "1.5.21",
       "org.slf4j" % "slf4j-api" % "2.0.17",
-      ("org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion).cross(CrossVersion.for3Use2_13)
+      "org.mongodb.scala" %% "mongo-scala-driver" % mongoScalaDriverVersion
     ),
     publish / skip := true,
     mimaPreviousArtifacts := Set.empty,

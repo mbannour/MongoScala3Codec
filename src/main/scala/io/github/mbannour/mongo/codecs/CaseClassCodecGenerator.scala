@@ -145,7 +145,15 @@ object CaseClassCodecGenerator:
         private val codecConfig: CodecConfig = $config
 
         // Maps from discriminator values to classes and vice versa.
-        private val caseClassesMap: Map[String, Class[?]] = CaseClassMapper.caseClassMap[T]
+        // Same resolution as the sealed codec, for the same reason: when this codec is registered as a
+        // sealed subtype it writes the discriminator itself, and a value encoded here must stay decodable
+        // through the sealed codec.
+        private val caseClassesMap: Map[String, Class[?]] =
+          DiscriminatorResolver.discriminatorMap(
+            CaseClassMapper.caseClassSubtypes[T],
+            codecConfig.discriminatorStrategy,
+            encoderClass.getName
+          )
         private val classToCaseClassMap: Map[Class[?], Boolean] = ClassToCaseFlagMap.classToCaseClassMap[T]
         private val fieldTypeArgsMapByClass: Map[String, Map[String, List[Class[?]]]] = CaseClassFieldMapper.createClassFieldTypeArgsMap[T]
         private lazy val caseClassesMapInv: Map[Class[?], String] = caseClassesMap.map(_.swap)

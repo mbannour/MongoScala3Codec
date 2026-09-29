@@ -50,7 +50,7 @@ jobs:
 
     strategy:
       matrix:
-        scala: [ "3.3.1", "3.4.2", "3.6.4", "3.7.1", "3.8.0" ]
+        scala: [ "3.3.1", "3.4.2", "3.6.3", "3.7.1", "3.7.4", "3.8.0" ]
         java: [ "11", "17", "19", "21" ]
       fail-fast: false
 
@@ -79,8 +79,9 @@ jobs:
   # literals in build.sbt; the empty value is the default build, which must keep
   # working with no property set.
   #
-  # The three cells are the v1.0 support statement: oldest intentionally
-  # supported, the compiled-against default, and the newest validated release.
+  # The three cells are the v1.0 support statement: 5.7.0, the first release
+  # with a native Scala 3 (_3) artifact and so the floor; a mid-line release;
+  # and the empty cell, the compiled-against default (5.12.0).
   driver-compatibility:
     runs-on: ubuntu-latest
     name: MongoDB Driver ${{ matrix.mongodb || 'default' }}
@@ -89,7 +90,7 @@ jobs:
 
     strategy:
       matrix:
-        mongodb: [ "5.0.0", "", "5.12.0" ]
+        mongodb: [ "5.7.0", "", "5.9.2" ]
       fail-fast: false
 
     steps:

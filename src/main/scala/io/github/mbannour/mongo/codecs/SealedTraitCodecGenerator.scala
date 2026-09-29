@@ -81,14 +81,18 @@ object SealedTraitCodecGenerator:
           "Only sealed traits, sealed classes, and sealed abstract classes are supported."
       )
 
-    val caseClassesMapExpr = '{ CaseClassMapper.caseClassMap[T] }
+    val subtypesExpr = '{ CaseClassMapper.caseClassSubtypes[T] }
 
     '{
       new Codec[T]:
         private val encoderClass: Class[T] = $classTag.runtimeClass.asInstanceOf[Class[T]]
         private val codecConfig: CodecConfig = $config
 
-        private val caseClassesMap: Map[String, Class[?]] = $caseClassesMapExpr
+        // Resolved under the configured strategy rather than fixed by the macro, so that
+        // `CodecConfig.discriminatorStrategy` actually reaches the stored document. Both directions read
+        // this one map, so encoding and decoding cannot disagree about a subtype's value.
+        private val caseClassesMap: Map[String, Class[?]] =
+          DiscriminatorResolver.discriminatorMap($subtypesExpr, codecConfig.discriminatorStrategy, encoderClass.getName)
 
         private lazy val caseClassesMapInv: Map[Class[?], String] = caseClassesMap.map(_.swap)
 
