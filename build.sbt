@@ -29,7 +29,7 @@ val scala3Version = "3.3.8"
   * }}}
   */
 val mongoDbVersionOverride = sys.props.get("mongodb.version")
-val mongoScalaBsonVersion = mongoDbVersionOverride.getOrElse("5.12.0")
+val mongoScalaBsonVersion = mongoDbVersionOverride.getOrElse("5.13.0")
 val mongoScalaDriverVersion = mongoDbVersionOverride.getOrElse("5.12.0")
 
 /** The published artifact every build is checked against for binary compatibility.
