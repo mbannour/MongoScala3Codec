@@ -13,9 +13,9 @@ case class Square(side: Double) extends Shape
 
 /** Derivation exercised from a package outside `io.github.mbannour`.
   *
-  * Every other test in this suite lives under `io.github.mbannour`, where the library's `private[mbannour]` macro helpers are accessible for
-  * free. Real users are not, so a macro that splices a reference to one of those helpers would compile here and fail for them. This spec is
-  * the only place that difference is observable.
+  * Every other test in this suite lives under `io.github.mbannour`, where the library's `private[mbannour]` macro helpers are accessible
+  * for free. Real users are not, so a macro that splices a reference to one of those helpers would compile here and fail for them. This
+  * spec is the only place that difference is observable.
   */
 class ExternalPackageAccessSpec extends AnyFlatSpec with Matchers:
 

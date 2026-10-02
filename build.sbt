@@ -15,9 +15,9 @@ val scala3Version = "3.7.4"
   * `-Dmongodb.version=X` moves both to X, for the driver compatibility matrix only. A plain `sbt test` needs no properties and no
   * environment variables. Never a range, a `+` or `latest.release`: what gets published must resolve deterministically.
   *
-  * Both artifacts are the native Scala 3 builds (`_3`), which MongoDB has published since 5.7.0. That is the floor: no override below
-  * 5.7.0 can resolve, because no `_3` artifact exists for it. The previous `CrossVersion.for3Use2_13` shim was removed in 1.0.0 - it
-  * made sbt fail hard ("conflicting cross-version suffixes") for anyone who also depended on the official native Scala 3 driver.
+  * Both artifacts are the native Scala 3 builds (`_3`), which MongoDB has published since 5.7.0. That is the floor: no override below 5.7.0
+  * can resolve, because no `_3` artifact exists for it. The previous `CrossVersion.for3Use2_13` shim was removed in 1.0.0 - it made sbt
+  * fail hard ("conflicting cross-version suffixes") for anyone who also depended on the official native Scala 3 driver.
   *
   * {{{
   *   sbt test                                  // the defaults below
@@ -116,7 +116,7 @@ lazy val root = project
     // rejects -Xtarget:11, so the 3.8 cell of the compiler matrix compiles with that compiler's default target instead.
     Compile / scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((3, minor)) if minor < 8 => Seq("-Xtarget:11")
-      case _                            => Seq.empty
+      case _                             => Seq.empty
     }),
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
     // No "-rewrite" here. It edits the test sources in place during compilation, which makes a
@@ -146,7 +146,8 @@ lazy val root = project
       // silently dropped. Source-compatible (the default argument keeps existing call sites working); binary-breaking against 0.0.11,
       // which carries no compatibility promise. Remove both once the baseline moves to 1.0.0.
       ProblemFilters.exclude[DirectMissingMethodProblem]("io.github.mbannour.mongo.codecs.RegistryBuilder#package#RegistryBuilder.from"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("io.github.mbannour.mongo.codecs.RegistryBuilder#package#RegistryBuilder.newBuilder")
+      ProblemFilters
+        .exclude[DirectMissingMethodProblem]("io.github.mbannour.mongo.codecs.RegistryBuilder#package#RegistryBuilder.newBuilder")
     )
   )
 

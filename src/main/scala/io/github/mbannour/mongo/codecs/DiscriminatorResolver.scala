@@ -38,8 +38,8 @@ object DiscriminatorResolver:
     *     holding it would decode as the other.
     *
     * Neither is reachable through `SimpleName` or `FullyQualifiedName`, which are derived from distinct compile-time names and are checked
-    * for collision by the macro. Both are reachable through a hand-written `Custom` mapping, which is why they are checked here. The failure
-    * happens while the registry is being built, before anything has been written.
+    * for collision by the macro. Both are reachable through a hand-written `Custom` mapping, which is why they are checked here. The
+    * failure happens while the registry is being built, before anything has been written.
     */
   private[mbannour] def discriminatorMap(
       subtypes: List[SubtypeDiscriminator],

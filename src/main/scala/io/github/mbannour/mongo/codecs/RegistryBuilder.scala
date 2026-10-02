@@ -122,8 +122,8 @@ object RegistryBuilder:
     * }}}
     *
     * derives under that configuration. Before 1.0 the given was never summoned here, so a builder silently derived under the defaults and
-    * wrote `None` as `null` despite the declaration - the configuration only took effect when passed explicitly. When no `CodecConfig` is in
-    * scope the default argument applies, so existing call sites keep their behaviour.
+    * wrote `None` as `null` despite the declaration - the configuration only took effect when passed explicitly. When no `CodecConfig` is
+    * in scope the default argument applies, so existing call sites keep their behaviour.
     *
     * `configure` and `withConfig` still override whatever was resolved here.
     */

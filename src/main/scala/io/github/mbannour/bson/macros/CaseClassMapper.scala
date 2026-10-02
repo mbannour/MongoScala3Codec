@@ -165,6 +165,7 @@ object CaseClassMapper:
       case Some(other) =>
         report.errorAndAbort(s"Unexpected @BsonDiscriminator annotation on '${symbol.name}': ${other.show}")
       case None => None
+    end match
   end annotatedDiscriminator
 
   /** Rejects two subtypes that would be stored under the same discriminator.
