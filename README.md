@@ -713,7 +713,10 @@ Tested in CI across JDK 11, 17, 19 and 21:
 | 3.6.3 | tested |
 | 3.7.1 | tested |
 | 3.7.4 | default |
-| 3.8.0 | tested |
+| 3.8.0 | tested (JDK 17+) |
+
+Scala 3.8 itself requires JDK 17 or later, so that row is not tested on JDK 11. The published
+artifact is built with 3.7.4 and runs on JDK 11.
 
 Scala 3.3.1 is the floor. Versions between the tested ones are expected to work, but only the ones
 listed are tested — we do not claim "all Scala 3 versions".
