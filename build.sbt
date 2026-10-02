@@ -106,13 +106,18 @@ lazy val root = project
       "-feature",
       "-language:higherKinds",
       "-language:implicitConversions",
-      "-Xtarget:11",
       "-unchecked",
       "-Xcheck-macros",
       "-Yretain-trees",
       "-Wunused:all",
       "-Wconf:msg=unused local definition:s"
     ),
+    // The published artifact is built with scala3Version (3.7.x) and targets JVM 11. Scala 3.8 raised its own floor to JVM 17 and
+    // rejects -Xtarget:11, so the 3.8 cell of the compiler matrix compiles with that compiler's default target instead.
+    Compile / scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, minor)) if minor < 8 => Seq("-Xtarget:11")
+      case _                            => Seq.empty
+    }),
     Compile / scalacOptions ++= (if (sys.env.contains("CI")) Seq("-Werror") else Seq.empty),
     // No "-rewrite" here. It edits the test sources in place during compilation, which makes a
     // cross-build unsafe to run: `+test` would rewrite the sources under one compiler and then fail
