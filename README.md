@@ -702,21 +702,25 @@ it is recorded here rather than presented as desirable.
 
 ## Supported Scala versions
 
-**Default (compiled and published against): Scala 3.7.4.**
+**Published artifact: compiled with Scala 3.3.8 (the 3.3 LTS line), so it works from any Scala 3.3.1 or later.**
+
+Scala 3 libraries can be used only by the same or a newer compiler minor version. Building on the LTS
+line is what lets 3.3 to 3.6 users depend on it as well as 3.7 and 3.8 users.
 
 Tested in CI across JDK 11, 17, 19 and 21:
 
 | Scala | Status |
 |---|---|
-| 3.3.1 | tested |
+| 3.3.1 | tested (floor) |
+| 3.3.8 | default — published build |
 | 3.4.2 | tested |
 | 3.6.3 | tested |
 | 3.7.1 | tested |
-| 3.7.4 | default |
+| 3.7.4 | tested |
 | 3.8.0 | tested (JDK 17+) |
 
 Scala 3.8 itself requires JDK 17 or later, so that row is not tested on JDK 11. The published
-artifact is built with 3.7.4 and runs on JDK 11.
+artifact is built with 3.3.8, targets JVM 11, and is used unchanged from 3.8 on JDK 17+.
 
 Scala 3.3.1 is the floor. Versions between the tested ones are expected to work, but only the ones
 listed are tested — we do not claim "all Scala 3 versions".
@@ -731,7 +735,7 @@ The library uses only the BSON codec layer plus MongoDB's own `@BsonProperty` an
 no part of `mongodb-driver-core`, `mongodb-driver-sync`, `mongodb-driver-reactivestreams` or
 `mongo-scala-driver`, and imports nothing from `com.mongodb`.
 
-Verified on Scala 3.7.4. Each of these versions compiles the library and passes the full suite,
+Verified on Scala 3.3.8. Each of these versions compiles the library and passes the full suite,
 including the golden BSON fixtures, so the encoded bytes are identical:
 
 | Driver version | Status |

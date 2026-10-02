@@ -4,7 +4,11 @@ import xerial.sbt.Sonatype.*
 import sbt.ClassLoaderLayeringStrategy
 import scoverage.ScoverageKeys.*
 
-val scala3Version = "3.7.4"
+/** The compiler the published artifact is built with. Scala 3 is backwards compatible only: TASTy written by 3.N cannot be read by 3.M for
+  * M < N, so users need at least this minor line. On the 3.3 LTS line every 3.3+ user can depend on the library; building with 3.7.4 locked
+  * out 3.3 to 3.6 with "TASTy signature has wrong version". Stay on the 3.3 LTS line.
+  */
+val scala3Version = "3.3.8"
 
 /** The MongoDB driver version this build compiles, tests and publishes against.
   *
@@ -46,6 +50,7 @@ ThisBuild / incOptions := (ThisBuild / incOptions).value.withPipelining(false)
 
 ThisBuild / crossScalaVersions := Seq(
   "3.3.1",
+  "3.3.8",
   "3.4.2",
   "3.6.3",
   "3.7.1",
@@ -112,7 +117,7 @@ lazy val root = project
       "-Wunused:all",
       "-Wconf:msg=unused local definition:s"
     ),
-    // The published artifact is built with scala3Version (3.7.x) and targets JVM 11. Scala 3.8 raised its own floor to JVM 17 and
+    // The published artifact is built with scala3Version (3.3 LTS) and targets JVM 11. Scala 3.8 raised its own floor to JVM 17 and
     // rejects -Xtarget:11, so the 3.8 cell of the compiler matrix compiles with that compiler's default target instead.
     Compile / scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((3, minor)) if minor < 8 => Seq("-Xtarget:11")

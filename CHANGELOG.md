@@ -54,6 +54,9 @@ version: MiMa checks every 1.x release against 1.0.0.
   but binary-incompatible with 0.0.11.
 
 ### Fixed
+- The published artifact is compiled with Scala 3.3.8 (3.3 LTS) instead of 3.7.x. A Scala 3 library
+  can only be used from the same or a newer compiler minor version, so 0.0.x releases built with 3.7
+  could not be used from Scala 3.3 to 3.6 at all. 1.0.0 works from any Scala 3.3.1 or later.
 - `CodecConfig.discriminatorStrategy` now takes effect. `SimpleName`, `FullyQualifiedName` and
   `Custom(map)` control the discriminator value written and read by both the sealed-hierarchy
   codec and a subtype codec. `@BsonDiscriminator` still overrides it per subtype. The default
