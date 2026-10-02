@@ -64,7 +64,7 @@ ThisBuild / coverageHighlighting := true
 ThisBuild / coverageMinimumStmtTotal := 50
 ThisBuild / coverageFailOnMinimum := true
 
-usePgpKeyHex("268599B76CCD8B4C")
+usePgpKeyHex("BFB521DFD5035C54")
 
 ThisBuild / sonatypeCredentialHost := sonatypeCentralHost
 ThisBuild / scalaVersion := scala3Version
