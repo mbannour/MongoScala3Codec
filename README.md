@@ -729,7 +729,7 @@ listed are tested — we do not claim "all Scala 3 versions".
 
 ## Supported MongoDB driver versions
 
-**Compiled and published against the native Scala 3 `mongo-scala-bson_3` 5.12.0** (`org.mongodb:bson` 5.12.0).
+**Compiled and published against the native Scala 3 `mongo-scala-bson_3` 5.13.0** (`org.mongodb:bson` 5.12.0).
 
 The library uses only the BSON codec layer plus MongoDB's own `@BsonProperty` annotation. It needs
 no part of `mongodb-driver-core`, `mongodb-driver-sync`, `mongodb-driver-reactivestreams` or

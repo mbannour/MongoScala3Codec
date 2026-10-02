@@ -42,7 +42,7 @@ version: MiMa checks every 1.x release against 1.0.0.
   compile-time safety layer on the official BSON/codec APIs, not a replacement for the driver.
 
 ### Breaking
-- **Depends on the native Scala 3 `mongo-scala-bson_3`** (5.12.0) instead of the Scala 2.13 artifact
+- **Depends on the native Scala 3 `mongo-scala-bson_3`** (5.13.0) instead of the Scala 2.13 artifact
   through `CrossVersion.for3Use2_13`. Combining the library with the native `mongo-scala-driver_3`
   no longer fails resolution with conflicting cross-version suffixes. The minimum driver is now
   **5.7.0**, the first release with a `_3` artifact.
