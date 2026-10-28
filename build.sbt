@@ -8,7 +8,7 @@ import scoverage.ScoverageKeys.*
   * M < N, so users need at least this minor line. On the 3.3 LTS line every 3.3+ user can depend on the library; building with 3.7.4 locked
   * out 3.3 to 3.6 with "TASTy signature has wrong version". Stay on the 3.3 LTS line.
   */
-val scala3Version = "3.3.8"
+val scala3Version = "3.3.9"
 
 /** The MongoDB driver version this build compiles, tests and publishes against.
   *
